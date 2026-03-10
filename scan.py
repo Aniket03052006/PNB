@@ -40,6 +40,12 @@ import time
 from datetime import datetime, timezone
 from pathlib import Path
 
+from rich.console import Console
+from rich.table import Table
+from rich.panel import Panel
+from rich.text import Text
+from rich import box
+
 from backend.models import (
     DiscoveredAsset, ScanResult, ScanSummary, PQCStatus, CryptoFingerprint,
 )
@@ -49,8 +55,10 @@ from backend.scanner.cbom_generator import generate_cbom, generate_simple_report
 from backend.scanner.label_issuer import issue_label
 from backend.scanner.assessment import analyze_endpoint, analyze_batch
 from backend.scanner.remediation import generate_remediation, generate_batch_remediation
+from backend.scanner.labeler import evaluate_and_label, summarize_labels
 
 logger = logging.getLogger("qarmor.cli")
+console = Console()
 
 
 # ── Logging ──────────────────────────────────────────────────────────────────
@@ -122,24 +130,41 @@ def _load_targets(filepath: str) -> list[str]:
 
 
 STATUS_COLORS = {
-    "FULLY_QUANTUM_SAFE":    "\033[92m",
-    "PQC_TRANSITION":        "\033[96m",
-    "QUANTUM_VULNERABLE":    "\033[93m",
-    "CRITICALLY_VULNERABLE": "\033[91m",
-    "UNKNOWN":               "\033[90m",
+    "FULLY_QUANTUM_SAFE":    "bold green",
+    "PQC_TRANSITION":        "bold cyan",
+    "QUANTUM_VULNERABLE":    "bold yellow",
+    "CRITICALLY_VULNERABLE": "bold red",
+    "UNKNOWN":               "dim",
 }
-RESET = "\033[0m"
-BOLD = "\033[1m"
 
+RISK_STYLE = {
+    "HIGH":   "bold red",
+    "MEDIUM": "bold yellow",
+    "LOW":    "bold green",
+}
 
-def _color(text: str, status: str) -> str:
-    return f"{STATUS_COLORS.get(status, '')}{text}{RESET}"
+LABEL_STYLE = {
+    "Fully Quantum Safe": "bold green",
+    "PQC Ready":          "bold cyan",
+    "Non-Compliant":      "bold red",
+}
 
 
 def _print_table(results: list[ScanResult]) -> None:
-    header = f"{'ASSET':<40} {'TLS':<8} {'KEY EXCHANGE':<20} {'CERT':<12} {'Q-SCORE':>7}  {'STATUS'}"
-    print(f"\n{BOLD}{header}{RESET}")
-    print("─" * 110)
+    table = Table(
+        title="[bold cyan]Q-ARMOR Scan Results[/bold cyan]",
+        box=box.ROUNDED,
+        border_style="bright_black",
+        header_style="bold white",
+        show_lines=False,
+        pad_edge=True,
+    )
+    table.add_column("Asset", style="cyan", min_width=30)
+    table.add_column("TLS", justify="center", min_width=8)
+    table.add_column("Key Exchange", min_width=18)
+    table.add_column("Cert", min_width=10)
+    table.add_column("Q-Score", justify="right", min_width=8)
+    table.add_column("Status", min_width=22)
 
     for r in sorted(results, key=lambda x: x.q_score.total):
         asset = f"{r.asset.hostname}:{r.asset.port}"
@@ -148,13 +173,20 @@ def _print_table(results: list[ScanResult]) -> None:
         cert_algo = r.fingerprint.certificate.public_key_type or "—"
         score = r.q_score.total
         status = r.q_score.status.value
+        style = STATUS_COLORS.get(status, "")
 
-        score_str = _color(f"{score:>3}/100", status)
-        status_str = _color(status, status)
+        table.add_row(
+            asset,
+            tls_v,
+            kex,
+            cert_algo,
+            f"[{style}]{score}/100[/{style}]",
+            f"[{style}]{status}[/{style}]",
+        )
 
-        print(f"  {asset:<38} {tls_v:<8} {kex:<20} {cert_algo:<12} {score_str}  {status_str}")
-
-    print()
+    console.print()
+    console.print(table)
+    console.print()
 
 
 def _print_findings(results: list[ScanResult]) -> None:
@@ -164,58 +196,87 @@ def _print_findings(results: list[ScanResult]) -> None:
     if not vuln:
         return
 
-    print(f"\n{BOLD}─── KEY FINDINGS ───{RESET}")
+    console.print()
+    console.rule("[bold yellow]KEY FINDINGS[/bold yellow]", style="yellow")
     for r in vuln[:5]:
-        print(f"\n  {BOLD}{r.asset.hostname}:{r.asset.port}{RESET}")
+        console.print(f"\n  [bold]{r.asset.hostname}:{r.asset.port}[/bold]")
         for f in r.q_score.findings[:3]:
-            print(f"    • {f}")
+            console.print(f"    [dim]•[/dim] {f}")
+        style = STATUS_COLORS.get(r.q_score.status.value, "")
         for rec in r.q_score.recommendations[:2]:
-            print(f"    → {_color(rec, r.q_score.status.value)}")
+            console.print(f"    [dim]→[/dim] [{style}]{rec}[/{style}]")
 
 
 def _print_summary(summary: ScanSummary) -> None:
-    print(f"\n{BOLD}─── SCAN SUMMARY ───{RESET}")
-    print(f"  Total Assets:          {summary.total_assets}")
-    print(f"  Avg Q-Score:           {summary.average_q_score}")
-    print(f"  Fully Quantum Safe:    {_color(str(summary.fully_quantum_safe), 'FULLY_QUANTUM_SAFE')}")
-    print(f"  PQC Transition:        {_color(str(summary.pqc_transition), 'PQC_TRANSITION')}")
-    print(f"  Quantum Vulnerable:    {_color(str(summary.quantum_vulnerable), 'QUANTUM_VULNERABLE')}")
-    print(f"  Critically Vulnerable: {_color(str(summary.critically_vulnerable), 'CRITICALLY_VULNERABLE')}")
+    console.print()
+    console.rule("[bold white]SCAN SUMMARY[/bold white]", style="bright_black")
+    console.print(f"  Total Assets:          {summary.total_assets}")
+    console.print(f"  Avg Q-Score:           {summary.average_q_score}")
+    console.print(f"  Fully Quantum Safe:    [bold green]{summary.fully_quantum_safe}[/bold green]")
+    console.print(f"  PQC Transition:        [bold cyan]{summary.pqc_transition}[/bold cyan]")
+    console.print(f"  Quantum Vulnerable:    [bold yellow]{summary.quantum_vulnerable}[/bold yellow]")
+    console.print(f"  Critically Vulnerable: [bold red]{summary.critically_vulnerable}[/bold red]")
     if summary.unknown > 0:
-        print(f"  Unknown:               {_color(str(summary.unknown), 'UNKNOWN')}")
-    print()
-
-
-RISK_COLORS = {
-    "HIGH":   "\033[91m",
-    "MEDIUM": "\033[93m",
-    "LOW":    "\033[92m",
-}
+        console.print(f"  Unknown:               [dim]{summary.unknown}[/dim]")
+    console.print()
 
 
 def _print_assessment(summary: ScanSummary) -> None:
-    """Print Phase 2 PQC Assessment results to the terminal."""
+    """Print Phase 2 PQC Assessment + Phase 4 Labels using rich tables."""
     batch = analyze_batch(summary)
     rems = generate_batch_remediation(batch)
     agg = batch["aggregate"]
 
-    print(f"\n{BOLD}═══ PHASE 2: PQC VALIDATION & ASSESSMENT ═══{RESET}")
-    print()
+    # ── Phase 4: Certification Labels ────────────────────────────────
+    labels = evaluate_and_label(batch["assessments"])
+    label_summary = summarize_labels(labels)
+    label_map = {f"{l['target']}:{l['port']}": l for l in labels}
+
+    console.print()
+    console.rule("[bold cyan]PHASE 2: PQC VALIDATION & ASSESSMENT[/bold cyan]", style="cyan")
+    console.print()
 
     # KPI Summary
-    print(f"  {BOLD}KPIs:{RESET}")
-    print(f"    HNDL-Exposed Endpoints:  {RISK_COLORS['HIGH']}{agg['hndl_vulnerable']}/{agg['total_endpoints']}{RESET} ({agg['hndl_vulnerable_pct']}%)")
-    print(f"    TLS Compliant (≥1.3):    {agg['tls_pass']}/{agg['total_endpoints']} ({agg['tls_pass_pct']}%)")
-    print(f"    Key Exchange PQC-Safe:   {agg['kex_pqc_safe']}/{agg['total_endpoints']}")
-    print(f"    Key Exchange Hybrid:     {agg['kex_hybrid']}/{agg['total_endpoints']}")
-    print(f"    Key Exchange Vulnerable: {RISK_COLORS['HIGH']}{agg['kex_vulnerable']}/{agg['total_endpoints']}{RESET}")
-    print(f"    Symmetric Compliant:     {agg['sym_pass']}/{agg['total_endpoints']}")
-    print()
+    kpi_table = Table(
+        title="[bold]Assessment KPIs[/bold]",
+        box=box.SIMPLE_HEAVY,
+        border_style="bright_black",
+        show_header=False,
+        pad_edge=True,
+    )
+    kpi_table.add_column("Metric", style="white", min_width=26)
+    kpi_table.add_column("Value", justify="right", min_width=16)
 
-    # Per-endpoint assessment table
-    header = f"{'ENDPOINT':<40} {'TLS':^6} {'KEX':^12} {'CERT':^12} {'SYM':^6} {'RISK':^8} {'HNDL':^6}"
-    print(f"  {BOLD}{header}{RESET}")
-    print(f"  {'─' * 95}")
+    kpi_table.add_row("HNDL-Exposed Endpoints", f"[bold red]{agg['hndl_vulnerable']}/{agg['total_endpoints']}[/bold red] ({agg['hndl_vulnerable_pct']}%)")
+    kpi_table.add_row("TLS Compliant (≥1.3)", f"{agg['tls_pass']}/{agg['total_endpoints']} ({agg['tls_pass_pct']}%)")
+    kpi_table.add_row("Key Exchange PQC-Safe", f"[bold green]{agg['kex_pqc_safe']}/{agg['total_endpoints']}[/bold green]")
+    kpi_table.add_row("Key Exchange Hybrid", f"[bold cyan]{agg['kex_hybrid']}/{agg['total_endpoints']}[/bold cyan]")
+    kpi_table.add_row("Key Exchange Vulnerable", f"[bold red]{agg['kex_vulnerable']}/{agg['total_endpoints']}[/bold red]")
+    kpi_table.add_row("Symmetric Compliant", f"{agg['sym_pass']}/{agg['total_endpoints']}")
+
+    console.print(kpi_table)
+    console.print()
+
+    # Per-endpoint assessment table with Label column
+    assess_table = Table(
+        title="[bold]Per-Endpoint Assessment[/bold]",
+        box=box.ROUNDED,
+        border_style="bright_black",
+        header_style="bold white",
+        show_lines=False,
+        pad_edge=True,
+    )
+    assess_table.add_column("Endpoint", style="cyan", min_width=30)
+    assess_table.add_column("TLS", justify="center", min_width=6)
+    assess_table.add_column("KEX", justify="center", min_width=12)
+    assess_table.add_column("CERT", justify="center", min_width=12)
+    assess_table.add_column("SYM", justify="center", min_width=6)
+    assess_table.add_column("Risk", justify="center", min_width=8)
+    assess_table.add_column("HNDL", justify="center", min_width=6)
+    assess_table.add_column("Awarded Label", justify="center", min_width=20)
+
+    kex_style_map = {"PQC_SAFE": "bold green", "HYBRID": "bold cyan", "VULNERABLE": "bold red"}
+    cert_style_map = {"PQC_SAFE": "bold green", "HYBRID": "bold cyan", "VULNERABLE": "bold red"}
 
     for a in batch["assessments"]:
         ep = f"{a.get('target', '?')}:{a.get('port', 443)}"
@@ -224,39 +285,53 @@ def _print_assessment(summary: ScanSummary) -> None:
         cert_s = a.get('certificate_status', '—')
         sym_s = a.get('symmetric_cipher_status', '—')
         risk = a.get('overall_quantum_risk', '—')
-        hndl = "⚠ YES" if a.get('hndl_vulnerable') else "✓ No"
+        hndl = a.get('hndl_vulnerable', False)
 
-        # Color code
-        tls_c = f"\033[92m{tls_s}\033[0m" if tls_s == "PASS" else f"\033[91m{tls_s}\033[0m"
-        kex_c = (f"\033[92m{kex_s}\033[0m" if kex_s == "PQC_SAFE"
-                 else f"\033[96m{kex_s}\033[0m" if kex_s == "HYBRID"
-                 else f"\033[91m{kex_s}\033[0m")
-        cert_c = (f"\033[92m{cert_s}\033[0m" if cert_s == "PQC_SAFE"
-                  else f"\033[96m{cert_s}\033[0m" if cert_s == "HYBRID"
-                  else f"\033[91m{cert_s}\033[0m")
-        sym_c = f"\033[92m{sym_s}\033[0m" if sym_s == "PASS" else f"\033[91m{sym_s}\033[0m"
-        risk_c = f"{RISK_COLORS.get(risk, '')}{risk}\033[0m"
-        hndl_c = f"\033[91m{hndl}\033[0m" if "YES" in hndl else f"\033[92m{hndl}\033[0m"
+        # Style cells
+        tls_styled = f"[bold green]{tls_s}[/bold green]" if tls_s == "PASS" else f"[bold red]{tls_s}[/bold red]"
+        kex_styled = f"[{kex_style_map.get(kex_s, 'bold red')}]{kex_s}[/{kex_style_map.get(kex_s, 'bold red')}]"
+        cert_styled = f"[{cert_style_map.get(cert_s, 'bold red')}]{cert_s}[/{cert_style_map.get(cert_s, 'bold red')}]"
+        sym_styled = f"[bold green]{sym_s}[/bold green]" if sym_s == "PASS" else f"[bold red]{sym_s}[/bold red]"
+        risk_styled = f"[{RISK_STYLE.get(risk, 'bold red')}]{risk}[/{RISK_STYLE.get(risk, 'bold red')}]"
+        hndl_styled = "[bold red]⚠ YES[/bold red]" if hndl else "[bold green]✓ No[/bold green]"
 
-        print(f"  {ep:<38} {tls_c:^17} {kex_c:^23} {cert_c:^23} {sym_c:^17} {risk_c:^19} {hndl_c:^17}")
+        # Label
+        label_rec = label_map.get(ep, {})
+        label_text = label_rec.get("label", "—")
+        label_icon = label_rec.get("tier_icon", "")
+        label_style = LABEL_STYLE.get(label_text, "dim")
+        label_display = f"[{label_style}]{label_icon} {label_text}[/{label_style}]"
 
-    print()
+        assess_table.add_row(
+            ep, tls_styled, kex_styled, cert_styled,
+            sym_styled, risk_styled, hndl_styled, label_display,
+        )
 
-    # Risk breakdown
-    print(f"  {BOLD}Risk Distribution:{RESET}")
-    print(f"    \033[91m■\033[0m HIGH:   {agg['risk_high']}  ({agg['risk_high_pct']}%)")
-    print(f"    \033[93m■\033[0m MEDIUM: {agg['risk_medium']}")
-    print(f"    \033[92m■\033[0m LOW:    {agg['risk_low']}")
-    print()
+    console.print(assess_table)
+    console.print()
+
+    # Risk distribution
+    console.rule("[bold]Risk Distribution[/bold]", style="bright_black")
+    console.print(f"    [bold red]■[/bold red] HIGH:   {agg['risk_high']}  ({agg['risk_high_pct']}%)")
+    console.print(f"    [bold yellow]■[/bold yellow] MEDIUM: {agg['risk_medium']}")
+    console.print(f"    [bold green]■[/bold green] LOW:    {agg['risk_low']}")
+    console.print()
+
+    # Phase 4 Label summary
+    console.rule("[bold cyan]PHASE 4: CERTIFICATION LABELS[/bold cyan]", style="cyan")
+    console.print(f"    [bold green]✅[/bold green] Fully Quantum Safe:  {label_summary['fully_quantum_safe']}  ({label_summary['fully_quantum_safe_pct']})")
+    console.print(f"    [bold cyan]🔶[/bold cyan] PQC Ready:           {label_summary['pqc_ready']}  ({label_summary['pqc_ready_pct']})")
+    console.print(f"    [bold red]❌[/bold red] Non-Compliant:       {label_summary['non_compliant']}  ({label_summary['non_compliant_pct']})")
+    console.print()
 
     # Top remediations
     critical = rems.get("critical_actions", [])
     if critical:
-        print(f"  {BOLD}🔴 Critical Remediations ({len(critical)}):{RESET}")
+        console.rule(f"[bold red]Critical Remediations ({len(critical)})[/bold red]", style="red")
         for r in critical[:5]:
-            print(f"    • {r['title']}")
-            print(f"      {r['description'][:120]}...")
-            print()
+            console.print(f"    [bold]•[/bold] {r['title']}")
+            console.print(f"      [dim]{r['description'][:120]}...[/dim]")
+            console.print()
 
     return batch, rems
 
@@ -323,20 +398,20 @@ async def scan_targets(targets: list[str], port: int) -> ScanSummary:
 
 # ── Banner ───────────────────────────────────────────────────────────────────
 
-BANNER = r"""
+BANNER = r"""[bold cyan]
 ╔══════════════════════════════════════════════════════════════════════╗
 ║                                                                      ║
 ║    ██████   ██████  ██████  ███    ███  ██████  ██████               ║
 ║   ██    ██  ██   ██ ██   ██ ████  ████ ██    ██ ██   ██              ║
 ║   ██    ██  ██████  ██████  ██ ████ ██ ██    ██ ██████               ║
 ║   ██ ▄▄ ██  ██   ██ ██   ██ ██  ██  ██ ██    ██ ██   ██             ║
-║    ██████   ██   ██ ██   ██ ██      ██  ██████  ██   ██              ║
+║    ██████   ██   ██ ���█   ██ ██      ██  ██████  ██   ██              ║
 ║       ▀▀                                                             ║
 ║   Quantum-Aware Mapping & Observation for Risk Remediation           ║
 ║   PQC Readiness Scanner — NIST FIPS 203/204/205                      ║
 ║                                                                      ║
 ╚══════════════════════════════════════════════════════════════════════╝
-"""
+[/bold cyan]"""
 
 
 # ── Main ─────────────────────────────────────────────────────────────────────

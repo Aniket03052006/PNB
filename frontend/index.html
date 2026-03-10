@@ -29,6 +29,7 @@
                 <span class="phase-badge phase-badge--p1" title="Phase 1: Discovery & Scanning">⚡ Phase 1</span>
                 <span class="phase-badge phase-badge--p2" title="Phase 2: PQC Assessment & Remediation">🛡️ Phase 2</span>
                 <span class="phase-badge phase-badge--p3" title="Phase 3: Full CBOM Generation">📦 Phase 3</span>
+                <span class="phase-badge phase-badge--p4" title="Phase 4: Certification Labeling Engine">🏷️ Phase 4</span>
                 <button class="btn btn-primary" id="btnDemoScan" onclick="runDemoScan()">▶ Run Demo Scan</button>
                 <button class="btn" id="btnExportCBOM" onclick="exportCBOM()" disabled>↓ Export Phase 3 CBOM</button>
             </div>
@@ -142,7 +143,31 @@
                 </div>
             </div>
 
-            <!-- PQC Labels -->
+            <!-- Phase 4: Certification Labels -->
+            <div class="panel" id="certLabelsSection" style="display: none;">
+                <div class="panel-header">
+                    <div class="panel-title">🏷️ Phase 4: Certification Labels</div>
+                    <div class="panel-badge" id="certLabelCount" style="background: rgba(0, 212, 255, 0.12); color: var(--accent-cyan);">0 labels</div>
+                </div>
+                <!-- Tier summary cards -->
+                <div class="stats-grid" id="certLabelStats" style="margin-bottom: 16px;">
+                    <div class="stat-card stat-card--safe">
+                        <div class="stat-value" id="certFullySafe">0</div>
+                        <div class="stat-label">✅ FULLY QUANTUM SAFE</div>
+                    </div>
+                    <div class="stat-card stat-card--transition">
+                        <div class="stat-value" id="certPQCReady">0</div>
+                        <div class="stat-label">🔶 PQC READY</div>
+                    </div>
+                    <div class="stat-card stat-card--critical">
+                        <div class="stat-value" id="certNonCompliant">0</div>
+                        <div class="stat-label">❌ NON-COMPLIANT</div>
+                    </div>
+                </div>
+                <div class="labels-grid" id="certLabelsContainer"></div>
+            </div>
+
+            <!-- PQC Labels (Phase 1) -->
             <div class="panel" id="labelsSection" style="display: none;">
                 <div class="panel-header">
                     <div class="panel-title">PQC-Ready Certificates Issued</div>
@@ -325,12 +350,16 @@
         <!-- Footer -->
         <footer class="footer">
             <div class="footer-text">
-                Q-ARMOR v2.0.0 — Scan. Classify. Assess. Remediate. Future-proof.
+                Q-ARMOR v4.0.0 — Scan. Classify. Assess. Remediate. Label. Future-proof.
                 <br>
                 <span style="color: var(--accent-green); font-size: 0.75rem;">
                     ✓ Phase 1: Discovery &amp; Protocol Analysis
                     &nbsp;|&nbsp;
                     ✓ Phase 2: PQC Assessment &amp; Remediation
+                    &nbsp;|&nbsp;
+                    ✓ Phase 3: CBOM Generation
+                    &nbsp;|&nbsp;
+                    ✓ Phase 4: Certification Labels
                 </span>
                 <br>
                 Built on <a href="#">NIST FIPS 203/204/205</a> &middot; <a href="#">CycloneDX 1.6 CBOM</a> &middot; <a href="#">PQCC Whitepaper</a>

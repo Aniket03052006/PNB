@@ -15,6 +15,8 @@ A cryptographic scanner and inventory engine that discovers quantum-vulnerable c
 - [Features](#features)
 - [Phase 1 — CLI Scanner](#phase-1--cli-scanner)
 - [Phase 2 — PQC Assessment & Remediation](#phase-2--pqc-assessment--remediation)
+- [Phase 3 — CBOM Generation Engine](#phase-3--cbom-generation-engine)
+- [Phase 4 — Certification Labeling Engine](#phase-4--certification-labeling-engine)
 - [Tech Stack](#tech-stack)
 - [Project Structure](#project-structure)
 - [Setup & Installation](#setup--installation)
@@ -77,9 +79,41 @@ Q-ARMOR provides **visibility** into where quantum-vulnerable cryptography exist
 |  | - Hybrid detect|   | - Batch analysis |   | - Roadmap    |   |
 |  +----------------+   +------------------+   +--------------+    |
 |                                                                  |
+|  Phase 3: CBOM Generation Engine                                 |
+|  +----------------+   +------------------+   +--------------+    |
+|  | PHASE 1        |   | PHASE 2          |   | CycloneDX    |   |
+|  | SCAN DATA      |-->| ASSESSMENT DATA  |-->| 1.6 CBOM     |   |
+|  | (fingerprints) |   | (NIST scores)    |   | (native JSON)|   |
+|  +----------------+   +------------------+   +--------------+    |
+|        |                      |                     |            |
+|        v                      v                     v            |
+|  +----------------+   +------------------+   +--------------+    |
+|  | - Protocol     |   | - Risk scores    |   | - 6 component|   |
+|  |   components   |   |   per component  |   |   types      |   |
+|  | - KEX comps    |   | - NIST FIPS refs |   | - Dependency |   |
+|  | - Cert comps   |   | - HNDL flags     |   |   graph      |   |
+|  | - Sym comps    |   | - Q-Score embed  |   | - PQC props  |   |
+|  +----------------+   +------------------+   +--------------+    |
+|                                                                  |
+|  Phase 4: Certification Labeling Engine                          |
+|  +----------------+   +------------------+   +--------------+    |
+|  | ASSESSMENT     |   | 3-TIER LABEL     |   | RICH CLI     |   |
+|  | RESULTS        |-->| ENGINE           |-->| OUTPUT       |   |
+|  | (per-endpoint) |   | (labeler.py)     |   | (tables)     |   |
+|  +----------------+   +------------------+   +--------------+    |
+|        |                      |                     |            |
+|        v                      v                     v            |
+|  +----------------+   +------------------+   +--------------+    |
+|  | - TLS version  |   | ✅ Fully Quantum |   | - Color-coded|   |
+|  | - KEX algorithm|   |    Safe          |   |   tables     |   |
+|  | - Cert chain   |   | 🔶 PQC Ready     |   | - Label col  |   |
+|  | - Symmetric    |   | ❌ Non-Compliant |   | - Rich lib   |   |
+|  +----------------+   +------------------+   +--------------+    |
+|                                                                  |
 |  +------------------------------------------------------------+ |
-|  |                  DASHBOARD (HTML/CSS/JS)                    | |
-|  |  Overview | PQC Assessment | Remediation Plan | NIST Matrix| |
+|  |              DASHBOARD (HTML/CSS/JS)                        | |
+|  |  Overview | PQC Assessment | Remediation | NIST Matrix     | |
+|  |           | Certification Labels                            | |
 |  |  Donut Charts | Dimension Bars | Risk Table | HNDL Status  | |
 |  +------------------------------------------------------------+ |
 +------------------------------------------------------------------+
@@ -101,6 +135,9 @@ Q-ARMOR provides **visibility** into where quantum-vulnerable cryptography exist
 | **HNDL Detection** | Identifies endpoints vulnerable to Harvest-Now, Decrypt-Later attacks |
 | **Remediation Roadmap** | Prioritized 4-tier action plan (P1 Critical → P4 Low) with concrete steps and timelines |
 | **Interactive Dashboard** | 4-tab HTML/CSS/JS dashboard with donut charts, dimension bars, risk tables, and strategic roadmap |
+| **Phase 3 CBOM Engine** | Native CycloneDX 1.6 CBOM generator — 6 component types, full dependency graph, PQC assessment annotations (zero external dependencies) |
+| **Certification Labeling** | 3-tier label engine: Fully Quantum Safe / PQC Ready / Non-Compliant — strict evaluation per endpoint |
+| **Rich CLI Output** | Beautiful color-coded terminal tables via `rich` library — label column, risk badges, TLS/KEX/CERT status |
 | Demo Mode | 21 pre-configured simulated bank assets for hackathon demonstration |
 
 ---
@@ -198,6 +235,93 @@ python scan.py --list targets.txt --assess
 
 ---
 
+## Phase 3 — CBOM Generation Engine
+
+Phase 3 delivers a **native CycloneDX 1.6 CBOM (Cryptographic Bill of Materials) generator** that merges Phase 1 scan data with Phase 2 NIST PQC assessments into a single, machine-readable JSON document — with **zero external dependencies** (pure Python `dict` + `json` module).
+
+### What Phase 3 Does
+
+| Capability | Detail |
+|-----------|--------|
+| **6 Component Types** | Application, TLS Protocol, Key Exchange, Certificate, Signature Algorithm, Symmetric Algorithm |
+| **Dependency Graph** | Full directed graph: App → Protocol → KEX + Cert + Sym; Cert → SigAlgo |
+| **PQC Annotations** | Each component carries `cryptoProperties` with NIST risk score and Q-Score |
+| **CycloneDX 1.6 Spec** | `bomFormat: CycloneDX`, `specVersion: 1.6`, valid JSON structure |
+| **Assessment Merge** | Phase 2 NIST assessment results (TLS/KEX/Cert/Sym status, HNDL flag, risk level) embedded per component |
+| **Zero Dependencies** | Built entirely with Python `dict` + `json` — no CycloneDX SDK or XML libraries needed |
+
+### CBOM Component Architecture
+
+```
+Application Component (per endpoint)
+├── TLS Protocol Component (version, cipher suite)
+│   ├── Key Exchange Component (ML-KEM / X25519+ML-KEM / ECDHE / RSA)
+│   ├── Certificate Component (public key algorithm, signature)
+│   │   └── Signature Algorithm Component (ML-DSA / RSA-SHA256 / ECDSA)
+│   └── Symmetric Algorithm Component (AES-256-GCM / AES-128 / 3DES)
+```
+
+### API Endpoints (Phase 3)
+
+```bash
+# Get CBOM as JSON response
+curl http://localhost:8000/api/cbom/phase3
+
+# Download CBOM as file attachment
+curl http://localhost:8000/api/cbom/phase3/download -o qarmor-cbom-phase3.json
+```
+
+### CLI Usage (Phase 3)
+
+```bash
+# Generate CBOM from scan
+python scan.py --target google.com --format cbom --output cbom.json
+```
+
+---
+
+## Phase 4 — Certification Labeling Engine
+
+Phase 4 adds a **strict 3-tier certification labeling engine** that evaluates each endpoint's cryptographic posture and awards a verifiable label, plus a **beautiful CLI output** powered by the `rich` library.
+
+### Certification Tiers
+
+| Label | Criteria | Color |
+|-------|----------|-------|
+| ✅ **Fully Quantum Safe** | TLS 1.3 + Pure NIST PQC KEM (ML-KEM) + PQC certificate chain (ML-DSA/SLH-DSA) | Green |
+| 🔶 **PQC Ready** | TLS 1.3 + Hybrid key exchange (X25519+ML-KEM-768), even with classical certificate | Cyan |
+| ❌ **Non-Compliant** | Legacy TLS (< 1.3) or purely classical key exchange (RSA/ECDH) | Red |
+
+### Labeling Logic (`labeler.py`)
+
+```python
+from backend.scanner.labeler import evaluate_and_label
+
+# Takes Phase 2 assessment results, returns per-endpoint labels
+labels = evaluate_and_label(assessment_results)
+# [{"target": "api.bank.com", "port": 443, "label": "PQC Ready", "tier": 2, ...}]
+```
+
+### Rich CLI Output
+
+Phase 4 replaces ANSI escape codes with the `rich` library for premium terminal rendering:
+
+```bash
+# Scan with labels and rich output
+python scan.py --target google.com --assess
+
+# Full Phase 2 assessment with labels
+python scan.py --list targets.txt --format assess
+```
+
+The CLI now features:
+- Color-coded rich tables with borders and alignment
+- **Awarded Label** column showing the 3-tier certification per endpoint
+- Risk distribution summary with colored indicators
+- Beautiful banner and KPI display
+
+---
+
 ## Tech Stack
 
 | Component | Technology |
@@ -207,7 +331,8 @@ python scan.py --list targets.txt --assess
 | Data Models | Pydantic v2 |
 | HTTP Client | httpx (for CT log queries) |
 | Frontend | Vanilla HTML, CSS, JavaScript |
-| CBOM Format | OWASP CycloneDX 1.6 JSON |
+| CBOM Format | OWASP CycloneDX 1.6 JSON (native Python — zero dependencies) |
+| CLI Output | `rich` library (Console, Table) for color-coded terminal rendering |
 | PQC Standards | NIST FIPS 203 (ML-KEM), FIPS 204 (ML-DSA), FIPS 205 (SLH-DSA) |
 
 ---
@@ -216,22 +341,23 @@ python scan.py --list targets.txt --assess
 
 ```
 Q-ARMOR/
-|-- scan.py                          # CLI scanner entry point (Phase 1 + Phase 2)
+|-- scan.py                          # CLI scanner entry point (Phase 1 + Phase 2 + Phase 4 rich output)
 |-- run.py                           # Web dashboard entry point
 |-- requirements.txt                 # Python dependencies
 |-- .gitignore
 |-- README.md                        # This file
 |
-|-- src/                             # Phase 1 CLI scanner modules
+|-- src/                             # Phase 1 CLI scanner modules + Phase 3 CBOM
 |   |-- __init__.py
 |   |-- models.py                    # Dataclasses (TLSConnectionState, CertificateMetadata, ScanResult)
 |   |-- prober.py                    # Network prober — socket/ssl TLS handshake
 |   |-- cert_parser.py              # X.509 certificate parser (cryptography lib)
-|   +-- scanner.py                   # Orchestrator — ThreadPoolExecutor concurrency
+|   |-- scanner.py                   # Orchestrator — ThreadPoolExecutor concurrency
+|   +-- cbom_generator.py           # Phase 3: CycloneDX 1.6 CBOM native generator (~600 lines)
 |
 |-- backend/                         # Web dashboard backend
 |   |-- __init__.py
-|   |-- app.py                       # FastAPI application & API routes (Phase 1 + Phase 2)
+|   |-- app.py                       # FastAPI application & API routes (Phase 1–4)
 |   |-- models.py                    # Pydantic data models
 |   |-- demo_data.py                 # Simulated bank asset dataset
 |   |
@@ -240,18 +366,19 @@ Q-ARMOR/
 |       |-- discoverer.py            # Module 1: Asset discovery
 |       |-- prober.py                # Module 2: TLS/crypto fingerprinting (async)
 |       |-- classifier.py            # Module 3: PQC risk scoring
-|       |-- cbom_generator.py        # Module 4: CycloneDX 1.6 CBOM
+|       |-- cbom_generator.py        # Module 4: CycloneDX 1.6 CBOM (Phase 1 + Phase 3 re-export)
 |       |-- label_issuer.py          # Module 5: PQC label generation
 |       |-- nist_matrix.py           # Module 6: NIST PQC Validation Matrix (Phase 2)
 |       |-- assessment.py            # Module 7: 4-Dimension Assessment Engine (Phase 2)
-|       +-- remediation.py           # Module 8: Prioritised Remediation Generator (Phase 2)
+|       |-- remediation.py           # Module 8: Prioritised Remediation Generator (Phase 2)
+|       +-- labeler.py               # Module 9: 3-Tier Certification Labeling Engine (Phase 4)
 |
 |-- frontend/
-|   |-- index.html                   # Dashboard SPA (4-tab: Overview, Assessment, Remediation, Matrix)
+|   |-- index.html                   # Dashboard SPA (Overview, Assessment, Remediation, Matrix + Labels)
 |   |-- css/
-|   |   +-- styles.css               # Cybersecurity dark theme + Phase 2 chart/table styles
+|   |   +-- styles.css               # Cybersecurity dark theme + Phase 2–4 styles
 |   +-- js/
-|       +-- app.js                   # Dashboard controller (Phase 1 + Phase 2 rendering)
+|       +-- app.js                   # Dashboard controller (Phase 1–4 rendering)
 |
 |-- tests/
 |   +-- test_classifier.py           # Unit tests for PQC classifier
@@ -512,7 +639,7 @@ The CBOM output follows the OWASP CycloneDX 1.6 specification. Key fields to ver
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | GET | `/api/health` | Service health check |
-| GET | `/api/scan/demo` | Run demo scan with 15 simulated bank assets |
+| GET | `/api/scan/demo` | Run demo scan with 21 simulated bank assets |
 | POST | `/api/scan/domain/{domain}` | Discover and scan all assets for a domain |
 | GET | `/api/scan/single/{hostname}?port=443` | Probe a single hostname:port |
 | GET | `/api/cbom` | Export latest scan as CycloneDX 1.6 CBOM JSON |
@@ -523,6 +650,9 @@ The CBOM output follows the OWASP CycloneDX 1.6 specification. Key fields to ver
 | GET | `/api/assess/endpoint/{hostname}?port=443` | Assess a single endpoint against NIST matrix |
 | GET | `/api/assess/remediation` | Get prioritized Phase 2 remediation plan |
 | GET | `/api/assess/matrix` | Get full NIST PQC validation matrix reference |
+| GET | `/api/cbom/phase3` | Generate CycloneDX 1.6 CBOM with Phase 2 assessment annotations |
+| GET | `/api/cbom/phase3/download` | Download the Phase 3 CBOM as a JSON file attachment |
+| GET | `/api/labels/phase4` | Get Phase 4 3-tier certification labels for all endpoints |
 
 ---
 
@@ -586,6 +716,21 @@ Based on assessment results, a multi-phase migration roadmap is generated with:
 - HNDL (Harvest Now, Decrypt Later) exposure warnings
 - Phase-grouped strategic roadmap for organizational planning
 
+### Step 9: CBOM Generation (Phase 3)
+All Phase 1 scan data and Phase 2 assessment results are merged into a CycloneDX 1.6 CBOM document:
+- 6 component types: Application, TLS Protocol, Key Exchange, Certificate, Signature Algorithm, Symmetric Algorithm
+- Full dependency graph showing component relationships
+- Each component annotated with NIST risk scores and Q-Score
+- Zero external dependencies — built with native Python `dict` + `json` module
+
+### Step 10: Certification Labeling (Phase 4)
+Each endpoint is evaluated against a strict 3-tier certification criteria:
+- **Fully Quantum Safe**: TLS 1.3 + pure NIST PQC KEM (ML-KEM) + PQC certificate chain (ML-DSA/SLH-DSA)
+- **PQC Ready**: TLS 1.3 + hybrid key exchange (X25519+ML-KEM-768), classical cert acceptable
+- **Non-Compliant**: Legacy TLS (< 1.3) or purely classical key exchange (RSA/ECDH)
+
+The CLI features rich terminal rendering via the `rich` library with color-coded tables, risk badges, and the awarded label per endpoint.
+
 ---
 
 ## NIST PQC Standards
@@ -624,4 +769,4 @@ Q-ARMOR benchmarks against three finalized NIST standards (August 2024):
 
 ---
 
-**Q-ARMOR v2.0.0 — Built for the Quantum-Ready Cybersecurity Track**
+**Q-ARMOR v4.0.0 — Built for the Quantum-Ready Cybersecurity Track**

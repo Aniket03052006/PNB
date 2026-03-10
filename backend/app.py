@@ -286,3 +286,21 @@ async def download_cbom_phase3():
         content=cbom,
         headers={"Content-Disposition": "attachment; filename=qarmor-cbom-phase3.json"},
     )
+
+
+# ── Phase 4: Certification Labeling Endpoints ───────────────────────────────
+
+@app.get("/api/labels/phase4")
+async def get_phase4_labels():
+    """Evaluate all endpoints with the 3-tier certification labeling engine.
+
+    Returns per-endpoint labels (Fully Quantum Safe / PQC Ready / Non-Compliant)
+    plus aggregate summary statistics.
+    """
+    if not _latest_scan:
+        raise HTTPException(status_code=404, detail="No scan data. Run /api/scan/demo first.")
+    from backend.scanner.labeler import evaluate_and_label, summarize_labels
+    batch = analyze_batch(_latest_scan)
+    labels = evaluate_and_label(batch.get("assessments", []))
+    summary = summarize_labels(labels)
+    return JSONResponse(content=summary)

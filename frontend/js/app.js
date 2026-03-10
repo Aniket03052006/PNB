@@ -169,6 +169,7 @@ function renderDashboard(data) {
     renderDistBars(data);
     renderRemediation(data.remediation_roadmap || []);
     renderLabels(data.labels || []);
+    fetchPhase4Labels();
 }
 
 function renderStats(data) {
@@ -334,6 +335,51 @@ function renderLabels(labels) {
             <div class="label-id">${l.label_id}</div>
         </div>
     `).join('');
+}
+
+
+/* ─── Phase 4: Certification Labels ─── */
+async function fetchPhase4Labels() {
+    try {
+        const data = await apiCall('/api/labels/phase4');
+        renderCertLabels(data);
+    } catch (e) {
+        console.warn('Phase 4 labels fetch failed:', e);
+    }
+}
+
+function renderCertLabels(data) {
+    const section = document.getElementById('certLabelsSection');
+    const container = document.getElementById('certLabelsContainer');
+    const countBadge = document.getElementById('certLabelCount');
+
+    const labels = data.labels || [];
+    if (!labels.length) { section.style.display = 'none'; return; }
+    section.style.display = '';
+
+    countBadge.textContent = `${data.total_endpoints || labels.length} endpoints`;
+    animateNumber('certFullySafe', data.fully_quantum_safe || 0);
+    animateNumber('certPQCReady', data.pqc_ready || 0);
+    animateNumber('certNonCompliant', data.non_compliant || 0);
+
+    const tierConfig = {
+        1: { cls: 'cert-label--safe',     icon: '✅', borderColor: 'rgba(0, 255, 136, 0.3)', bg: 'rgba(0, 255, 136, 0.06)' },
+        2: { cls: 'cert-label--ready',    icon: '🔶', borderColor: 'rgba(0, 212, 255, 0.3)', bg: 'rgba(0, 212, 255, 0.06)' },
+        3: { cls: 'cert-label--noncompliant', icon: '❌', borderColor: 'rgba(255, 71, 87, 0.3)', bg: 'rgba(255, 71, 87, 0.06)' },
+    };
+
+    container.innerHTML = labels.map(l => {
+        const cfg = tierConfig[l.tier] || tierConfig[3];
+        return `<div class="label-card ${cfg.cls}" style="border-color: ${cfg.borderColor}; background: ${cfg.bg};">
+            <div class="label-header" style="color: ${l.tier === 1 ? 'var(--accent-green)' : l.tier === 2 ? 'var(--accent-cyan)' : 'var(--accent-red)'}">
+                ${cfg.icon} ${l.label}
+            </div>
+            <div class="label-asset">${l.target}:${l.port}</div>
+            <div class="label-detail">TLS: ${l.tls_version || '—'} · KEX: ${l.key_exchange || '—'}</div>
+            <div class="label-detail">Cert: ${l.certificate || '—'} · Risk: ${l.risk || '—'}</div>
+            <div class="label-detail" style="margin-top: 4px; font-size: 0.68rem; color: var(--text-dim);">${l.reason}</div>
+        </div>`;
+    }).join('');
 }
 
 

@@ -9,3 +9,6 @@ httpx==0.28.1
 dnspython==2.7.0
 python-dateutil==2.9.0
 jinja2==3.1.5
+
+# ── Phase 4: Rich CLI Output ─────────────────────────────────────────
+rich>=13.0.0                  # Beautiful terminal tables and formatting

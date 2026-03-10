@@ -773,6 +773,7 @@ body {
 .phase-badge--p1 { border-color: rgba(0, 255, 136, 0.35); background: rgba(0, 255, 136, 0.08); color: var(--accent-green); }
 .phase-badge--p2 { border-color: rgba(0, 212, 255, 0.35); background: rgba(0, 212, 255, 0.08); color: var(--accent-cyan); }
 .phase-badge--p3 { border-color: rgba(167, 139, 250, 0.35); background: rgba(167, 139, 250, 0.08); color: var(--accent-purple); }
+.phase-badge--p4 { border-color: rgba(255, 179, 0, 0.35); background: rgba(255, 179, 0, 0.08); color: var(--accent-amber); }
 
 /* ═══════════════════════════════════════════════════════════════════════════
    Phase 2 — Charts
@@ -1127,3 +1128,27 @@ body {
     background: rgba(0, 212, 255, 0.08);
     border-color: rgba(0, 212, 255, 0.25);
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Phase 4 — Certification Label Cards
+   ═══════════════════════════════════════════════════════════════════════════ */
+.cert-label--safe {
+    border-color: rgba(0, 255, 136, 0.3) !important;
+    background: linear-gradient(135deg, rgba(0, 255, 136, 0.06), rgba(0, 212, 255, 0.03)) !important;
+}
+
+.cert-label--safe::after { content: '✅' !important; }
+
+.cert-label--ready {
+    border-color: rgba(0, 212, 255, 0.3) !important;
+    background: linear-gradient(135deg, rgba(0, 212, 255, 0.06), rgba(167, 139, 250, 0.03)) !important;
+}
+
+.cert-label--ready::after { content: '🔶' !important; }
+
+.cert-label--noncompliant {
+    border-color: rgba(255, 71, 87, 0.3) !important;
+    background: linear-gradient(135deg, rgba(255, 71, 87, 0.06), rgba(255, 179, 0, 0.03)) !important;
+}
+
+.cert-label--noncompliant::after { content: '❌' !important; }
