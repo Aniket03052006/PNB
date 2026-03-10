@@ -5,6 +5,12 @@ import uuid
 from datetime import datetime, timezone
 from backend.models import ScanResult, ScanSummary
 
+# Phase 3: Re-export the advanced CBOM generator
+from src.cbom_generator import (         # noqa: F401
+    generate_cbom as generate_cbom_phase3,
+    generate_cbom_from_summary,
+)
+
 
 def generate_cbom(summary: ScanSummary) -> dict:
     """Generate a full CycloneDX 1.6 CBOM from scan results."""

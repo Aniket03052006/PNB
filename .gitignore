@@ -13,3 +13,4 @@ env/
 node_modules/
 .planning/
 result.json
+cbom.json

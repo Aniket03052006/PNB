@@ -126,15 +126,16 @@ async function scanSingleHost() {
 /* ─── CBOM Export ─── */
 async function exportCBOM() {
     try {
-        const resp = await fetch(`${API_BASE}/api/cbom`);
-        const data = await resp.json();
-        const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+        const resp = await fetch(`${API_BASE}/api/cbom/phase3/download`);
+        if (!resp.ok) throw new Error(`HTTP Error ${resp.status}`);
+        const blob = await resp.blob();
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = 'qarmor-cbom-cyclonedx-1.6.json';
+        a.download = 'qarmor-cbom-phase3.json';
         a.click();
         URL.revokeObjectURL(url);
+        showToast('Phase 3 CBOM exported successfully', 'success');
     } catch (e) {
         showToast('Export failed: ' + e.message, 'error');
     }

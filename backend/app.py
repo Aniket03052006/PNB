@@ -245,3 +245,44 @@ async def get_nist_matrix():
         "pqc_safe": get_pqc_safe_algorithms(),
         "hybrid": get_hybrid_algorithms(),
     })
+
+
+# ── Phase 3: CBOM Generation Endpoints ──────────────────────────────────────
+
+@app.get("/api/cbom/phase3")
+async def get_cbom_phase3():
+    """Generate a CycloneDX 1.6 CBOM with Phase 2 assessment annotations.
+
+    Combines Phase 1 scan data + Phase 2 NIST assessment into a single
+    CycloneDX 1.6 document with cryptographic-asset components and a
+    full dependency graph.
+    """
+    if not _latest_scan:
+        raise HTTPException(status_code=404, detail="No scan data. Run /api/scan/demo first.")
+    from backend.scanner.cbom_generator import generate_cbom_from_summary
+    summary_dict = _latest_scan.model_dump()
+    # Convert datetimes to strings for JSON serialization
+    import json
+    summary_dict = json.loads(_latest_scan.model_dump_json())
+    # Get Phase 2 assessments
+    batch = analyze_batch(_latest_scan)
+    assessment_list = batch.get("assessments", [])
+    cbom = generate_cbom_from_summary(summary_dict, assessment_list, output_file=None)
+    return JSONResponse(content=cbom)
+
+
+@app.get("/api/cbom/phase3/download")
+async def download_cbom_phase3():
+    """Generate and download the Phase 3 CBOM as a JSON file."""
+    if not _latest_scan:
+        raise HTTPException(status_code=404, detail="No scan data. Run /api/scan/demo first.")
+    from backend.scanner.cbom_generator import generate_cbom_from_summary
+    import json as _json
+    summary_dict = _json.loads(_latest_scan.model_dump_json())
+    batch = analyze_batch(_latest_scan)
+    assessment_list = batch.get("assessments", [])
+    cbom = generate_cbom_from_summary(summary_dict, assessment_list, output_file=None)
+    return JSONResponse(
+        content=cbom,
+        headers={"Content-Disposition": "attachment; filename=qarmor-cbom-phase3.json"},
+    )
