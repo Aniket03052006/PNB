@@ -1,0 +1,6 @@
+# Sample targets for Q-ARMOR Phase 1 testing
+google.com
+cloudflare.com
+example.com
+nonexistent.invalid.host
+github.com

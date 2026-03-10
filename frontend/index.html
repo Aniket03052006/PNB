@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Q-ARMOR: Quantum-Aware Mapping & Observation for Risk Remediation — Cryptographic scanner and inventory engine for banking">
+    <title>Q-ARMOR — Quantum Cryptographic Scanner</title>
+    <link rel="stylesheet" href="/static/css/styles.css">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🛡️</text></svg>">
+</head>
+<body>
+    <!-- Loading Overlay -->
+    <div class="loading-overlay" id="loadingOverlay">
+        <div class="loading-spinner"></div>
+        <div class="loading-text">Scanning cryptographic surface...</div>
+    </div>
+
+    <div class="app-container">
+        <!-- Header -->
+        <header class="header">
+            <div class="header-brand">
+                <div class="header-logo">Q</div>
+                <div>
+                    <div class="header-title">Q-ARMOR</div>
+                    <div class="header-subtitle">Quantum-Aware Mapping &amp; Observation for Risk Remediation</div>
+                </div>
+            </div>
+            <div class="header-actions">
+                <span class="phase-badge" title="Phase 1: CLI Scanner is operational — run: python scan.py --target &lt;host&gt;">⚡ Phase 1: CLI Engine Active</span>
+                <button class="btn btn-primary" id="btnDemoScan" onclick="runDemoScan()">▶ Run Demo Scan</button>
+                <button class="btn" id="btnExportCBOM" onclick="exportCBOM()" disabled>↓ Export CBOM</button>
+            </div>
+        </header>
+
+        <!-- Scan Input -->
+        <div class="scan-input-section">
+            <input type="text" class="scan-input" id="domainInput" placeholder="Enter domain to scan (e.g. example.com)" />
+            <button class="btn" onclick="scanDomain()">Scan Domain</button>
+            <input type="text" class="scan-input" id="singleHostInput" placeholder="Single host (e.g. api.example.com)" style="max-width: 280px;" />
+            <button class="btn" onclick="scanSingleHost()">Probe</button>
+        </div>
+
+        <!-- Stats Grid -->
+        <div class="stats-grid" id="statsGrid">
+            <div class="stat-card stat-card--total">
+                <div class="stat-value" id="statTotal">—</div>
+                <div class="stat-label">Total Assets</div>
+                <div class="stat-pct" id="statAvgScore">Avg Q-Score: —</div>
+            </div>
+            <div class="stat-card stat-card--safe">
+                <div class="stat-value" id="statSafe">—</div>
+                <div class="stat-label">Fully Quantum Safe</div>
+                <div class="stat-pct" id="statSafePct">—</div>
+            </div>
+            <div class="stat-card stat-card--transition">
+                <div class="stat-value" id="statTransition">—</div>
+                <div class="stat-label">PQC Transition</div>
+                <div class="stat-pct" id="statTransitionPct">—</div>
+            </div>
+            <div class="stat-card stat-card--vulnerable">
+                <div class="stat-value" id="statVulnerable">—</div>
+                <div class="stat-label">Quantum Vulnerable</div>
+                <div class="stat-pct" id="statVulnerablePct">—</div>
+            </div>
+            <div class="stat-card stat-card--critical">
+                <div class="stat-value" id="statCritical">—</div>
+                <div class="stat-label">Critically Vulnerable</div>
+                <div class="stat-pct" id="statCriticalPct">—</div>
+            </div>
+        </div>
+
+        <!-- Main Grid: Asset Table + Q-Score Ring -->
+        <div class="main-grid">
+            <!-- Asset Table Panel -->
+            <div class="panel">
+                <div class="panel-header">
+                    <div class="panel-title">Asset Inventory</div>
+                    <div class="panel-badge" id="assetCount" style="background: rgba(0, 255, 136, 0.12); color: var(--accent-green);">0 assets</div>
+                </div>
+                <div id="assetTableContainer">
+                    <div class="empty-state">
+                        <div class="empty-state-icon">🔍</div>
+                        <div class="empty-state-title">No scan data</div>
+                        <div class="empty-state-desc">Click "Run Demo Scan" or enter a domain to begin</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Sidebar: Q-Score Overview -->
+            <div class="panel">
+                <div class="panel-header">
+                    <div class="panel-title">Q-Score Overview</div>
+                </div>
+                <div class="qscore-ring-container" id="qscoreRingContainer">
+                    <div class="qscore-ring">
+                        <svg viewBox="0 0 160 160" width="160" height="160">
+                            <circle class="qscore-ring-bg" cx="80" cy="80" r="68"></circle>
+                            <circle class="qscore-ring-fill" id="qscoreRingFill" cx="80" cy="80" r="68"
+                                stroke-dasharray="427.26" stroke-dashoffset="427.26"></circle>
+                        </svg>
+                        <div class="qscore-ring-text">
+                            <div class="qscore-ring-number" id="qscoreRingNumber">—</div>
+                            <div class="qscore-ring-label">AVG Q-SCORE</div>
+                        </div>
+                    </div>
+                    <div class="dist-bars" id="distBars"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Remediation Roadmap -->
+        <div class="remediation-section">
+            <div class="panel">
+                <div class="panel-header">
+                    <div class="panel-title">Remediation Roadmap</div>
+                </div>
+                <div id="remediationContainer">
+                    <div class="empty-state">
+                        <div class="empty-state-icon">📋</div>
+                        <div class="empty-state-title">Awaiting scan data</div>
+                        <div class="empty-state-desc">Remediation roadmap will appear after a scan</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- PQC Labels -->
+        <div class="panel" id="labelsSection" style="display: none;">
+            <div class="panel-header">
+                <div class="panel-title">PQC-Ready Certificates Issued</div>
+            </div>
+            <div class="labels-grid" id="labelsContainer"></div>
+        </div>
+
+        <!-- Footer -->
+        <footer class="footer">
+            <div class="footer-text">
+                Q-ARMOR v1.0.0 — Scan. Classify. Certify. Future-proof.
+                <br>
+                <span style="color: var(--accent-green); font-size: 0.75rem;">
+                    ✓ Phase 1: Core Discovery &amp; Protocol Analysis (CLI)
+                    &nbsp;|&nbsp;
+                    CLI: <code style="background: rgba(0,255,136,0.1); padding: 1px 5px; border-radius: 3px;">python scan.py --target &lt;host&gt;</code>
+                </span>
+                <br>
+                Built on <a href="#">NIST FIPS 203/204/205</a> &middot; <a href="#">CycloneDX 1.6 CBOM</a> &middot; <a href="#">PQCC Whitepaper</a>
+                &middot; <a href="#">PNB Cybersecurity Hackathon 2025-26</a>
+            </div>
+        </footer>
+    </div>
+
+    <script src="/static/js/app.js"></script>
+</body>
+</html>
