@@ -1,4 +1,4 @@
-<![CDATA[<div align="center">
+<div align="center">
 
 # Q-ARMOR v5.0.0
 
@@ -1072,4 +1072,3 @@ python -m pytest tests/ -v
 Built for the **PNB Cybersecurity Hackathon 2025-26**
 
 </div>
-]]>
