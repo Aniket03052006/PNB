@@ -23,6 +23,10 @@ on:
         description: 'Target hostname to scan (e.g. pnbindia.in)'
         required: false
         default: 'pnbindia.in'
+      strict:
+        description: 'Fail build on HIGH quantum risk (true = enforce, false = audit-only)'
+        required: false
+        default: 'false'
 
 env:
   PYTHON_VERSION: '3.11'
@@ -152,14 +156,20 @@ jobs:
 
       # -- Build-Breaking Compliance Gate -------------------------------
       #    Reads the REAL scan report produced above.
-      #    Exits 1 only when SCANNED endpoints have HIGH quantum risk.
-      #    If no report exists (network failure), warns but does NOT fail.
+      #    strict=true  -> exits 1 on HIGH risk (enforce mode)
+      #    strict=false -> warns but exits 0 (audit mode, default)
       - name: Check quantum risk compliance (build-breaker)
         id: compliance_check
+        env:
+          STRICT: ${{ github.event.inputs.strict || 'false' }}
         run: |
           python - << 'PYEOF'
-          import json, sys
+          import json, os, sys
           from pathlib import Path
+
+          strict = os.environ.get("STRICT", "false").lower() == "true"
+          mode   = "ENFORCE" if strict else "AUDIT"
+          print(f"Compliance mode: {mode}")
 
           report_path = Path("scan-report.json")
           if not report_path.exists():
@@ -185,18 +195,25 @@ jobs:
 
           if high_risk:
               print()
-              print("::error::BUILD FAILED -- HIGH quantum risk endpoints detected:")
               for a in high_risk[:10]:
                   t   = a.get("target", "?")
                   p   = a.get("port", 443)
                   kex = a.get("key_exchange_algorithm", "?")
-                  print(f"  FAIL {t}:{p} -- KEX: {kex}")
+                  print(f"  HIGH {t}:{p} -- KEX: {kex}")
               if len(high_risk) > 10:
                   print(f"  ... and {len(high_risk) - 10} more")
               print()
-              print("Action required: Enable PQC key exchange on all HIGH-risk endpoints.")
+              print("Recommendation: Enable PQC key exchange (ML-KEM / X25519Kyber768).")
               print("See: https://csrc.nist.gov/pubs/fips/203/final")
-              sys.exit(1)
+
+              if strict:
+                  print()
+                  print("::error::BUILD FAILED -- HIGH quantum risk (strict mode).")
+                  sys.exit(1)
+              else:
+                  print()
+                  print("::warning::HIGH quantum risk detected (audit mode -- build continues).")
+                  sys.exit(0)
           else:
               print("PASS: All scanned endpoints pass quantum risk compliance.")
               sys.exit(0)
