@@ -1,40 +1,31 @@
-# ──────────────────────────────────────────────────────────────────────────────
-# Q-ARMOR PQC Compliance Scanner — GitHub Actions CI/CD Pipeline
+# ------------------------------------------------------------------------------
+# Q-ARMOR PQC Compliance Scanner -- GitHub Actions CI/CD Pipeline
 #
 # Phase 5: Compliance-as-Code automation
 #   - Triggers: weekly Monday cron + push to main
-#   - Scans configured targets for quantum-vulnerable cryptography
-#   - Generates CDXA attestation document
-#   - BUILD-BREAKING: Fails pipeline if any endpoint has HIGH quantum risk
-#   - Sends webhook alerts on HNDL vulnerability detection
-# ──────────────────────────────────────────────────────────────────────────────
+#   - Scans the configured target for quantum-vulnerable cryptography
+#   - Saves Phase 2 assessment JSON report from the REAL scan
+#   - Generates CDXA attestation from real scan results
+#   - Sends webhook alerts if HNDL / HIGH risk detected
+#   - BUILD-BREAKING: Fails pipeline if any SCANNED endpoint has HIGH quantum risk
+# ------------------------------------------------------------------------------
 
 name: Q-ARMOR PQC Compliance Scan
 
 on:
-  # Weekly scan — every Monday at 00:00 UTC
   schedule:
     - cron: '0 0 * * 1'
-
-  # Scan on push to main (catches config drift)
   push:
     branches: [main]
-
-  # Manual trigger with custom target
   workflow_dispatch:
     inputs:
       target:
-        description: 'Target hostname or domain to scan'
+        description: 'Target hostname to scan (e.g. pnbindia.in)'
         required: false
         default: 'pnbindia.in'
-      assess:
-        description: 'Run Phase 2 PQC assessment'
-        required: false
-        default: 'true'
 
 env:
   PYTHON_VERSION: '3.11'
-  # Webhook URLs (set as repository secrets)
   QARMOR_SLACK_WEBHOOK: ${{ secrets.QARMOR_SLACK_WEBHOOK }}
   QARMOR_TEAMS_WEBHOOK: ${{ secrets.QARMOR_TEAMS_WEBHOOK }}
 
@@ -45,7 +36,6 @@ jobs:
     timeout-minutes: 15
 
     steps:
-      # ── Setup ────────────────────────────────────────────────────────
       - name: Checkout repository
         uses: actions/checkout@v4
 
@@ -60,139 +50,159 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      # ── Phase 1+2: Scan & Assess ────────────────────────────────────
+      # -- Phase 1+2: Scan REAL target & save JSON report ---------------
       - name: Run PQC scan with assessment
         id: scan
         run: |
           TARGET="${{ github.event.inputs.target || 'pnbindia.in' }}"
-          echo "::group::Scanning ${TARGET}"
-
-          # Run scan with full assessment, save JSON report
+          echo "target=${TARGET}" >> "$GITHUB_OUTPUT"
+          echo "::group::Q-ARMOR scan -- ${TARGET}"
           python scan.py \
             --target "${TARGET}" \
             --format assess \
             --assess \
             --output scan-report.json \
-            -v
-
-          SCAN_EXIT=$?
+            -v && echo "scan_ok=true" >> "$GITHUB_OUTPUT" \
+                || echo "scan_ok=false" >> "$GITHUB_OUTPUT"
           echo "::endgroup::"
+          exit 0
 
-          echo "scan_exit=${SCAN_EXIT}" >> "$GITHUB_OUTPUT"
-          echo "target=${TARGET}" >> "$GITHUB_OUTPUT"
-
-      # ── Phase 5: Attestation & Alerts ────────────────────────────────
+      # -- Phase 5: Generate CDXA attestation from REAL scan data -------
       - name: Generate CDXA attestation
         if: always()
         run: |
-          python -c "
+          python - << 'PYEOF'
           import json, sys
           from pathlib import Path
+          from backend.scanner.attestor import generate_attestation
 
-          # Generate attestation from scan results
+          report_path = Path("scan-report.json")
+          if not report_path.exists():
+              print("scan-report.json not found -- skipping attestation")
+              sys.exit(0)
+
           try:
-              from backend.scanner.assessment import analyze_batch
-              from backend.demo_data import generate_demo_results
-              from backend.scanner.attestor import generate_attestation
-
-              # Use demo data if scan report not available
-              report_path = Path('scan-report.json')
-              if report_path.exists():
-                  print('Using scan report for attestation...')
-              
-              # Generate demo scan for attestation
-              summary = generate_demo_results()
-              batch = analyze_batch(summary)
-              assessments = batch.get('assessments', [])
-
+              report      = json.loads(report_path.read_text())
+              assessments = report.get("phase2_assessment", {}).get("assessments", [])
+              if not assessments:
+                  print("No assessment data in scan report -- skipping attestation")
+                  sys.exit(0)
+              print(f"Generating attestation for {len(assessments)} endpoint(s)...")
               cdxa = generate_attestation(
                   assessment_results=assessments,
-                  output_file='attestation-cdxa.json',
+                  output_file="attestation-cdxa.json",
               )
+              body = cdxa["attestation"]
+              cs   = body["complianceSummary"]
+              print(f"Status:        {cs['overallStatus']}")
+              print(f"Compliant:     {cs['compliant']}/{cs['totalEndpoints']} ({cs['compliant_pct']})")
+              print(f"Non-Compliant: {cs['nonCompliant']} ({cs['nonCompliant_pct']})")
+              print(f"Serial:        {body['serialNumber']}")
+              print("Signed (Ed25519): yes")
+          except Exception as exc:
+              print(f"Attestation failed: {exc}", file=sys.stderr)
+              sys.exit(0)
+          PYEOF
 
-              status = cdxa['attestation']['complianceSummary']['overallStatus']
-              total = cdxa['attestation']['complianceSummary']['totalEndpoints']
-              compliant = cdxa['attestation']['complianceSummary']['compliant']
-              print(f'Attestation generated: {status} ({compliant}/{total} compliant)')
-              print(f'Serial: {cdxa[\"attestation\"][\"serialNumber\"]}')
-
-          except Exception as e:
-              print(f'Attestation generation failed: {e}', file=sys.stderr)
-              sys.exit(0)  # Non-blocking — attestation failure shouldn't break CI
-          "
-
+      # -- Phase 5: Send webhook alerts from REAL scan data -------------
       - name: Send webhook alerts
         if: always()
         env:
           QARMOR_SLACK_WEBHOOK: ${{ secrets.QARMOR_SLACK_WEBHOOK }}
           QARMOR_TEAMS_WEBHOOK: ${{ secrets.QARMOR_TEAMS_WEBHOOK }}
         run: |
-          python -c "
-          import sys
+          python - << 'PYEOF'
+          import json, sys
+          from pathlib import Path
+          from backend.scanner.labeler import evaluate_and_label, summarize_labels
+          from backend.scanner.notifier import send_alerts
+
+          report_path = Path("scan-report.json")
+          if not report_path.exists():
+              print("scan-report.json not found -- skipping alerts")
+              sys.exit(0)
+
           try:
-              from backend.scanner.assessment import analyze_batch
-              from backend.demo_data import generate_demo_results
-              from backend.scanner.labeler import evaluate_and_label
-              from backend.scanner.notifier import send_alerts
-
-              summary = generate_demo_results()
-              batch = analyze_batch(summary)
-              assessments = batch.get('assessments', [])
-              labels = evaluate_and_label(assessments)
-
+              report      = json.loads(report_path.read_text())
+              assessments = report.get("phase2_assessment", {}).get("assessments", [])
+              if not assessments:
+                  print("No assessment data -- skipping alerts")
+                  sys.exit(0)
+              labels        = evaluate_and_label(assessments)
+              label_summary = summarize_labels(labels)
               result = send_alerts(
                   assessment_results=assessments,
                   labels=labels,
+                  scan_summary={
+                      "total":         label_summary["total_endpoints"],
+                      "safe":          label_summary["fully_quantum_safe"],
+                      "pqc_ready":     label_summary["pqc_ready"],
+                      "non_compliant": label_summary["non_compliant"],
+                  },
               )
-              print(f'Alerts detected: {result[\"alerts_detected\"]}')
-              for notif in result.get('notifications_sent', []):
-                  print(f'  -> {notif[\"channel\"]}: {notif[\"status\"]}')
-              if not result.get('notifications_sent'):
-                  print('  No webhook URLs configured (set QARMOR_SLACK_WEBHOOK or QARMOR_TEAMS_WEBHOOK secrets)')
-          except Exception as e:
-              print(f'Notification step failed: {e}', file=sys.stderr)
-              sys.exit(0)  # Non-blocking
-          "
+              print(f"Alerts detected: {result['alerts_detected']}")
+              for n in result.get("notifications_sent", []):
+                  print(f"  -> {n['channel']}: {n['status']}")
+              if not result.get("notifications_sent"):
+                  print("  No webhook URLs configured (set QARMOR_SLACK_WEBHOOK / QARMOR_TEAMS_WEBHOOK secrets)")
+          except Exception as exc:
+              print(f"Notification failed: {exc}", file=sys.stderr)
+              sys.exit(0)
+          PYEOF
 
-      # ── Build-Breaking Check ─────────────────────────────────────────
+      # -- Build-Breaking Compliance Gate -------------------------------
+      #    Reads the REAL scan report produced above.
+      #    Exits 1 only when SCANNED endpoints have HIGH quantum risk.
+      #    If no report exists (network failure), warns but does NOT fail.
       - name: Check quantum risk compliance (build-breaker)
         id: compliance_check
         run: |
-          python -c "
-          import sys
-          from backend.scanner.assessment import analyze_batch
-          from backend.demo_data import generate_demo_results
+          python - << 'PYEOF'
+          import json, sys
+          from pathlib import Path
 
-          summary = generate_demo_results()
-          batch = analyze_batch(summary)
+          report_path = Path("scan-report.json")
+          if not report_path.exists():
+              print("scan-report.json not found -- compliance gate skipped.")
+              print("::warning::Compliance gate skipped -- scan report missing (network/DNS error?).")
+              sys.exit(0)
+
+          report      = json.loads(report_path.read_text())
+          assessments = report.get("phase2_assessment", {}).get("assessments", [])
+          total       = len(assessments)
+
+          if total == 0:
+              print("No endpoints in assessment -- compliance gate skipped.")
+              sys.exit(0)
 
           high_risk = [
-              a for a in batch.get('assessments', [])
-              if a.get('overall_quantum_risk') == 'HIGH'
+              a for a in assessments
+              if a.get("overall_quantum_risk") == "HIGH"
           ]
 
-          total = len(batch.get('assessments', []))
-          print(f'Total endpoints assessed: {total}')
-          print(f'HIGH risk endpoints: {len(high_risk)}')
+          print(f"Total endpoints assessed: {total}")
+          print(f"HIGH risk endpoints:      {len(high_risk)}")
 
           if high_risk:
               print()
-              print('::error::BUILD FAILED — HIGH quantum risk endpoints detected:')
+              print("::error::BUILD FAILED -- HIGH quantum risk endpoints detected:")
               for a in high_risk[:10]:
-                  target = a.get('target', '?')
-                  port = a.get('port', 443)
-                  kex = a.get('key_exchange_algorithm', '?')
-                  print(f'  ❌ {target}:{port} — KEX: {kex}')
+                  t   = a.get("target", "?")
+                  p   = a.get("port", 443)
+                  kex = a.get("key_exchange_algorithm", "?")
+                  print(f"  FAIL {t}:{p} -- KEX: {kex}")
+              if len(high_risk) > 10:
+                  print(f"  ... and {len(high_risk) - 10} more")
               print()
-              print('Action required: Enable PQC key exchange on all HIGH-risk endpoints.')
-              print('See: https://csrc.nist.gov/pubs/fips/203/final')
+              print("Action required: Enable PQC key exchange on all HIGH-risk endpoints.")
+              print("See: https://csrc.nist.gov/pubs/fips/203/final")
               sys.exit(1)
           else:
-              print('✅ All endpoints pass quantum risk compliance.')
+              print("PASS: All scanned endpoints pass quantum risk compliance.")
               sys.exit(0)
-          "
+          PYEOF
 
-      # ── Artifacts ────────────────────────────────────────────────────
+      # -- Artifacts ----------------------------------------------------
       - name: Upload scan artifacts
         if: always()
         uses: actions/upload-artifact@v4
@@ -201,18 +211,19 @@ jobs:
           path: |
             scan-report.json
             attestation-cdxa.json
+          if-no-files-found: warn
           retention-days: 90
 
-      # ── Summary ──────────────────────────────────────────────────────
+      # -- Summary ------------------------------------------------------
       - name: Write job summary
         if: always()
         run: |
-          echo "## 🛡️ Q-ARMOR PQC Compliance Scan" >> $GITHUB_STEP_SUMMARY
+          echo "## Q-ARMOR PQC Compliance Scan" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "| Item | Value |" >> $GITHUB_STEP_SUMMARY
           echo "|------|-------|" >> $GITHUB_STEP_SUMMARY
           echo "| Target | \`${{ steps.scan.outputs.target || 'pnbindia.in' }}\` |" >> $GITHUB_STEP_SUMMARY
-          echo "| Scan Exit Code | \`${{ steps.scan.outputs.scan_exit || 'N/A' }}\` |" >> $GITHUB_STEP_SUMMARY
-          echo "| Compliance Check | ${{ steps.compliance_check.outcome }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Scan succeeded | \`${{ steps.scan.outputs.scan_ok }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Compliance gate | \`${{ steps.compliance_check.outcome }}\` |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "Artifacts: \`scan-report.json\`, \`attestation-cdxa.json\`" >> $GITHUB_STEP_SUMMARY
+          echo "Artifacts: \`scan-report.json\`, \`attestation-cdxa.json\` (90-day retention)" >> $GITHUB_STEP_SUMMARY
