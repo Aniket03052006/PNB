@@ -150,25 +150,61 @@ class TestQScoreClassifier:
         assert len(q.recommendations) > 0
 
 
+class TestUnknownStatus:
+    """Tests for UNKNOWN status classification when scan data is insufficient."""
+
+    def test_unknown_status_on_empty_fingerprint(self):
+        """Completely empty fingerprint should classify as UNKNOWN."""
+        fp = CryptoFingerprint()
+        q = classify(fp)
+        assert q.status == PQCStatus.UNKNOWN
+        assert q.total == 0
+
+    def test_unknown_status_no_tls_version(self):
+        """Fingerprint with empty TLS version and zero cipher bits = UNKNOWN."""
+        fp = CryptoFingerprint()
+        fp.tls.version = ""
+        fp.tls.cipher_bits = 0
+        q = classify(fp)
+        assert q.status == PQCStatus.UNKNOWN
+
+    def test_strict_pqc_no_false_positive(self):
+        """ECDHE on TLS 1.3 should NOT be classified as PQC_TRANSITION."""
+        fp = CryptoFingerprint()
+        fp.tls.version = "TLSv1.3"
+        fp.tls.cipher_suite = "TLS_AES_256_GCM_SHA384"
+        fp.tls.cipher_bits = 256
+        fp.tls.key_exchange = "X25519"
+        fp.tls.authentication = "ECDSA"
+        fp.has_pqc_kex = False  # No PQC
+        fp.has_pqc_signature = False
+        fp.has_hybrid_mode = False
+        q = classify(fp)
+        assert q.status != PQCStatus.PQC_TRANSITION
+        assert q.status != PQCStatus.FULLY_QUANTUM_SAFE
+
+
 class TestDemoData:
     """Tests for demo data generation."""
 
     def test_demo_generates_all_statuses(self):
-        """Demo data should contain all four PQC status categories."""
+        """Demo data should contain all five PQC status categories."""
         from backend.demo_data import generate_demo_results
         summary = generate_demo_results()
         assert summary.fully_quantum_safe > 0
         assert summary.pqc_transition > 0
         assert summary.quantum_vulnerable > 0
         assert summary.critically_vulnerable > 0
+        assert summary.unknown > 0
 
     def test_demo_total_matches(self):
-        """Total assets should match sum of status categories."""
+        """Total assets should match sum of all status categories."""
         from backend.demo_data import generate_demo_results
         summary = generate_demo_results()
         total = (
             summary.fully_quantum_safe + summary.pqc_transition +
-            summary.quantum_vulnerable + summary.critically_vulnerable
+            summary.quantum_vulnerable + summary.critically_vulnerable +
+            summary.unknown
         )
         assert summary.total_assets == total
 

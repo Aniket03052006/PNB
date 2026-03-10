@@ -7,6 +7,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
+import logging
 
 from backend.models import ScanSummary, PQCStatus
 from backend.demo_data import generate_demo_results
@@ -14,6 +15,10 @@ from backend.scanner.cbom_generator import generate_cbom
 from backend.scanner.classifier import classify
 from backend.scanner.prober import probe_tls
 from backend.scanner.discoverer import discover_assets
+from backend.scanner.assessment import analyze_endpoint, analyze_batch
+from backend.scanner.remediation import generate_remediation, generate_batch_remediation
+
+logger = logging.getLogger("qarmor.app")
 
 app = FastAPI(
     title="Q-ARMOR",
@@ -83,15 +88,17 @@ async def scan_domain(domain: str):
         counts = {s: 0 for s in PQCStatus}
         total = 0
         for r in results:
-            counts[r.q_score.status] += 1
-            total += r.q_score.total
+            if r.q_score:
+                counts[r.q_score.status] += 1
+                total += r.q_score.total
 
         from backend.scanner.label_issuer import issue_label
         labels = []
         for r in results:
-            label = issue_label(r.asset.hostname, r.asset.port, r.q_score)
-            if label:
-                labels.append(label)
+            if r.q_score:
+                label = issue_label(r.asset.hostname, r.asset.port, r.q_score)
+                if label:
+                    labels.append(label)
 
         from backend.demo_data import _build_remediation_roadmap
         _latest_scan = ScanSummary(
@@ -100,6 +107,7 @@ async def scan_domain(domain: str):
             pqc_transition=counts[PQCStatus.PQC_TRANSITION],
             quantum_vulnerable=counts[PQCStatus.QUANTUM_VULNERABLE],
             critically_vulnerable=counts[PQCStatus.CRITICALLY_VULNERABLE],
+            unknown=counts.get(PQCStatus.UNKNOWN, 0),
             average_q_score=round(total / len(results), 1) if results else 0,
             results=results,
             remediation_roadmap=_build_remediation_roadmap(results),
@@ -108,6 +116,7 @@ async def scan_domain(domain: str):
         return _latest_scan.model_dump()
 
     except Exception as e:
+        logger.exception("Domain scan failed for %s", domain)
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -161,6 +170,7 @@ async def get_summary():
         "pqc_transition": _latest_scan.pqc_transition,
         "quantum_vulnerable": _latest_scan.quantum_vulnerable,
         "critically_vulnerable": _latest_scan.critically_vulnerable,
+        "unknown": _latest_scan.unknown,
         "average_q_score": _latest_scan.average_q_score,
         "scan_timestamp": _latest_scan.scan_timestamp,
     }
@@ -180,3 +190,58 @@ async def get_labels():
     if not _latest_scan:
         raise HTTPException(status_code=404, detail="No scan data. Run /api/scan/demo first.")
     return [l.model_dump() for l in _latest_scan.labels]
+
+
+# ── Phase 2: PQC Assessment Endpoints ───────────────────────────────────────
+
+@app.get("/api/assess")
+async def get_assessment():
+    """Run Phase 2 PQC assessment on the latest scan data."""
+    if not _latest_scan:
+        raise HTTPException(status_code=404, detail="No scan data. Run /api/scan/demo first.")
+    batch = analyze_batch(_latest_scan)
+    return JSONResponse(content=batch)
+
+
+@app.get("/api/assess/endpoint/{hostname}")
+async def assess_endpoint(hostname: str, port: int = 443):
+    """Assess a single endpoint against the NIST PQC validation matrix."""
+    try:
+        fp = await probe_tls(hostname, port)
+        q = classify(fp)
+        from backend.models import DiscoveredAsset, ScanResult
+        asset = DiscoveredAsset(hostname=hostname, port=port)
+        result = ScanResult(asset=asset, fingerprint=fp, q_score=q)
+        assessment = analyze_endpoint(result)
+        remediation = generate_remediation(assessment)
+        return JSONResponse(content={
+            "assessment": assessment,
+            "remediation": remediation,
+        })
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/assess/remediation")
+async def get_remediation_plan():
+    """Get the full Phase 2 remediation plan for the latest scan."""
+    if not _latest_scan:
+        raise HTTPException(status_code=404, detail="No scan data. Run /api/scan/demo first.")
+    batch = analyze_batch(_latest_scan)
+    rems = generate_batch_remediation(batch)
+    return JSONResponse(content=rems)
+
+
+@app.get("/api/assess/matrix")
+async def get_nist_matrix():
+    """Return the NIST PQC validation matrix reference."""
+    from backend.scanner.nist_matrix import (
+        get_vulnerable_algorithms,
+        get_pqc_safe_algorithms,
+        get_hybrid_algorithms,
+    )
+    return JSONResponse(content={
+        "vulnerable": get_vulnerable_algorithms(),
+        "pqc_safe": get_pqc_safe_algorithms(),
+        "hybrid": get_hybrid_algorithms(),
+    })

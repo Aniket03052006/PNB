@@ -1,8 +1,8 @@
 # Q-ARMOR: Quantum-Aware Mapping & Observation for Risk Remediation
 
-A cryptographic scanner and inventory engine that discovers quantum-vulnerable cryptography across a bank's public-facing assets and produces a **Cryptographic Bill of Materials (CBOM)** in the industry-standard **CycloneDX 1.6** format.
+A cryptographic scanner and inventory engine that discovers quantum-vulnerable cryptography across a bank's public-facing assets, assesses each endpoint against the **NIST PQC Validation Matrix**, and produces a **Cryptographic Bill of Materials (CBOM)** in the industry-standard **CycloneDX 1.6** format — with an actionable **PQC migration roadmap**.
 
-> **Scan. Classify. Certify. Future-proof.**
+> **Scan. Classify. Assess. Remediate. Future-proof.**
 
 > Built for the **Punjab National Bank (PNB) Cybersecurity Hackathon 2025-26**.
 
@@ -14,11 +14,13 @@ A cryptographic scanner and inventory engine that discovers quantum-vulnerable c
 - [Architecture](#architecture)
 - [Features](#features)
 - [Phase 1 — CLI Scanner](#phase-1--cli-scanner)
+- [Phase 2 — PQC Assessment & Remediation](#phase-2--pqc-assessment--remediation)
 - [Tech Stack](#tech-stack)
 - [Project Structure](#project-structure)
 - [Setup & Installation](#setup--installation)
 - [Running the Application](#running-the-application)
 - [CLI Scanner Usage](#cli-scanner-usage)
+- [Dashboard](#dashboard)
 - [Testing](#testing)
 - [API Reference](#api-reference)
 - [How It Works](#how-it-works)
@@ -39,30 +41,48 @@ Q-ARMOR provides **visibility** into where quantum-vulnerable cryptography exist
 ## Architecture
 
 ```
-+----------------------------------------------------------+
-|                     Q-ARMOR SYSTEM                       |
-|                                                          |
-|  +-------------+    +----------------+    +------------+ |
-|  |   ASSET     |    |  SCAN ENGINE   |    | CBOM GEN   | |
-|  | DISCOVERY   |--->| (Multi-Probe)  |--->| CycloneDX  | |
-|  |   MODULE    |    |                |    |  1.6 JSON  | |
-|  +-------------+    +----------------+    +------------+ |
-|        |                    |                    |        |
-|        v                    v                    v        |
-|  +-------------+    +----------------+    +------------+ |
-|  | - DNS enum  |    | - TLS handshake|    |  PQC RISK  | |
-|  | - CT logs   |    | - Cipher suite |    |  SCORING   | |
-|  | - Port scan |    | - Cert chain   |    |  ENGINE    | |
-|  |             |    | - Key exchange |    |            | |
-|  |             |    | - PQC detect   |    |  LABEL     | |
-|  |             |    |                |    |  ISSUER    | |
-|  +-------------+    +----------------+    +------------+ |
-|                                                          |
-|  +----------------------------------------------------+ |
-|  |              DASHBOARD / REPORT                     | |
-|  |  Asset List | Risk Heatmap | CBOM Export | PQC Label| |
-|  +----------------------------------------------------+ |
-+----------------------------------------------------------+
++------------------------------------------------------------------+
+|                        Q-ARMOR SYSTEM                            |
+|                                                                  |
+|  Phase 1: Discovery & Scanning                                   |
+|  +-------------+    +----------------+    +------------+         |
+|  |   ASSET     |    |  SCAN ENGINE   |    | CBOM GEN   |         |
+|  | DISCOVERY   |--->| (Multi-Probe)  |--->| CycloneDX  |         |
+|  |   MODULE    |    |                |    |  1.6 JSON  |         |
+|  +-------------+    +----------------+    +------------+         |
+|        |                    |                    |               |
+|        v                    v                    v               |
+|  +-------------+    +----------------+    +------------+         |
+|  | - DNS enum  |    | - TLS handshake|    |  PQC RISK  |         |
+|  | - CT logs   |    | - Cipher suite |    |  SCORING   |         |
+|  | - Port scan |    | - Cert chain   |    |  ENGINE    |         |
+|  |             |    | - Key exchange |    |            |         |
+|  |             |    | - PQC detect   |    |  LABEL     |         |
+|  |             |    |                |    |  ISSUER    |         |
+|  +-------------+    +----------------+    +------------+         |
+|                                                                  |
+|  Phase 2: PQC Assessment & Remediation                           |
+|  +----------------+   +------------------+   +--------------+    |
+|  | NIST PQC       |   |  ASSESSMENT      |   | REMEDIATION  |   |
+|  | VALIDATION     |-->|  ENGINE          |-->| GENERATOR    |   |
+|  | MATRIX         |   | (4-dimension)    |   | (prioritised)|   |
+|  +----------------+   +------------------+   +--------------+    |
+|        |                      |                     |            |
+|        v                      v                     v            |
+|  +----------------+   +------------------+   +--------------+    |
+|  | - KEX classify |   | - Per-endpoint   |   | - P1 Critical|   |
+|  | - Sig classify |   |   risk scoring   |   | - P2 High    |   |
+|  | - TLS classify |   | - HNDL detection |   | - P3 Medium  |   |
+|  | - Sym classify |   | - Aggregate KPIs |   | - P4 Low     |   |
+|  | - Hybrid detect|   | - Batch analysis |   | - Roadmap    |   |
+|  +----------------+   +------------------+   +--------------+    |
+|                                                                  |
+|  +------------------------------------------------------------+ |
+|  |                  DASHBOARD (HTML/CSS/JS)                    | |
+|  |  Overview | PQC Assessment | Remediation Plan | NIST Matrix| |
+|  |  Donut Charts | Dimension Bars | Risk Table | HNDL Status  | |
+|  +------------------------------------------------------------+ |
++------------------------------------------------------------------+
 ```
 
 ---
@@ -76,9 +96,12 @@ Q-ARMOR provides **visibility** into where quantum-vulnerable cryptography exist
 | PQC Classification | Deterministic Q-Score (0-100) based on NIST FIPS 203/204/205 |
 | CBOM Generation | OWASP CycloneDX 1.6 compliant JSON output |
 | PQC Labels | Verifiable certification for quantum-safe assets |
-| Remediation Roadmap | Prioritized 4-tier action plan (Immediate to Strategic) |
-| Dashboard | Real-time visualization with animated Q-Score rings, heatmaps, and status badges |
-| Demo Mode | 15 pre-configured simulated bank assets for hackathon demonstration |
+| **NIST Validation Matrix** | Classifies every algorithm as Vulnerable / Weakened / Hybrid PQC / PQC Safe / Compliant |
+| **4-Dimension Assessment** | Per-endpoint evaluation: TLS protocol, Key Exchange, Certificate, Symmetric Cipher |
+| **HNDL Detection** | Identifies endpoints vulnerable to Harvest-Now, Decrypt-Later attacks |
+| **Remediation Roadmap** | Prioritized 4-tier action plan (P1 Critical → P4 Low) with concrete steps and timelines |
+| **Interactive Dashboard** | 4-tab HTML/CSS/JS dashboard with donut charts, dimension bars, risk tables, and strategic roadmap |
+| Demo Mode | 21 pre-configured simulated bank assets for hackathon demonstration |
 
 ---
 
@@ -118,6 +141,63 @@ python scan.py --target example.com -v
 
 ---
 
+## Phase 2 — PQC Assessment & Remediation
+
+Phase 2 adds a **NIST PQC Validation Matrix**, **4-dimension assessment engine**, **HNDL detection**, and a **prioritised remediation generator** — evaluated per-endpoint and aggregated into dashboard KPIs.
+
+### NIST Validation Matrix (`nist_matrix.py`)
+
+Every cryptographic algorithm encountered during scanning is classified into one of six quantum-vulnerability statuses:
+
+| Status | Meaning |
+|--------|---------|
+| `VULNERABLE` | Broken by Shor's algorithm (RSA, ECDSA, ECDHE, DH) |
+| `WEAKENED` | Security halved by Grover's algorithm (AES-128, 3DES) |
+| `LEGACY_PROTOCOL` | Deprecated protocol that cannot negotiate PQC (TLS 1.0/1.1, SSLv3) |
+| `HYBRID_PQC` | Transitional classical + PQC hybrid (e.g., X25519MLKEM768) |
+| `PQC_SAFE` | NIST-approved post-quantum algorithm (ML-KEM-768, ML-DSA-65) |
+| `COMPLIANT` | Meets current best practice (TLS 1.3, AES-256-GCM) |
+
+### Assessment Engine (`assessment.py`)
+
+Each endpoint is evaluated across **4 cryptographic dimensions**:
+
+1. **TLS Protocol** — Is TLS 1.3 in use? (Required for PQC key exchange groups)
+2. **Key Exchange** — Vulnerable / Hybrid / PQC-Safe classification
+3. **Certificate** — Signature algorithm quantum vulnerability
+4. **Symmetric Cipher** — Grover's algorithm impact (AES-128 → 64-bit effective)
+
+Output includes:
+- Per-endpoint `overall_quantum_risk`: `HIGH` / `MEDIUM` / `LOW`
+- `hndl_vulnerable` flag — Harvest-Now, Decrypt-Later detection
+- Detailed findings and NIST references
+
+### Remediation Generator (`remediation.py`)
+
+For each non-compliant dimension, generates prioritised actions:
+
+| Priority | Timeframe | Example |
+|----------|-----------|---------|
+| **P1 CRITICAL** | 0–30 days | Disable deprecated TLS, enable PQC KEX |
+| **P2 HIGH** | 30–90 days | HNDL advisory, certificate migration planning |
+| **P3 MEDIUM** | 90–180 days | Upgrade AES-128 to AES-256, enable hybrid mode |
+| **P4 LOW** | 180–365 days | Migrate from hybrid to pure PQC KEX |
+
+### CLI Assessment
+
+```bash
+# Run scan with Phase 2 assessment
+python scan.py --target google.com --assess
+
+# Export full Phase 2 report as JSON
+python scan.py --target google.com --assess --format assess --output report.json
+
+# Batch assessment
+python scan.py --list targets.txt --assess
+```
+
+---
+
 ## Tech Stack
 
 | Component | Technology |
@@ -136,7 +216,7 @@ python scan.py --target example.com -v
 
 ```
 Q-ARMOR/
-|-- scan.py                          # CLI scanner entry point (Phase 1)
+|-- scan.py                          # CLI scanner entry point (Phase 1 + Phase 2)
 |-- run.py                           # Web dashboard entry point
 |-- requirements.txt                 # Python dependencies
 |-- .gitignore
@@ -151,7 +231,7 @@ Q-ARMOR/
 |
 |-- backend/                         # Web dashboard backend
 |   |-- __init__.py
-|   |-- app.py                       # FastAPI application & API routes
+|   |-- app.py                       # FastAPI application & API routes (Phase 1 + Phase 2)
 |   |-- models.py                    # Pydantic data models
 |   |-- demo_data.py                 # Simulated bank asset dataset
 |   |
@@ -161,14 +241,17 @@ Q-ARMOR/
 |       |-- prober.py                # Module 2: TLS/crypto fingerprinting (async)
 |       |-- classifier.py            # Module 3: PQC risk scoring
 |       |-- cbom_generator.py        # Module 4: CycloneDX 1.6 CBOM
-|       +-- label_issuer.py          # Module 5: PQC label generation
+|       |-- label_issuer.py          # Module 5: PQC label generation
+|       |-- nist_matrix.py           # Module 6: NIST PQC Validation Matrix (Phase 2)
+|       |-- assessment.py            # Module 7: 4-Dimension Assessment Engine (Phase 2)
+|       +-- remediation.py           # Module 8: Prioritised Remediation Generator (Phase 2)
 |
 |-- frontend/
-|   |-- index.html                   # Dashboard SPA
+|   |-- index.html                   # Dashboard SPA (4-tab: Overview, Assessment, Remediation, Matrix)
 |   |-- css/
-|   |   +-- styles.css               # Cybersecurity dark theme
+|   |   +-- styles.css               # Cybersecurity dark theme + Phase 2 chart/table styles
 |   +-- js/
-|       +-- app.js                   # Dashboard controller
+|       +-- app.js                   # Dashboard controller (Phase 1 + Phase 2 rendering)
 |
 |-- tests/
 |   +-- test_classifier.py           # Unit tests for PQC classifier
@@ -356,6 +439,33 @@ curl http://localhost:8000/api/cbom -o qarmor-cbom.json
 
 ---
 
+## Dashboard
+
+The web dashboard is a **4-tab HTML/CSS/JS single-page application** served by FastAPI.
+
+### Tab 1: Overview
+- **Stats Grid** — Total assets, Quantum Safe, PQC Transition, Vulnerable, Critical
+- **Asset Inventory Table** — Sorted by Q-Score, shows TLS version, KEX, cert algorithm, status badge
+- **Q-Score Ring** — Animated SVG ring with distribution bars
+
+### Tab 2: PQC Assessment
+- **KPI Cards** — Assessed endpoints, High/Medium/Low risk counts, HNDL exposed count
+- **Donut Charts** — Key Exchange status, TLS compliance, Risk distribution (Canvas-rendered)
+- **Dimension Breakdown Bars** — Stacked bars for KEX, TLS, Certificate, Symmetric, HNDL
+- **Per-Endpoint Assessment Table** — Risk badge, TLS/KEX/Cert/Sym status pills, HNDL indicator
+
+### Tab 3: Remediation Plan
+- **Priority Cards** — Total actions, P1 Critical, P2 High, P3 Medium, P4 Low
+- **Category Bars** — Actions by category (TLS, KEX, Certificate, Symmetric, HNDL advisory)
+- **Strategic Roadmap** — Timeline view grouped by phase with detailed steps and impact warnings
+
+### Tab 4: NIST Matrix
+- **Vulnerable Algorithms** — Red-tagged list of quantum-vulnerable algorithms
+- **PQC-Safe Algorithms** — Green-tagged NIST-approved post-quantum algorithms
+- **Hybrid PQC Algorithms** — Blue-tagged transitional hybrid algorithms
+
+---
+
 ## Testing
 
 ### Run unit tests
@@ -409,6 +519,10 @@ The CBOM output follows the OWASP CycloneDX 1.6 specification. Key fields to ver
 | GET | `/api/summary` | Get summary statistics of latest scan |
 | GET | `/api/remediation` | Get prioritized remediation roadmap |
 | GET | `/api/labels` | Get all PQC-Ready labels issued |
+| GET | `/api/assess` | Run Phase 2 PQC assessment on latest scan |
+| GET | `/api/assess/endpoint/{hostname}?port=443` | Assess a single endpoint against NIST matrix |
+| GET | `/api/assess/remediation` | Get prioritized Phase 2 remediation plan |
+| GET | `/api/assess/matrix` | Get full NIST PQC validation matrix reference |
 
 ---
 
@@ -455,6 +569,23 @@ Non-compliant assets get a prioritized action plan:
 - **P3 (91-180 days)**: Enable hybrid PQC key exchange
 - **P4 (180-365 days)**: Full ML-KEM + ML-DSA deployment
 
+### Step 7: NIST PQC Validation (Phase 2)
+Every algorithm is mapped through the NIST Validation Matrix across 6 quantum-readiness levels:
+`VULNERABLE → WEAKENED → LEGACY_PROTOCOL → HYBRID_PQC → PQC_SAFE → COMPLIANT`
+
+Four assessment dimensions are evaluated per endpoint:
+- **TLS Protocol** — Version compliance (1.3 = Pass, ≤1.1 = Fail)
+- **Key Exchange** — KEX quantum safety (ML-KEM = Safe, RSA = Vulnerable)
+- **Certificate** — Signature algorithm strength (ML-DSA = Safe, RSA-2048 = Vulnerable)
+- **Symmetric Cipher** — Block cipher strength (AES-256 = Safe, 3DES = Vulnerable)
+
+### Step 8: Strategic Remediation Generation (Phase 2)
+Based on assessment results, a multi-phase migration roadmap is generated with:
+- Per-endpoint prioritized actions (P1–P4)
+- Aggregate statistics by priority and category
+- HNDL (Harvest Now, Decrypt Later) exposure warnings
+- Phase-grouped strategic roadmap for organizational planning
+
 ---
 
 ## NIST PQC Standards
@@ -493,4 +624,4 @@ Q-ARMOR benchmarks against three finalized NIST standards (August 2024):
 
 ---
 
-**Q-ARMOR v1.0.0 — Built for the Quantum-Ready Cybersecurity Track**
+**Q-ARMOR v2.0.0 — Built for the Quantum-Ready Cybersecurity Track**

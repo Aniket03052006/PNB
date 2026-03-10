@@ -1,6 +1,6 @@
 /* Q-ARMOR Dashboard — Premium Cybersecurity Theme */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap');
 
-/* === Design Tokens === */
 :root {
     --bg-primary: #0a0e17;
     --bg-secondary: #111827;
@@ -18,11 +18,13 @@
     --accent-amber: #ffb300;
     --accent-red: #ff4757;
     --accent-purple: #a78bfa;
+    --accent-grey: #8b95a5;
 
     --status-safe: #00ff88;
     --status-transition: #00d4ff;
     --status-vulnerable: #ffb300;
     --status-critical: #ff4757;
+    --status-unknown: #8b95a5;
 
     --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
     --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
@@ -57,7 +59,7 @@ body {
         radial-gradient(ellipse at 80% 20%, rgba(0, 212, 255, 0.03) 0%, transparent 50%);
 }
 
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
 
 /* === Layout === */
 .app-container { max-width: 1440px; margin: 0 auto; padding: 20px 28px; }
@@ -192,7 +194,7 @@ body {
 /* === Stats Grid === */
 .stats-grid {
     display: grid;
-    grid-template-columns: repeat(5, 1fr);
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
     gap: 14px;
     margin-bottom: 28px;
 }
@@ -225,6 +227,7 @@ body {
 .stat-card--transition::before { background: var(--status-transition); }
 .stat-card--vulnerable::before { background: var(--status-vulnerable); }
 .stat-card--critical::before { background: var(--status-critical); }
+.stat-card--unknown::before { background: var(--status-unknown); }
 
 .stat-value {
     font-size: 2.2rem;
@@ -239,6 +242,7 @@ body {
 .stat-card--transition .stat-value { color: var(--status-transition); }
 .stat-card--vulnerable .stat-value { color: var(--status-vulnerable); }
 .stat-card--critical .stat-value { color: var(--status-critical); }
+.stat-card--unknown .stat-value { color: var(--status-unknown); }
 
 .stat-label {
     font-size: 0.72rem;
@@ -354,6 +358,7 @@ body {
 .status-badge--transition { background: rgba(0, 212, 255, 0.12); color: var(--status-transition); }
 .status-badge--vulnerable { background: rgba(255, 179, 0, 0.12); color: var(--status-vulnerable); }
 .status-badge--critical { background: rgba(255, 71, 87, 0.12); color: var(--status-critical); animation: pulse-red 2s ease-in-out infinite; }
+.status-badge--unknown { background: rgba(139, 149, 165, 0.12); color: var(--status-unknown); }
 
 @keyframes pulse-red {
     0%, 100% { box-shadow: none; }
@@ -690,15 +695,434 @@ body {
 @media (max-width: 1024px) {
     .stats-grid { grid-template-columns: repeat(3, 1fr); }
     .main-grid { grid-template-columns: 1fr; }
+    .scan-input-section { flex-wrap: wrap; }
+    .charts-row { grid-template-columns: 1fr; }
 }
 
 @media (max-width: 768px) {
     .stats-grid { grid-template-columns: repeat(2, 1fr); }
     .header { flex-direction: column; gap: 12px; text-align: center; }
     .labels-grid { grid-template-columns: 1fr; }
+    .tab-nav { flex-wrap: wrap; }
 }
 
 @media (max-width: 480px) {
     .stats-grid { grid-template-columns: 1fr; }
     .app-container { padding: 12px 16px; }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Phase 2 — Tab Navigation
+   ═══════════════════════════════════════════════════════════════════════════ */
+.tab-nav {
+    display: flex;
+    gap: 4px;
+    margin-bottom: 24px;
+    padding: 4px;
+    background: var(--bg-card);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-lg);
+    backdrop-filter: blur(12px);
+}
+
+.tab-btn {
+    flex: 1;
+    padding: 12px 20px;
+    border: none;
+    border-radius: var(--radius-md);
+    background: transparent;
+    color: var(--text-secondary);
+    font-family: var(--font-sans);
+    font-size: 0.82rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: var(--transition);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    white-space: nowrap;
+}
+
+.tab-btn:hover {
+    background: rgba(0, 255, 136, 0.06);
+    color: var(--text-primary);
+}
+
+.tab-btn--active {
+    background: linear-gradient(135deg, rgba(0, 255, 136, 0.15), rgba(0, 212, 255, 0.1));
+    color: var(--accent-green);
+    box-shadow: 0 0 12px rgba(0, 255, 136, 0.1);
+}
+
+.tab-content {
+    display: none;
+}
+
+.tab-content--active {
+    display: block;
+    animation: tabFadeIn 0.3s ease;
+}
+
+@keyframes tabFadeIn {
+    from { opacity: 0; transform: translateY(6px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+/* Phase badges in header */
+.phase-badge--p1 { border-color: rgba(0, 255, 136, 0.35); background: rgba(0, 255, 136, 0.08); color: var(--accent-green); }
+.phase-badge--p2 { border-color: rgba(0, 212, 255, 0.35); background: rgba(0, 212, 255, 0.08); color: var(--accent-cyan); }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Phase 2 — Charts
+   ═══════════════════════════════════════════════════════════════════════════ */
+.charts-row {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 20px;
+    margin-bottom: 20px;
+}
+
+.chart-panel {
+    min-height: 360px;
+}
+
+.chart-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 16px 0;
+}
+
+.chart-container canvas {
+    max-width: 260px;
+    max-height: 260px;
+}
+
+.chart-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    justify-content: center;
+    margin-top: 16px;
+}
+
+.chart-legend-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.72rem;
+    color: var(--text-secondary);
+}
+
+.chart-legend-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.chart-legend-value {
+    font-family: var(--font-mono);
+    font-weight: 700;
+    color: var(--text-primary);
+    margin-left: 2px;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Phase 2 — Dimension Bars
+   ═══════════════════════════════════════════════════════════════════════════ */
+.dimension-bars {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    padding: 8px 0;
+}
+
+.dim-bar-group {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.dim-bar-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.dim-bar-label {
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.dim-bar-values {
+    font-size: 0.72rem;
+    font-family: var(--font-mono);
+    color: var(--text-dim);
+}
+
+.dim-bar-track {
+    display: flex;
+    height: 24px;
+    border-radius: var(--radius-sm);
+    overflow: hidden;
+    background: rgba(55, 65, 81, 0.3);
+}
+
+.dim-bar-segment {
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.65rem;
+    font-weight: 700;
+    font-family: var(--font-mono);
+    color: var(--bg-primary);
+    transition: width 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+    min-width: 0;
+    overflow: hidden;
+}
+
+.dim-bar-segment--safe { background: var(--status-safe); }
+.dim-bar-segment--transition { background: var(--status-transition); }
+.dim-bar-segment--vulnerable { background: var(--status-vulnerable); }
+.dim-bar-segment--critical { background: var(--status-critical); }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Phase 2 — Assessment Table
+   ═══════════════════════════════════════════════════════════════════════════ */
+.assess-table { width: 100%; border-collapse: collapse; }
+
+.assess-table th {
+    text-align: left;
+    font-size: 0.65rem;
+    font-weight: 700;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    padding: 8px 8px;
+    border-bottom: 1px solid var(--border-subtle);
+    white-space: nowrap;
+}
+
+.assess-table td {
+    padding: 8px;
+    font-size: 0.78rem;
+    border-bottom: 1px solid rgba(55, 65, 81, 0.25);
+    vertical-align: middle;
+}
+
+.assess-table tbody tr { transition: var(--transition); }
+.assess-table tbody tr:hover { background: rgba(0, 212, 255, 0.04); }
+
+.risk-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 10px;
+    border-radius: 999px;
+    font-size: 0.65rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.risk-badge--HIGH { background: rgba(255, 71, 87, 0.15); color: var(--status-critical); }
+.risk-badge--MEDIUM { background: rgba(255, 179, 0, 0.15); color: var(--status-vulnerable); }
+.risk-badge--LOW { background: rgba(0, 255, 136, 0.15); color: var(--status-safe); }
+
+.dim-pill {
+    display: inline-flex;
+    padding: 2px 7px;
+    border-radius: 4px;
+    font-size: 0.65rem;
+    font-weight: 600;
+    font-family: var(--font-mono);
+}
+
+.dim-pill--pass { background: rgba(0, 255, 136, 0.1); color: var(--status-safe); }
+.dim-pill--fail { background: rgba(255, 71, 87, 0.1); color: var(--status-critical); }
+.dim-pill--hybrid { background: rgba(0, 212, 255, 0.1); color: var(--status-transition); }
+.dim-pill--vuln { background: rgba(255, 179, 0, 0.1); color: var(--status-vulnerable); }
+.dim-pill--pqc { background: rgba(0, 255, 136, 0.12); color: var(--status-safe); }
+
+.hndl-indicator {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    font-size: 0.68rem;
+    font-weight: 700;
+}
+
+.hndl-indicator--yes { color: var(--status-critical); }
+.hndl-indicator--no { color: var(--status-safe); }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Phase 2 — Remediation Plan v2
+   ═══════════════════════════════════════════════════════════════════════════ */
+.remediation-timeline-v2 {
+    position: relative;
+    padding-left: 28px;
+}
+
+.remediation-timeline-v2::before {
+    content: '';
+    position: absolute;
+    left: 10px;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background: linear-gradient(180deg, var(--status-critical), var(--status-vulnerable), var(--status-transition), var(--status-safe));
+    border-radius: 999px;
+}
+
+.roadmap-phase {
+    margin-bottom: 24px;
+}
+
+.roadmap-phase-header {
+    position: relative;
+    font-size: 0.82rem;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+    margin-bottom: 10px;
+    padding: 8px 14px;
+    border-radius: var(--radius-sm);
+}
+
+.roadmap-phase-header::before {
+    content: '';
+    position: absolute;
+    left: -24px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    border: 2px solid;
+}
+
+.roadmap-phase--P1 .roadmap-phase-header {
+    color: var(--status-critical);
+    background: rgba(255, 71, 87, 0.06);
+}
+.roadmap-phase--P1 .roadmap-phase-header::before { border-color: var(--status-critical); background: var(--status-critical); }
+
+.roadmap-phase--P2 .roadmap-phase-header {
+    color: var(--status-vulnerable);
+    background: rgba(255, 179, 0, 0.06);
+}
+.roadmap-phase--P2 .roadmap-phase-header::before { border-color: var(--status-vulnerable); background: var(--status-vulnerable); }
+
+.roadmap-phase--P3 .roadmap-phase-header {
+    color: var(--status-transition);
+    background: rgba(0, 212, 255, 0.06);
+}
+.roadmap-phase--P3 .roadmap-phase-header::before { border-color: var(--status-transition); background: var(--status-transition); }
+
+.roadmap-phase--P4 .roadmap-phase-header {
+    color: var(--status-safe);
+    background: rgba(0, 255, 136, 0.06);
+}
+.roadmap-phase--P4 .roadmap-phase-header::before { border-color: var(--status-safe); background: var(--status-safe); }
+
+.roadmap-action {
+    margin-bottom: 12px;
+    padding: 12px 14px;
+    background: var(--bg-glass);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-sm);
+    transition: var(--transition);
+}
+
+.roadmap-action:hover { border-color: var(--border-glow); }
+
+.roadmap-action-title {
+    font-size: 0.82rem;
+    font-weight: 600;
+    margin-bottom: 4px;
+    color: var(--text-primary);
+}
+
+.roadmap-action-desc {
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+    line-height: 1.5;
+    margin-bottom: 6px;
+}
+
+.roadmap-action-steps {
+    list-style: none;
+    font-size: 0.72rem;
+    color: var(--text-dim);
+}
+
+.roadmap-action-steps li {
+    padding: 2px 0 2px 14px;
+    position: relative;
+}
+
+.roadmap-action-steps li::before {
+    content: '▸';
+    position: absolute;
+    left: 0;
+    color: var(--accent-cyan);
+}
+
+.roadmap-action-impact {
+    font-size: 0.7rem;
+    color: var(--accent-amber);
+    margin-top: 6px;
+    font-style: italic;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Phase 2 — NIST Matrix Tables
+   ═══════════════════════════════════════════════════════════════════════════ */
+.matrix-section {
+    margin-bottom: 20px;
+}
+
+.matrix-section-title {
+    font-size: 0.88rem;
+    font-weight: 700;
+    margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.matrix-tag-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.matrix-tag {
+    padding: 6px 14px;
+    border-radius: var(--radius-sm);
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    font-weight: 500;
+    border: 1px solid;
+}
+
+.matrix-tag--vuln {
+    color: var(--status-critical);
+    background: rgba(255, 71, 87, 0.08);
+    border-color: rgba(255, 71, 87, 0.25);
+}
+
+.matrix-tag--safe {
+    color: var(--status-safe);
+    background: rgba(0, 255, 136, 0.08);
+    border-color: rgba(0, 255, 136, 0.25);
+}
+
+.matrix-tag--hybrid {
+    color: var(--status-transition);
+    background: rgba(0, 212, 255, 0.08);
+    border-color: rgba(0, 212, 255, 0.25);
 }

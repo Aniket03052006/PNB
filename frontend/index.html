@@ -26,7 +26,8 @@
                 </div>
             </div>
             <div class="header-actions">
-                <span class="phase-badge" title="Phase 1: CLI Scanner is operational — run: python scan.py --target &lt;host&gt;">⚡ Phase 1: CLI Engine Active</span>
+                <span class="phase-badge phase-badge--p1" title="Phase 1: Discovery & Scanning">⚡ Phase 1</span>
+                <span class="phase-badge phase-badge--p2" title="Phase 2: PQC Assessment & Remediation">🛡️ Phase 2</span>
                 <button class="btn btn-primary" id="btnDemoScan" onclick="runDemoScan()">▶ Run Demo Scan</button>
                 <button class="btn" id="btnExportCBOM" onclick="exportCBOM()" disabled>↓ Export CBOM</button>
             </div>
@@ -40,107 +41,295 @@
             <button class="btn" onclick="scanSingleHost()">Probe</button>
         </div>
 
-        <!-- Stats Grid -->
-        <div class="stats-grid" id="statsGrid">
-            <div class="stat-card stat-card--total">
-                <div class="stat-value" id="statTotal">—</div>
-                <div class="stat-label">Total Assets</div>
-                <div class="stat-pct" id="statAvgScore">Avg Q-Score: —</div>
-            </div>
-            <div class="stat-card stat-card--safe">
-                <div class="stat-value" id="statSafe">—</div>
-                <div class="stat-label">Fully Quantum Safe</div>
-                <div class="stat-pct" id="statSafePct">—</div>
-            </div>
-            <div class="stat-card stat-card--transition">
-                <div class="stat-value" id="statTransition">—</div>
-                <div class="stat-label">PQC Transition</div>
-                <div class="stat-pct" id="statTransitionPct">—</div>
-            </div>
-            <div class="stat-card stat-card--vulnerable">
-                <div class="stat-value" id="statVulnerable">—</div>
-                <div class="stat-label">Quantum Vulnerable</div>
-                <div class="stat-pct" id="statVulnerablePct">—</div>
-            </div>
-            <div class="stat-card stat-card--critical">
-                <div class="stat-value" id="statCritical">—</div>
-                <div class="stat-label">Critically Vulnerable</div>
-                <div class="stat-pct" id="statCriticalPct">—</div>
-            </div>
+        <!-- Tab Navigation -->
+        <div class="tab-nav" id="tabNav">
+            <button class="tab-btn tab-btn--active" data-tab="overview" onclick="switchTab('overview')">📊 Overview</button>
+            <button class="tab-btn" data-tab="assessment" onclick="switchTab('assessment')">🛡️ PQC Assessment</button>
+            <button class="tab-btn" data-tab="remediation" onclick="switchTab('remediation')">🔧 Remediation Plan</button>
+            <button class="tab-btn" data-tab="matrix" onclick="switchTab('matrix')">📋 NIST Matrix</button>
         </div>
 
-        <!-- Main Grid: Asset Table + Q-Score Ring -->
-        <div class="main-grid">
-            <!-- Asset Table Panel -->
-            <div class="panel">
-                <div class="panel-header">
-                    <div class="panel-title">Asset Inventory</div>
-                    <div class="panel-badge" id="assetCount" style="background: rgba(0, 255, 136, 0.12); color: var(--accent-green);">0 assets</div>
+        <!-- ═══════════════ TAB: OVERVIEW (Phase 1) ═══════════════ -->
+        <div class="tab-content tab-content--active" id="tab-overview">
+
+            <!-- Stats Grid -->
+            <div class="stats-grid" id="statsGrid">
+                <div class="stat-card stat-card--total">
+                    <div class="stat-value" id="statTotal">—</div>
+                    <div class="stat-label">Total Assets</div>
+                    <div class="stat-pct" id="statAvgScore">Avg Q-Score: —</div>
                 </div>
-                <div id="assetTableContainer">
-                    <div class="empty-state">
-                        <div class="empty-state-icon">🔍</div>
-                        <div class="empty-state-title">No scan data</div>
-                        <div class="empty-state-desc">Click "Run Demo Scan" or enter a domain to begin</div>
-                    </div>
+                <div class="stat-card stat-card--safe">
+                    <div class="stat-value" id="statSafe">—</div>
+                    <div class="stat-label">Fully Quantum Safe</div>
+                    <div class="stat-pct" id="statSafePct">—</div>
+                </div>
+                <div class="stat-card stat-card--transition">
+                    <div class="stat-value" id="statTransition">—</div>
+                    <div class="stat-label">PQC Transition</div>
+                    <div class="stat-pct" id="statTransitionPct">—</div>
+                </div>
+                <div class="stat-card stat-card--vulnerable">
+                    <div class="stat-value" id="statVulnerable">—</div>
+                    <div class="stat-label">Quantum Vulnerable</div>
+                    <div class="stat-pct" id="statVulnerablePct">—</div>
+                </div>
+                <div class="stat-card stat-card--critical" id="criticalCard">
+                    <div class="stat-value" id="statCritical">0</div>
+                    <div class="stat-label">CRITICALLY VULNERABLE</div>
+                    <div class="stat-pct" id="statCriticalPct">—</div>
+                </div>
+                <div class="stat-card stat-card--unknown" id="unknownCard">
+                    <div class="stat-value" id="statUnknown">0</div>
+                    <div class="stat-label">UNKNOWN</div>
+                    <div class="stat-pct" id="statUnknownPct">—</div>
                 </div>
             </div>
 
-            <!-- Sidebar: Q-Score Overview -->
-            <div class="panel">
-                <div class="panel-header">
-                    <div class="panel-title">Q-Score Overview</div>
-                </div>
-                <div class="qscore-ring-container" id="qscoreRingContainer">
-                    <div class="qscore-ring">
-                        <svg viewBox="0 0 160 160" width="160" height="160">
-                            <circle class="qscore-ring-bg" cx="80" cy="80" r="68"></circle>
-                            <circle class="qscore-ring-fill" id="qscoreRingFill" cx="80" cy="80" r="68"
-                                stroke-dasharray="427.26" stroke-dashoffset="427.26"></circle>
-                        </svg>
-                        <div class="qscore-ring-text">
-                            <div class="qscore-ring-number" id="qscoreRingNumber">—</div>
-                            <div class="qscore-ring-label">AVG Q-SCORE</div>
+            <!-- Main Grid: Asset Table + Q-Score Ring -->
+            <div class="main-grid">
+                <!-- Asset Table Panel -->
+                <div class="panel">
+                    <div class="panel-header">
+                        <div class="panel-title">Asset Inventory</div>
+                        <div class="panel-badge" id="assetCount" style="background: rgba(0, 255, 136, 0.12); color: var(--accent-green);">0 assets</div>
+                    </div>
+                    <div id="assetTableContainer">
+                        <div class="empty-state">
+                            <div class="empty-state-icon">🔍</div>
+                            <div class="empty-state-title">No scan data</div>
+                            <div class="empty-state-desc">Click "Run Demo Scan" or enter a domain to begin</div>
                         </div>
                     </div>
-                    <div class="dist-bars" id="distBars"></div>
                 </div>
-            </div>
-        </div>
 
-        <!-- Remediation Roadmap -->
-        <div class="remediation-section">
-            <div class="panel">
-                <div class="panel-header">
-                    <div class="panel-title">Remediation Roadmap</div>
-                </div>
-                <div id="remediationContainer">
-                    <div class="empty-state">
-                        <div class="empty-state-icon">📋</div>
-                        <div class="empty-state-title">Awaiting scan data</div>
-                        <div class="empty-state-desc">Remediation roadmap will appear after a scan</div>
+                <!-- Sidebar: Q-Score Overview -->
+                <div class="panel">
+                    <div class="panel-header">
+                        <div class="panel-title">Q-Score Overview</div>
+                    </div>
+                    <div class="qscore-ring-container" id="qscoreRingContainer">
+                        <div class="qscore-ring">
+                            <svg viewBox="0 0 160 160" width="160" height="160">
+                                <circle class="qscore-ring-bg" cx="80" cy="80" r="68"></circle>
+                                <circle class="qscore-ring-fill" id="qscoreRingFill" cx="80" cy="80" r="68"
+                                    stroke-dasharray="427.26" stroke-dashoffset="427.26"></circle>
+                            </svg>
+                            <div class="qscore-ring-text">
+                                <div class="qscore-ring-number" id="qscoreRingNumber">—</div>
+                                <div class="qscore-ring-label">AVG Q-SCORE</div>
+                            </div>
+                        </div>
+                        <div class="dist-bars" id="distBars"></div>
                     </div>
                 </div>
             </div>
-        </div>
 
-        <!-- PQC Labels -->
-        <div class="panel" id="labelsSection" style="display: none;">
-            <div class="panel-header">
-                <div class="panel-title">PQC-Ready Certificates Issued</div>
+            <!-- Remediation Roadmap (Phase 1 summary) -->
+            <div class="remediation-section">
+                <div class="panel">
+                    <div class="panel-header">
+                        <div class="panel-title">Remediation Roadmap</div>
+                    </div>
+                    <div id="remediationContainer">
+                        <div class="empty-state">
+                            <div class="empty-state-icon">📋</div>
+                            <div class="empty-state-title">Awaiting scan data</div>
+                            <div class="empty-state-desc">Remediation roadmap will appear after a scan</div>
+                        </div>
+                    </div>
+                </div>
             </div>
-            <div class="labels-grid" id="labelsContainer"></div>
-        </div>
+
+            <!-- PQC Labels -->
+            <div class="panel" id="labelsSection" style="display: none;">
+                <div class="panel-header">
+                    <div class="panel-title">PQC-Ready Certificates Issued</div>
+                </div>
+                <div class="labels-grid" id="labelsContainer"></div>
+            </div>
+
+        </div><!-- /tab-overview -->
+
+        <!-- ═══════════════ TAB: PQC ASSESSMENT (Phase 2) ═══════════════ -->
+        <div class="tab-content" id="tab-assessment">
+            <div id="assessmentEmpty" class="empty-state" style="padding: 80px 20px;">
+                <div class="empty-state-icon">🛡️</div>
+                <div class="empty-state-title">No assessment data</div>
+                <div class="empty-state-desc">Run a scan first, then the NIST PQC assessment will appear here</div>
+            </div>
+            <div id="assessmentContent" style="display:none;">
+
+                <!-- Phase 2 KPI Cards -->
+                <div class="stats-grid" id="phase2Stats">
+                    <div class="stat-card stat-card--total">
+                        <div class="stat-value" id="p2StatEndpoints">—</div>
+                        <div class="stat-label">Assessed Endpoints</div>
+                        <div class="stat-pct" id="p2AvgScore">Avg Q-Score: —</div>
+                    </div>
+                    <div class="stat-card stat-card--critical">
+                        <div class="stat-value" id="p2StatHigh">—</div>
+                        <div class="stat-label">HIGH RISK</div>
+                        <div class="stat-pct" id="p2StatHighPct">—</div>
+                    </div>
+                    <div class="stat-card stat-card--transition">
+                        <div class="stat-value" id="p2StatMedium">—</div>
+                        <div class="stat-label">MEDIUM RISK</div>
+                        <div class="stat-pct" id="p2StatMediumPct">—</div>
+                    </div>
+                    <div class="stat-card stat-card--safe">
+                        <div class="stat-value" id="p2StatLow">—</div>
+                        <div class="stat-label">LOW RISK</div>
+                        <div class="stat-pct" id="p2StatLowPct">—</div>
+                    </div>
+                    <div class="stat-card stat-card--vulnerable">
+                        <div class="stat-value" id="p2StatHNDL">—</div>
+                        <div class="stat-label">HNDL EXPOSED</div>
+                        <div class="stat-pct" id="p2StatHNDLPct">—</div>
+                    </div>
+                </div>
+
+                <!-- Charts Row -->
+                <div class="charts-row">
+                    <!-- KEX Status Chart -->
+                    <div class="panel chart-panel">
+                        <div class="panel-header">
+                            <div class="panel-title">Key Exchange Status</div>
+                        </div>
+                        <div class="chart-container">
+                            <canvas id="chartKEX" width="280" height="280"></canvas>
+                            <div class="chart-legend" id="legendKEX"></div>
+                        </div>
+                    </div>
+                    <!-- TLS Protocol Chart -->
+                    <div class="panel chart-panel">
+                        <div class="panel-header">
+                            <div class="panel-title">TLS Protocol Compliance</div>
+                        </div>
+                        <div class="chart-container">
+                            <canvas id="chartTLS" width="280" height="280"></canvas>
+                            <div class="chart-legend" id="legendTLS"></div>
+                        </div>
+                    </div>
+                    <!-- Risk Distribution Chart -->
+                    <div class="panel chart-panel">
+                        <div class="panel-header">
+                            <div class="panel-title">Quantum Risk Distribution</div>
+                        </div>
+                        <div class="chart-container">
+                            <canvas id="chartRisk" width="280" height="280"></canvas>
+                            <div class="chart-legend" id="legendRisk"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Dimension Breakdown Bars -->
+                <div class="panel" style="margin-bottom: 20px;">
+                    <div class="panel-header">
+                        <div class="panel-title">Cryptographic Dimension Breakdown</div>
+                    </div>
+                    <div id="dimensionBars" class="dimension-bars"></div>
+                </div>
+
+                <!-- Per-Endpoint Assessment Table -->
+                <div class="panel">
+                    <div class="panel-header">
+                        <div class="panel-title">Per-Endpoint NIST Assessment</div>
+                        <div class="panel-badge" id="assessCount" style="background: rgba(0, 212, 255, 0.12); color: var(--accent-cyan);">0 endpoints</div>
+                    </div>
+                    <div id="assessTableContainer" style="overflow-x:auto;">
+                    </div>
+                </div>
+
+            </div>
+        </div><!-- /tab-assessment -->
+
+        <!-- ═══════════════ TAB: REMEDIATION PLAN (Phase 2) ═══════════════ -->
+        <div class="tab-content" id="tab-remediation">
+            <div id="remPlanEmpty" class="empty-state" style="padding: 80px 20px;">
+                <div class="empty-state-icon">🔧</div>
+                <div class="empty-state-title">No remediation plan</div>
+                <div class="empty-state-desc">Run a scan to generate the PQC migration remediation plan</div>
+            </div>
+            <div id="remPlanContent" style="display:none;">
+
+                <!-- Remediation Summary Cards -->
+                <div class="stats-grid">
+                    <div class="stat-card stat-card--total">
+                        <div class="stat-value" id="remTotal">—</div>
+                        <div class="stat-label">Total Actions</div>
+                    </div>
+                    <div class="stat-card stat-card--critical">
+                        <div class="stat-value" id="remP1">—</div>
+                        <div class="stat-label">P1 CRITICAL</div>
+                        <div class="stat-pct">0–30 days</div>
+                    </div>
+                    <div class="stat-card stat-card--vulnerable">
+                        <div class="stat-value" id="remP2">—</div>
+                        <div class="stat-label">P2 HIGH</div>
+                        <div class="stat-pct">30–90 days</div>
+                    </div>
+                    <div class="stat-card stat-card--transition">
+                        <div class="stat-value" id="remP3">—</div>
+                        <div class="stat-label">P3 MEDIUM</div>
+                        <div class="stat-pct">90–180 days</div>
+                    </div>
+                    <div class="stat-card stat-card--safe">
+                        <div class="stat-value" id="remP4">—</div>
+                        <div class="stat-label">P4 LOW</div>
+                        <div class="stat-pct">180–365 days</div>
+                    </div>
+                </div>
+
+                <!-- Category Breakdown -->
+                <div class="panel" style="margin-bottom: 20px;">
+                    <div class="panel-header">
+                        <div class="panel-title">Actions by Category</div>
+                    </div>
+                    <div id="remCategoryBars" class="dimension-bars"></div>
+                </div>
+
+                <!-- Strategic Roadmap Timeline -->
+                <div class="panel">
+                    <div class="panel-header">
+                        <div class="panel-title">Strategic Migration Roadmap</div>
+                    </div>
+                    <div id="remRoadmapContainer" class="remediation-timeline-v2"></div>
+                </div>
+            </div>
+        </div><!-- /tab-remediation -->
+
+        <!-- ═══════════════ TAB: NIST MATRIX ═══════════════ -->
+        <div class="tab-content" id="tab-matrix">
+            <div id="matrixContent">
+                <div class="panel" style="margin-bottom: 20px;">
+                    <div class="panel-header">
+                        <div class="panel-title">NIST PQC Validation Matrix Reference</div>
+                        <button class="btn" onclick="loadNISTMatrix()">🔄 Load Matrix</button>
+                    </div>
+                    <p style="font-size: 0.82rem; color: var(--text-secondary); margin-bottom: 16px;">
+                        This matrix classifies cryptographic algorithms by their quantum vulnerability status
+                        based on NIST FIPS 203/204/205 standards. Used internally by Q-ARMOR's assessment engine.
+                    </p>
+                    <div id="matrixTables">
+                        <div class="empty-state">
+                            <div class="empty-state-icon">📋</div>
+                            <div class="empty-state-title">Click "Load Matrix" to display</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div><!-- /tab-matrix -->
 
         <!-- Footer -->
         <footer class="footer">
             <div class="footer-text">
-                Q-ARMOR v1.0.0 — Scan. Classify. Certify. Future-proof.
+                Q-ARMOR v2.0.0 — Scan. Classify. Assess. Remediate. Future-proof.
                 <br>
                 <span style="color: var(--accent-green); font-size: 0.75rem;">
-                    ✓ Phase 1: Core Discovery &amp; Protocol Analysis (CLI)
+                    ✓ Phase 1: Discovery &amp; Protocol Analysis
                     &nbsp;|&nbsp;
-                    CLI: <code style="background: rgba(0,255,136,0.1); padding: 1px 5px; border-radius: 3px;">python scan.py --target &lt;host&gt;</code>
+                    ✓ Phase 2: PQC Assessment &amp; Remediation
                 </span>
                 <br>
                 Built on <a href="#">NIST FIPS 203/204/205</a> &middot; <a href="#">CycloneDX 1.6 CBOM</a> &middot; <a href="#">PQCC Whitepaper</a>

@@ -173,6 +173,14 @@ DEMO_ASSETS: list[dict[str, Any]] = [
         "cert": _cert("CN=cloudflare.com", "CN=Cloudflare Inc ECC CA-3", "ecdsa-with-SHA256", "EC", 256, 300),
         "pqc_kex": True, "pqc_sig": False, "hybrid": True,
     },
+    # --- UNKNOWN (1 asset — simulated scan failure) ---
+    {
+        "asset": _asset("internal-legacy.demobank.com", 4433),
+        "tls": _tls("", "", 0, "", "", ""),
+        "cert": _cert("", "", "", "", 0, 0),
+        "pqc_kex": False, "pqc_sig": False, "hybrid": False,
+        "scan_failure": True,
+    },
 ]
 
 
@@ -220,8 +228,8 @@ def generate_demo_results() -> ScanSummary:
         pqc_transition=counts[PQCStatus.PQC_TRANSITION],
         quantum_vulnerable=counts[PQCStatus.QUANTUM_VULNERABLE],
         critically_vulnerable=counts[PQCStatus.CRITICALLY_VULNERABLE],
+        unknown=counts.get(PQCStatus.UNKNOWN, 0),
         average_q_score=round(total_score / len(results), 1) if results else 0.0,
-        scan_timestamp=datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
         results=results,
         remediation_roadmap=remediation,
         labels=labels,

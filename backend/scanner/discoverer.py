@@ -25,7 +25,7 @@ SCAN_PORTS = [80, 443, 8080, 8443, 4433, 1194, 500, 4500]
 async def enumerate_subdomains_dns(domain: str) -> list[str]:
     """Brute-force subdomain discovery using DNS resolution."""
     found = []
-    loop = asyncio.get_event_loop()
+    loop = asyncio.get_running_loop()
 
     async def check(sub: str):
         fqdn = f"{sub}.{domain}"
@@ -64,7 +64,7 @@ async def scan_ports(host: str, ports: list[int] | None = None) -> list[int]:
     """Scan common ports on a host to find live services."""
     ports = ports or SCAN_PORTS
     open_ports: list[int] = []
-    loop = asyncio.get_event_loop()
+    loop = asyncio.get_running_loop()
 
     async def probe(port: int):
         try:

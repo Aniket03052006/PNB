@@ -11,6 +11,7 @@ class PQCStatus(str, Enum):
     PQC_TRANSITION = "PQC_TRANSITION"
     QUANTUM_VULNERABLE = "QUANTUM_VULNERABLE"
     CRITICALLY_VULNERABLE = "CRITICALLY_VULNERABLE"
+    UNKNOWN = "UNKNOWN"
 
 
 class RemediationPriority(str, Enum):
@@ -76,8 +77,8 @@ class CryptoFingerprint(BaseModel):
 
 class QScore(BaseModel):
     total: int = 0
-    tls_version_score: int = 0       # max 30
-    key_exchange_score: int = 0      # max 30
+    tls_version_score: int = 0       # max 25
+    key_exchange_score: int = 0      # max 35
     certificate_score: int = 0       # max 25
     cipher_strength_score: int = 0   # max 15
     status: PQCStatus = PQCStatus.CRITICALLY_VULNERABLE
@@ -118,8 +119,11 @@ class ScanSummary(BaseModel):
     pqc_transition: int = 0
     quantum_vulnerable: int = 0
     critically_vulnerable: int = 0
+    unknown: int = 0
     average_q_score: float = 0.0
-    scan_timestamp: str = ""
+    scan_timestamp: str = Field(
+        default_factory=lambda: datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+    )
     results: list[ScanResult] = Field(default_factory=list)
     remediation_roadmap: list[RemediationAction] = Field(default_factory=list)
     labels: list[PQCLabel] = Field(default_factory=list)
