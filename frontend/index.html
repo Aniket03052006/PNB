@@ -30,8 +30,10 @@
                 <span class="phase-badge phase-badge--p2" title="Phase 2: PQC Assessment & Remediation">🛡️ Phase 2</span>
                 <span class="phase-badge phase-badge--p3" title="Phase 3: Full CBOM Generation">📦 Phase 3</span>
                 <span class="phase-badge phase-badge--p4" title="Phase 4: Certification Labeling Engine">🏷️ Phase 4</span>
+                <span class="phase-badge phase-badge--p5" title="Phase 5: Compliance-as-Code Attestations">📜 Phase 5</span>
                 <button class="btn btn-primary" id="btnDemoScan" onclick="runDemoScan()">▶ Run Demo Scan</button>
                 <button class="btn" id="btnExportCBOM" onclick="exportCBOM()" disabled>↓ Export Phase 3 CBOM</button>
+                <button class="btn" id="btnExportCDXA" onclick="exportCDXA()" disabled>↓ Export CDXA</button>
             </div>
         </header>
 
@@ -173,6 +175,42 @@
                     <div class="panel-title">PQC-Ready Certificates Issued</div>
                 </div>
                 <div class="labels-grid" id="labelsContainer"></div>
+            </div>
+
+            <!-- Phase 5: Compliance Attestation -->
+            <div class="panel" id="attestationSection" style="display: none;">
+                <div class="panel-header">
+                    <div class="panel-title">📜 Phase 5: Compliance Attestation (CDXA)</div>
+                    <div class="panel-badge" id="attestStatus" style="background: rgba(168, 85, 247, 0.12); color: #a855f7;">Not Generated</div>
+                </div>
+                <div class="stats-grid" id="attestStats" style="margin-bottom: 16px;">
+                    <div class="stat-card stat-card--safe">
+                        <div class="stat-value" id="attestCompliant">0</div>
+                        <div class="stat-label">✅ COMPLIANT</div>
+                    </div>
+                    <div class="stat-card stat-card--transition">
+                        <div class="stat-value" id="attestPartial">0</div>
+                        <div class="stat-label">🔶 PARTIAL</div>
+                    </div>
+                    <div class="stat-card stat-card--critical">
+                        <div class="stat-value" id="attestNonCompliant">0</div>
+                        <div class="stat-label">❌ NON-COMPLIANT</div>
+                    </div>
+                    <div class="stat-card" style="border-color: #a855f7;">
+                        <div class="stat-value" id="attestSigned" style="color: #a855f7;">—</div>
+                        <div class="stat-label">SIGNED (Ed25519)</div>
+                    </div>
+                </div>
+                <div id="attestDetails" style="font-size: 0.82rem; color: var(--text-secondary);"></div>
+            </div>
+
+            <!-- Phase 5: Security Alerts -->
+            <div class="panel" id="alertsSection" style="display: none;">
+                <div class="panel-header">
+                    <div class="panel-title">🚨 Phase 5: Security Alerts</div>
+                    <div class="panel-badge" id="alertCount" style="background: rgba(255, 59, 48, 0.12); color: #ff3b30;">0 alerts</div>
+                </div>
+                <div id="alertsContainer"></div>
             </div>
 
         </div><!-- /tab-overview -->
@@ -350,7 +388,7 @@
         <!-- Footer -->
         <footer class="footer">
             <div class="footer-text">
-                Q-ARMOR v4.0.0 — Scan. Classify. Assess. Remediate. Label. Future-proof.
+                Q-ARMOR v5.0.0 — Scan. Classify. Assess. Remediate. Label. Attest. Future-proof.
                 <br>
                 <span style="color: var(--accent-green); font-size: 0.75rem;">
                     ✓ Phase 1: Discovery &amp; Protocol Analysis
@@ -360,6 +398,8 @@
                     ✓ Phase 3: CBOM Generation
                     &nbsp;|&nbsp;
                     ✓ Phase 4: Certification Labels
+                    &nbsp;|&nbsp;
+                    ✓ Phase 5: Compliance Attestations &amp; Automation
                 </span>
                 <br>
                 Built on <a href="#">NIST FIPS 203/204/205</a> &middot; <a href="#">CycloneDX 1.6 CBOM</a> &middot; <a href="#">PQCC Whitepaper</a>

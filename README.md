@@ -2,7 +2,7 @@
 
 A cryptographic scanner and inventory engine that discovers quantum-vulnerable cryptography across a bank's public-facing assets, assesses each endpoint against the **NIST PQC Validation Matrix**, and produces a **Cryptographic Bill of Materials (CBOM)** in the industry-standard **CycloneDX 1.6** format — with an actionable **PQC migration roadmap**.
 
-> **Scan. Classify. Assess. Remediate. Future-proof.**
+> **Scan. Classify. Assess. Remediate. Attest. Automate. Future-proof.**
 
 > Built for the **Punjab National Bank (PNB) Cybersecurity Hackathon 2025-26**.
 
@@ -17,6 +17,7 @@ A cryptographic scanner and inventory engine that discovers quantum-vulnerable c
 - [Phase 2 — PQC Assessment & Remediation](#phase-2--pqc-assessment--remediation)
 - [Phase 3 — CBOM Generation Engine](#phase-3--cbom-generation-engine)
 - [Phase 4 — Certification Labeling Engine](#phase-4--certification-labeling-engine)
+- [Phase 5 — Compliance-as-Code Attestations & Automation](#phase-5--compliance-as-code-attestations--automation)
 - [Tech Stack](#tech-stack)
 - [Project Structure](#project-structure)
 - [Setup & Installation](#setup--installation)
@@ -113,9 +114,25 @@ Q-ARMOR provides **visibility** into where quantum-vulnerable cryptography exist
 |  +------------------------------------------------------------+ |
 |  |              DASHBOARD (HTML/CSS/JS)                        | |
 |  |  Overview | PQC Assessment | Remediation | NIST Matrix     | |
-|  |           | Certification Labels                            | |
+|  |           | Certification Labels | Attestation | Alerts    | |
 |  |  Donut Charts | Dimension Bars | Risk Table | HNDL Status  | |
 |  +------------------------------------------------------------+ |
+|                                                                  |
+|  Phase 5: Compliance-as-Code & Enterprise Automation             |
+|  +----------------+   +------------------+   +--------------+    |
+|  | CDXA ATTESTOR  |   | WEBHOOK NOTIFIER |   | CI/CD GATE   |   |
+|  | (attestor.py)  |   | (notifier.py)    |   | (pqc-scan.yml|   |
+|  +----------------+   +------------------+   +--------------+    |
+|        |                      |                     |            |
+|        v                      v                     v            |
+|  +----------------+   +------------------+   +--------------+    |
+|  | - Ed25519 sign |   | - Slack webhook  |   | - Weekly cron|   |
+|  | - FIPS 203/204 |   | - Teams Adaptive |   | - Push to    |   |
+|  |   claims       |   |   Cards          |   |   main       |   |
+|  | - CBOM as      |   | - HNDL alerts    |   | - Build-break|   |
+|  |   evidence     |   | - Downgrade det. |   |   on HIGH    |   |
+|  +----------------+   +------------------+   +--------------+    |
+|                                                                  |
 +------------------------------------------------------------------+
 ```
 
@@ -138,6 +155,10 @@ Q-ARMOR provides **visibility** into where quantum-vulnerable cryptography exist
 | **Phase 3 CBOM Engine** | Native CycloneDX 1.6 CBOM generator — 6 component types, full dependency graph, PQC assessment annotations (zero external dependencies) |
 | **Certification Labeling** | 3-tier label engine: Fully Quantum Safe / PQC Ready / Non-Compliant — strict evaluation per endpoint |
 | **Rich CLI Output** | Beautiful color-coded terminal tables via `rich` library — label column, risk badges, TLS/KEX/CERT status |
+| **CDXA Attestation** | CycloneDX Attestation (CDXA) generator with Ed25519 digital signing and NIST FIPS 203/204 compliance claims |
+| **Webhook Alerts** | Real-time Slack/Teams notifications for HNDL vulnerabilities, cryptographic downgrades, and HIGH quantum risk |
+| **CI/CD Pipeline** | GitHub Actions workflow with weekly cron + push triggers and build-breaking logic on HIGH quantum risk |
+| **Build Breaker** | `--ci` flag causes `sys.exit(1)` if any endpoint has HIGH quantum risk — stops insecure deployments |
 | Demo Mode | 21 pre-configured simulated bank assets for hackathon demonstration |
 
 ---
@@ -322,6 +343,83 @@ The CLI now features:
 
 ---
 
+## Phase 5 — Compliance-as-Code Attestations & Enterprise Automation
+
+Phase 5 closes the loop with **machine-verifiable compliance attestations**, **CI/CD build-breaking gates**, and **real-time webhook alerting** — enabling enterprise-grade PQC governance.
+
+### CycloneDX Attestation Generator (`attestor.py`)
+
+Generates a digitally signed CDXA (CycloneDX Attestation) document that formalizes NIST compliance claims:
+
+| Capability | Detail |
+|-----------|--------|
+| **Ed25519 Digital Signing** | Attestation body is signed with an Ed25519 private key (auto-generated on first run) |
+| **NIST FIPS 203/204 Claims** | Per-endpoint compliance claims linked to ML-KEM (FIPS 203) and ML-DSA (FIPS 204) |
+| **3-Tier Compliance** | `COMPLIANT` (Tier 1: Fully Quantum Safe), `PARTIAL` (Tier 2: PQC Ready), `NON_COMPLIANT` (Tier 3) |
+| **CBOM Evidence** | Phase 3 CBOM is linked as evidence with SHA-256 content hash |
+| **Signature Verification** | Built-in `verify_attestation()` confirms signature integrity and hash match |
+| **90-Day Validity** | Attestations expire after 90 days — re-attest after each scan |
+
+```python
+from backend.scanner.attestor import generate_attestation, verify_attestation
+
+# Generate signed attestation
+cdxa = generate_attestation(
+    assessment_results=assessments,
+    cbom_data=cbom,
+    output_file="attestation-cdxa.json",
+)
+
+# Verify signature
+result = verify_attestation(cdxa)
+# {"valid": True, "signatureAlgorithm": "Ed25519", "hashMatch": True, ...}
+```
+
+### Webhook Alert Notifier (`notifier.py`)
+
+Real-time security alerts via Slack and Microsoft Teams when critical conditions are detected:
+
+| Alert Type | Severity | Trigger |
+|------------|----------|---------|
+| **HNDL Vulnerability** | CRITICAL | Any endpoint vulnerable to Harvest Now, Decrypt Later attacks |
+| **Cryptographic Downgrade** | CRITICAL | Endpoint's label tier regressed since previous scan |
+| **HIGH Quantum Risk** | HIGH | Endpoints with purely classical cryptography |
+| **Non-Compliance Threshold** | HIGH | > 50% of endpoints are Non-Compliant |
+
+```bash
+# Configure webhook URLs (environment variables)
+export QARMOR_SLACK_WEBHOOK="https://hooks.slack.com/services/..."
+export QARMOR_TEAMS_WEBHOOK="https://outlook.office.com/webhook/..."
+```
+
+### GitHub Actions CI/CD Pipeline (`pqc-scan.yml`)
+
+Automated PQC compliance scanning integrated into the development workflow:
+
+| Feature | Detail |
+|---------|--------|
+| **Weekly Cron** | Scans every Monday at 00:00 UTC |
+| **Push Trigger** | Scans on every push to `main` branch |
+| **Manual Dispatch** | Custom target via workflow_dispatch |
+| **Build Breaker** | Pipeline fails (`exit 1`) if any endpoint has HIGH quantum risk |
+| **Attestation Artifact** | CDXA document uploaded as GitHub Actions artifact (90-day retention) |
+| **Job Summary** | Markdown summary posted to GitHub Actions UI |
+
+### CLI Flags (Phase 5)
+
+```bash
+# Generate signed CDXA attestation
+python scan.py --target google.com --assess --attest
+
+# CI/CD mode: exit(1) on HIGH quantum risk
+python scan.py --target pnbindia.in --assess --ci
+
+# Combined: attest + CI gate
+python scan.py --target example.com --assess --attest --ci
+```
+
+---
+
 ## Tech Stack
 
 | Component | Technology |
@@ -333,6 +431,9 @@ The CLI now features:
 | Frontend | Vanilla HTML, CSS, JavaScript |
 | CBOM Format | OWASP CycloneDX 1.6 JSON (native Python — zero dependencies) |
 | CLI Output | `rich` library (Console, Table) for color-coded terminal rendering |
+| Attestation | CycloneDX Attestation (CDXA) with Ed25519 digital signing |
+| Alerting | Slack/Teams webhook notifications via `requests` library |
+| CI/CD | GitHub Actions workflow with build-breaking compliance gates |
 | PQC Standards | NIST FIPS 203 (ML-KEM), FIPS 204 (ML-DSA), FIPS 205 (SLH-DSA) |
 
 ---
@@ -341,11 +442,19 @@ The CLI now features:
 
 ```
 Q-ARMOR/
-|-- scan.py                          # CLI scanner entry point (Phase 1 + Phase 2 + Phase 4 rich output)
+|-- scan.py                          # CLI scanner entry point (Phase 1 + Phase 2 + Phase 4 + Phase 5)
 |-- run.py                           # Web dashboard entry point
 |-- requirements.txt                 # Python dependencies
 |-- .gitignore
 |-- README.md                        # This file
+|
+|-- .github/
+|   +-- workflows/
+|       +-- pqc-scan.yml            # Phase 5: GitHub Actions CI/CD pipeline
+|
+|-- .keys/                           # Phase 5: Auto-generated Ed25519 signing keys (gitignored)
+|   |-- attestor_ed25519.pem
+|   +-- attestor_ed25519_pub.pem
 |
 |-- src/                             # Phase 1 CLI scanner modules + Phase 3 CBOM
 |   |-- __init__.py
@@ -357,7 +466,7 @@ Q-ARMOR/
 |
 |-- backend/                         # Web dashboard backend
 |   |-- __init__.py
-|   |-- app.py                       # FastAPI application & API routes (Phase 1–4)
+|   |-- app.py                       # FastAPI application & API routes (Phase 1–5)
 |   |-- models.py                    # Pydantic data models
 |   |-- demo_data.py                 # Simulated bank asset dataset
 |   |
@@ -371,14 +480,16 @@ Q-ARMOR/
 |       |-- nist_matrix.py           # Module 6: NIST PQC Validation Matrix (Phase 2)
 |       |-- assessment.py            # Module 7: 4-Dimension Assessment Engine (Phase 2)
 |       |-- remediation.py           # Module 8: Prioritised Remediation Generator (Phase 2)
-|       +-- labeler.py               # Module 9: 3-Tier Certification Labeling Engine (Phase 4)
+|       |-- labeler.py               # Module 9: 3-Tier Certification Labeling Engine (Phase 4)
+|       |-- attestor.py              # Module 10: CycloneDX Attestation (CDXA) Generator (Phase 5)
+|       +-- notifier.py              # Module 11: Webhook Alert Notifier — Slack/Teams (Phase 5)
 |
 |-- frontend/
-|   |-- index.html                   # Dashboard SPA (Overview, Assessment, Remediation, Matrix + Labels)
+|   |-- index.html                   # Dashboard SPA (Overview, Assessment, Remediation, Matrix + Labels + Attestation + Alerts)
 |   |-- css/
-|   |   +-- styles.css               # Cybersecurity dark theme + Phase 2–4 styles
+|   |   +-- styles.css               # Cybersecurity dark theme + Phase 2–5 styles
 |   +-- js/
-|       +-- app.js                   # Dashboard controller (Phase 1–4 rendering)
+|       +-- app.js                   # Dashboard controller (Phase 1–5 rendering)
 |
 |-- tests/
 |   +-- test_classifier.py           # Unit tests for PQC classifier
@@ -653,6 +764,12 @@ The CBOM output follows the OWASP CycloneDX 1.6 specification. Key fields to ver
 | GET | `/api/cbom/phase3` | Generate CycloneDX 1.6 CBOM with Phase 2 assessment annotations |
 | GET | `/api/cbom/phase3/download` | Download the Phase 3 CBOM as a JSON file attachment |
 | GET | `/api/labels/phase4` | Get Phase 4 3-tier certification labels for all endpoints |
+| GET | `/api/attestation/generate` | Generate signed CycloneDX Attestation (CDXA) with NIST claims |
+| GET | `/api/attestation/download` | Download the CDXA attestation as a JSON file |
+| GET | `/api/attestation/verify` | Verify the attestation's Ed25519 digital signature |
+| GET | `/api/attestation/summary` | Get a concise attestation summary |
+| GET | `/api/alerts` | Detect security alerts (HNDL, downgrades, HIGH risk) |
+| POST | `/api/alerts/notify` | Send detected alerts to Slack/Teams webhooks |
 
 ---
 
@@ -731,6 +848,29 @@ Each endpoint is evaluated against a strict 3-tier certification criteria:
 
 The CLI features rich terminal rendering via the `rich` library with color-coded tables, risk badges, and the awarded label per endpoint.
 
+### Step 11: Compliance Attestation (Phase 5)
+A CycloneDX Attestation (CDXA) document is generated that formalizes NIST compliance claims:
+- Per-endpoint compliance claims linked to **FIPS 203** (ML-KEM) and **FIPS 204** (ML-DSA)
+- 3-level compliance: `COMPLIANT` (Fully Quantum Safe), `PARTIAL` (PQC Ready), `NON_COMPLIANT`
+- Phase 3 CBOM linked as evidence with SHA-256 content hash
+- **Ed25519 digital signature** for tamper-proof verification
+- 90-day validity window with renewal policy
+
+### Step 12: Security Alert Detection (Phase 5)
+Assessment results are analyzed for alert-worthy conditions:
+- **HNDL Vulnerability** (CRITICAL): Endpoints vulnerable to Harvest Now, Decrypt Later
+- **Cryptographic Downgrade** (CRITICAL): Label tier regression vs. previous scan
+- **HIGH Quantum Risk** (HIGH): Endpoints with purely classical key exchange
+- **Non-Compliance Threshold** (HIGH): >50% of endpoints are Non-Compliant
+- Alerts are dispatched to **Slack** (Block Kit) and **Microsoft Teams** (Adaptive Cards) webhooks
+
+### Step 13: CI/CD Compliance Gate (Phase 5)
+The GitHub Actions pipeline automates PQC compliance scanning:
+- **Weekly cron** (Monday 00:00 UTC) + **push-to-main** trigger
+- Generates scan report, CDXA attestation, and webhook alerts
+- **Build-breaking gate**: `sys.exit(1)` if any endpoint has `overall_quantum_risk == "HIGH"`
+- Pipeline artifacts (scan report, CDXA) uploaded with 90-day retention
+
 ---
 
 ## NIST PQC Standards
@@ -769,4 +909,4 @@ Q-ARMOR benchmarks against three finalized NIST standards (August 2024):
 
 ---
 
-**Q-ARMOR v4.0.0 — Built for the Quantum-Ready Cybersecurity Track**
+**Q-ARMOR v5.0.0 — Built for the Quantum-Ready Cybersecurity Track**

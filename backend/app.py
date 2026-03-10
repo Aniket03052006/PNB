@@ -17,13 +17,15 @@ from backend.scanner.prober import probe_tls
 from backend.scanner.discoverer import discover_assets
 from backend.scanner.assessment import analyze_endpoint, analyze_batch
 from backend.scanner.remediation import generate_remediation, generate_batch_remediation
+from backend.scanner.attestor import generate_attestation, verify_attestation, get_attestation_summary
+from backend.scanner.notifier import detect_alerts, send_alerts, get_alert_summary
 
 logger = logging.getLogger("qarmor.app")
 
 app = FastAPI(
     title="Q-ARMOR",
     description="Quantum-Aware Mapping & Observation for Risk Remediation",
-    version="1.0.0",
+    version="5.0.0",
 )
 
 app.add_middleware(
@@ -304,3 +306,128 @@ async def get_phase4_labels():
     labels = evaluate_and_label(batch.get("assessments", []))
     summary = summarize_labels(labels)
     return JSONResponse(content=summary)
+
+
+# ── Phase 5: Compliance-as-Code Attestation & Automation ─────────────────────
+
+@app.get("/api/attestation/generate")
+async def generate_attestation_endpoint():
+    """Generate a signed CycloneDX Attestation (CDXA) document.
+
+    Combines Phase 2 assessments + Phase 4 labels into a digitally
+    signed compliance attestation with NIST FIPS 203/204 claims.
+    """
+    if not _latest_scan:
+        raise HTTPException(status_code=404, detail="No scan data. Run /api/scan/demo first.")
+    batch = analyze_batch(_latest_scan)
+    assessments = batch.get("assessments", [])
+
+    # Optionally include Phase 3 CBOM as evidence
+    from backend.scanner.cbom_generator import generate_cbom_from_summary
+    import json as _json
+    summary_dict = _json.loads(_latest_scan.model_dump_json())
+    cbom = generate_cbom_from_summary(summary_dict, assessments, output_file=None)
+
+    cdxa = generate_attestation(
+        assessment_results=assessments,
+        cbom_data=cbom,
+    )
+    return JSONResponse(content=cdxa)
+
+
+@app.get("/api/attestation/download")
+async def download_attestation():
+    """Generate and download the signed CDXA document as a JSON file."""
+    if not _latest_scan:
+        raise HTTPException(status_code=404, detail="No scan data. Run /api/scan/demo first.")
+    batch = analyze_batch(_latest_scan)
+    assessments = batch.get("assessments", [])
+
+    cdxa = generate_attestation(assessment_results=assessments)
+    return JSONResponse(
+        content=cdxa,
+        headers={"Content-Disposition": "attachment; filename=qarmor-attestation-cdxa.json"},
+    )
+
+
+@app.get("/api/attestation/verify")
+async def verify_attestation_endpoint():
+    """Generate a fresh attestation and verify its signature."""
+    if not _latest_scan:
+        raise HTTPException(status_code=404, detail="No scan data. Run /api/scan/demo first.")
+    batch = analyze_batch(_latest_scan)
+    assessments = batch.get("assessments", [])
+
+    cdxa = generate_attestation(assessment_results=assessments)
+    verification = verify_attestation(cdxa)
+    return JSONResponse(content=verification)
+
+
+@app.get("/api/attestation/summary")
+async def attestation_summary():
+    """Get a concise summary of the latest attestation."""
+    if not _latest_scan:
+        raise HTTPException(status_code=404, detail="No scan data. Run /api/scan/demo first.")
+    batch = analyze_batch(_latest_scan)
+    assessments = batch.get("assessments", [])
+
+    cdxa = generate_attestation(assessment_results=assessments)
+    summary = get_attestation_summary(cdxa)
+    return JSONResponse(content=summary)
+
+
+@app.get("/api/alerts")
+async def get_alerts():
+    """Detect security alerts from the latest scan data.
+
+    Returns active alerts for HNDL vulnerabilities, HIGH quantum risk,
+    and non-compliance threshold exceeding.
+    """
+    if not _latest_scan:
+        raise HTTPException(status_code=404, detail="No scan data. Run /api/scan/demo first.")
+    batch = analyze_batch(_latest_scan)
+    assessments = batch.get("assessments", [])
+
+    from backend.scanner.labeler import evaluate_and_label
+    labels = evaluate_and_label(assessments)
+    alerts = detect_alerts(assessments, labels)
+    alert_summary = get_alert_summary(alerts)
+
+    return JSONResponse(content={
+        "summary": alert_summary,
+        "alerts": alerts,
+    })
+
+
+@app.post("/api/alerts/notify")
+async def send_alert_notifications(
+    slack_webhook: str = "",
+    teams_webhook: str = "",
+):
+    """Send alert notifications to configured Slack/Teams webhooks.
+
+    Webhook URLs can be passed as query params or set via environment
+    variables QARMOR_SLACK_WEBHOOK / QARMOR_TEAMS_WEBHOOK.
+    """
+    if not _latest_scan:
+        raise HTTPException(status_code=404, detail="No scan data. Run /api/scan/demo first.")
+    batch = analyze_batch(_latest_scan)
+    assessments = batch.get("assessments", [])
+
+    from backend.scanner.labeler import evaluate_and_label, summarize_labels
+    labels = evaluate_and_label(assessments)
+    label_summary = summarize_labels(labels)
+
+    result = send_alerts(
+        assessment_results=assessments,
+        labels=labels,
+        slack_webhook=slack_webhook or None,
+        teams_webhook=teams_webhook or None,
+        scan_summary={
+            "total": label_summary["total_endpoints"],
+            "safe": label_summary["fully_quantum_safe"],
+            "pqc_ready": label_summary["pqc_ready"],
+            "non_compliant": label_summary["non_compliant"],
+        },
+    )
+    return JSONResponse(content=result)

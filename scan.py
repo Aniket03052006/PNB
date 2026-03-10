@@ -56,6 +56,8 @@ from backend.scanner.label_issuer import issue_label
 from backend.scanner.assessment import analyze_endpoint, analyze_batch
 from backend.scanner.remediation import generate_remediation, generate_batch_remediation
 from backend.scanner.labeler import evaluate_and_label, summarize_labels
+from backend.scanner.attestor import generate_attestation
+from backend.scanner.notifier import detect_alerts, send_alerts
 
 logger = logging.getLogger("qarmor.cli")
 console = Console()
@@ -108,6 +110,10 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--discover", "-d", action="store_true",
                         help="Discover subdomains via DNS + CT logs before scanning.")
     parser.add_argument("--verbose", "-v", action="store_true", help="Verbose logging.")
+    parser.add_argument("--attest", action="store_true",
+                        help="Generate a signed CDXA attestation document (Phase 5).")
+    parser.add_argument("--ci", action="store_true",
+                        help="CI/CD mode: exit(1) if any endpoint has HIGH quantum risk (Phase 5).")
     return parser
 
 
@@ -494,6 +500,81 @@ def main() -> None:
         f"out of {summary.total_assets} targets.",
         file=sys.stderr,
     )
+
+    # ── Phase 5: Attestation & Alerts ────────────────────────────────
+    if args.attest or args.ci:
+        batch = analyze_batch(summary)
+        assessments = batch.get("assessments", [])
+
+        # Generate attestation
+        if args.attest:
+            console.print()
+            console.rule("[bold magenta]PHASE 5: COMPLIANCE ATTESTATION[/bold magenta]", style="magenta")
+            try:
+                attest_output = args.output.replace(".json", "-cdxa.json") if args.output else "attestation-cdxa.json"
+                cdxa = generate_attestation(
+                    assessment_results=assessments,
+                    output_file=attest_output,
+                )
+                body = cdxa.get("attestation", {})
+                comp_summary = body.get("complianceSummary", {})
+                overall = comp_summary.get("overallStatus", "UNKNOWN")
+                style = "bold green" if overall == "COMPLIANT" else "bold cyan" if overall == "PARTIAL" else "bold red"
+                console.print(f"    Attestation Status:  [{style}]{overall}[/{style}]")
+                console.print(f"    Compliant:           {comp_summary.get('compliant', 0)} ({comp_summary.get('compliant_pct', '0%')})")
+                console.print(f"    Partial:             {comp_summary.get('partial', 0)} ({comp_summary.get('partial_pct', '0%')})")
+                console.print(f"    Non-Compliant:       {comp_summary.get('nonCompliant', 0)} ({comp_summary.get('nonCompliant_pct', '0%')})")
+                console.print(f"    Serial:              [dim]{body.get('serialNumber', '')}[/dim]")
+                console.print(f"    Valid Until:          {body.get('validity', {}).get('notAfter', '')}")
+                console.print(f"    Signed:              [bold green]Ed25519[/bold green]")
+                console.print(f"    Saved to:            [bold]{attest_output}[/bold]")
+                console.print()
+            except Exception as exc:
+                console.print(f"    [bold red]Attestation failed: {exc}[/bold red]")
+
+        # Detect and display alerts
+        labels = evaluate_and_label(assessments) if "assessments" in (batch or {}) else []
+        alerts = detect_alerts(assessments, labels)
+        if alerts:
+            console.print()
+            console.rule("[bold red]SECURITY ALERTS[/bold red]", style="red")
+            severity_icon = {"CRITICAL": "🔴", "HIGH": "🟠", "MEDIUM": "🟡", "LOW": "🟢"}
+            for alert in alerts:
+                icon = severity_icon.get(alert.get("severity", "HIGH"), "⚠️")
+                console.print(f"    {icon} [{alert.get('severity', 'HIGH')}] {alert.get('title', 'Alert')}")
+                console.print(f"       {alert.get('message', '')}")
+                eps = alert.get("affected_endpoints", [])
+                if eps:
+                    console.print(f"       Affected: {', '.join(eps[:5])}")
+                console.print()
+
+        # CI/CD build-breaking check
+        if args.ci:
+            high_risk = [
+                a for a in assessments
+                if a.get("overall_quantum_risk") == "HIGH"
+            ]
+            if high_risk:
+                console.print()
+                console.print(
+                    Panel(
+                        f"[bold red]CI/CD GATE FAILED[/bold red]\n\n"
+                        f"{len(high_risk)} endpoint(s) have HIGH quantum risk.\n"
+                        f"Build terminated with exit code 1.",
+                        title="[bold red]BUILD BREAKER[/bold red]",
+                        border_style="red",
+                    )
+                )
+                sys.exit(1)
+            else:
+                console.print(
+                    Panel(
+                        f"[bold green]CI/CD GATE PASSED[/bold green]\n\n"
+                        f"All {len(assessments)} endpoint(s) pass quantum risk compliance.",
+                        title="[bold green]COMPLIANCE OK[/bold green]",
+                        border_style="green",
+                    )
+                )
 
     if success == 0 and failed > 0:
         sys.exit(1)

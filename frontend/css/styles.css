@@ -774,6 +774,7 @@ body {
 .phase-badge--p2 { border-color: rgba(0, 212, 255, 0.35); background: rgba(0, 212, 255, 0.08); color: var(--accent-cyan); }
 .phase-badge--p3 { border-color: rgba(167, 139, 250, 0.35); background: rgba(167, 139, 250, 0.08); color: var(--accent-purple); }
 .phase-badge--p4 { border-color: rgba(255, 179, 0, 0.35); background: rgba(255, 179, 0, 0.08); color: var(--accent-amber); }
+.phase-badge--p5 { border-color: rgba(168, 85, 247, 0.35); background: rgba(168, 85, 247, 0.08); color: #a855f7; }
 
 /* ═══════════════════════════════════════════════════════════════════════════
    Phase 2 — Charts

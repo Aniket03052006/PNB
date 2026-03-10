@@ -68,6 +68,8 @@ async function runDemoScan() {
         scanData = await apiCall('/api/scan/demo');
         renderDashboard(scanData);
         document.getElementById('btnExportCBOM').disabled = false;
+        const cdxaBtn = document.getElementById('btnExportCDXA');
+        if (cdxaBtn) cdxaBtn.disabled = false;
         showToast(`Scan complete — ${scanData.total_assets} assets analyzed`, 'success');
 
         // Auto-fetch Phase 2 assessment
@@ -141,6 +143,120 @@ async function exportCBOM() {
     }
 }
 
+/* ─── CDXA Export (Phase 5) ─── */
+async function exportCDXA() {
+    try {
+        const resp = await fetch(`${API_BASE}/api/attestation/download`);
+        if (!resp.ok) throw new Error(`HTTP Error ${resp.status}`);
+        const blob = await resp.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'qarmor-attestation-cdxa.json';
+        a.click();
+        URL.revokeObjectURL(url);
+        showToast('CDXA attestation exported successfully', 'success');
+    } catch (e) {
+        showToast('CDXA export failed: ' + e.message, 'error');
+    }
+}
+
+/* ─── Phase 5: Fetch Attestation + Alerts ─── */
+async function fetchPhase5Data() {
+    try {
+        const [attestation, alerts] = await Promise.all([
+            apiCall('/api/attestation/summary'),
+            apiCall('/api/alerts'),
+        ]);
+        renderAttestation(attestation);
+        renderAlerts(alerts);
+        const cdxaBtn = document.getElementById('btnExportCDXA');
+        if (cdxaBtn) cdxaBtn.disabled = false;
+    } catch (e) {
+        console.warn('Phase 5 data fetch failed:', e);
+    }
+}
+
+function renderAttestation(data) {
+    const section = document.getElementById('attestationSection');
+    if (!section) return;
+    section.style.display = '';
+
+    const statusBadge = document.getElementById('attestStatus');
+    const overall = data.overallStatus || 'UNKNOWN';
+    const statusColors = {
+        'COMPLIANT': { bg: 'rgba(0, 255, 136, 0.12)', color: '#00ff88' },
+        'PARTIAL': { bg: 'rgba(0, 212, 255, 0.12)', color: '#00d4ff' },
+        'NON_COMPLIANT': { bg: 'rgba(255, 71, 87, 0.12)', color: '#ff4757' },
+    };
+    const sc = statusColors[overall] || statusColors['NON_COMPLIANT'];
+    statusBadge.style.background = sc.bg;
+    statusBadge.style.color = sc.color;
+    statusBadge.textContent = overall;
+
+    animateNumber('attestCompliant', data.compliant || 0);
+    animateNumber('attestPartial', data.partial || 0);
+    animateNumber('attestNonCompliant', data.nonCompliant || 0);
+
+    const signedEl = document.getElementById('attestSigned');
+    if (signedEl) {
+        signedEl.textContent = data.signed ? '✓ Yes' : '✗ No';
+        signedEl.style.color = data.signed ? '#a855f7' : '#ff4757';
+    }
+
+    const details = document.getElementById('attestDetails');
+    if (details) {
+        details.innerHTML = `
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px;">
+                <div>Serial: <span style="color: var(--text-primary); font-family: monospace; font-size: 0.72rem;">${data.serialNumber || '—'}</span></div>
+                <div>Valid Until: <span style="color: var(--text-primary);">${data.validUntil ? new Date(data.validUntil).toLocaleDateString() : '—'}</span></div>
+                <div>Endpoints: <span style="color: var(--text-primary);">${data.totalEndpoints || 0}</span></div>
+                <div>Fully Quantum Safe: <span style="color: var(--accent-green);">${data.fullyQuantumSafe || 0}</span> · PQC Ready: <span style="color: var(--accent-cyan);">${data.pqcReady || 0}</span></div>
+            </div>
+        `;
+    }
+}
+
+function renderAlerts(data) {
+    const section = document.getElementById('alertsSection');
+    const container = document.getElementById('alertsContainer');
+    const countBadge = document.getElementById('alertCount');
+    if (!section || !container) return;
+
+    const alerts = data.alerts || [];
+    if (!alerts.length) {
+        section.style.display = '';
+        countBadge.textContent = '0 alerts';
+        countBadge.style.background = 'rgba(0, 255, 136, 0.12)';
+        countBadge.style.color = '#00ff88';
+        container.innerHTML = '<div style="padding: 20px; text-align: center; color: var(--text-secondary);">✅ No security alerts — all clear</div>';
+        return;
+    }
+
+    section.style.display = '';
+    countBadge.textContent = `${alerts.length} alert${alerts.length !== 1 ? 's' : ''}`;
+    countBadge.style.background = 'rgba(255, 59, 48, 0.12)';
+    countBadge.style.color = '#ff3b30';
+
+    const severityStyles = {
+        'CRITICAL': { bg: 'rgba(255, 59, 48, 0.08)', border: 'rgba(255, 59, 48, 0.3)', icon: '🔴' },
+        'HIGH': { bg: 'rgba(255, 149, 0, 0.08)', border: 'rgba(255, 149, 0, 0.3)', icon: '🟠' },
+        'MEDIUM': { bg: 'rgba(255, 204, 0, 0.08)', border: 'rgba(255, 204, 0, 0.3)', icon: '🟡' },
+        'LOW': { bg: 'rgba(0, 255, 136, 0.08)', border: 'rgba(0, 255, 136, 0.3)', icon: '🟢' },
+    };
+
+    container.innerHTML = alerts.map(a => {
+        const s = severityStyles[a.severity] || severityStyles['HIGH'];
+        const endpoints = (a.affected_endpoints || []).slice(0, 5).join(', ');
+        return `<div style="padding: 12px 16px; margin-bottom: 8px; border-radius: 8px; border: 1px solid ${s.border}; background: ${s.bg};">
+            <div style="font-weight: 600; margin-bottom: 4px;">${s.icon} ${a.title || 'Alert'} <span style="font-size: 0.72rem; opacity: 0.7;">[${a.severity}]</span></div>
+            <div style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 6px;">${a.message || ''}</div>
+            ${endpoints ? `<div style="font-size: 0.75rem; color: var(--text-dim);">Affected: ${endpoints}</div>` : ''}
+            <div style="font-size: 0.75rem; margin-top: 4px; color: var(--accent-cyan);">→ ${a.action_required || 'Review scan results'}</div>
+        </div>`;
+    }).join('');
+}
+
 /* ─── Phase 2: Fetch Assessment + Remediation ─── */
 async function fetchPhase2Assessment() {
     try {
@@ -170,6 +286,7 @@ function renderDashboard(data) {
     renderRemediation(data.remediation_roadmap || []);
     renderLabels(data.labels || []);
     fetchPhase4Labels();
+    fetchPhase5Data();
 }
 
 function renderStats(data) {
