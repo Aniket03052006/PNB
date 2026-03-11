@@ -1,40 +1,51 @@
-"""Module 2: Crypto Prober — TLS handshake analysis, certificate inspection, cipher extraction.
+"""Module 2 — Tri-Mode Cryptographic Prober (Phase 6).
 
-Design decisions:
-- Uses openssl s_client subprocess for deterministic extraction of the
-  negotiated key exchange group (ServerHello), which Python's ssl module
-  does not expose.
-- Never infers PQC from client offers — only from the Server Temp Key /
-  Negotiated TLS1.3 group.
-- Returns a partial fingerprint on failure rather than raising, so callers
-  can classify the result as UNKNOWN.
-- Supports SNI and falls back to IPv6 via socket.getaddrinfo().
+Three independent TLS handshakes per asset:
+  Probe A: PQC-capable client hello  (ML-KEM-768 + X25519MLKEM768 groups)
+  Probe B: TLS 1.3 classical         (X25519 + secp256r1 groups, no PQC)
+  Probe C: TLS 1.2 downgrade attempt (max_version = TLS 1.2)
+
+Design:
+- asyncio with semaphore cap (default 20 concurrent probes).
+- openssl s_client subprocess for authoritative negotiated-group extraction.
+- Python `ssl` + cryptography lib for certificate parsing.
+- Partial fingerprint on failure -> UNKNOWN.
+- SNI everywhere.  IPv4/IPv6 via socket.getaddrinfo().
+- Single if/else at entry point: demo mode returns TriModeFingerprints from demo_data.
 """
 
 from __future__ import annotations
 
-import logging
-import ssl
-import socket
 import asyncio
+import logging
+import socket
+import ssl
+import time
 from datetime import datetime, timezone
-from cryptography import x509
-from cryptography.hazmat.primitives.asymmetric import rsa, ec, dsa, ed25519, ed448
 
-from backend.models import CryptoFingerprint, TLSInfo, CertificateInfo
+from cryptography import x509
+
+from backend.models import (
+    AssetType,
+    CertificateInfo,
+    CryptoFingerprint,
+    DiscoveredAsset,
+    ProbeProfile,
+    TLSInfo,
+    TriModeFingerprint,
+)
 
 logger = logging.getLogger("qarmor.prober")
 
-# Known PQC key exchange algorithms (only from ServerHello negotiated group)
+# ── PQC algorithm sets ──────────────────────────────────────────────────────
+
 PQC_KEX_ALGORITHMS = {
     "ML-KEM-512", "ML-KEM-768", "ML-KEM-1024",
     "MLKEM512", "MLKEM768", "MLKEM1024",
     "X25519MLKEM768", "X25519KYBER768",
-    "KYBER512", "KYBER768", "KYBER1024",
-    "KYBER",
+    "KYBER512", "KYBER768", "KYBER1024", "KYBER",
 }
 
-# PQC signature algorithms (from certificate)
 PQC_SIG_ALGORITHMS = {
     "ML-DSA-44", "ML-DSA-65", "ML-DSA-87",
     "SLH-DSA-SHA2-128S", "SLH-DSA-SHAKE-128S",
@@ -47,9 +58,14 @@ CIPHER_KEX_MAP = {
     "ECDH": "ECDH", "PSK": "PSK", "SRP": "SRP",
 }
 
+# ── Concurrency ──────────────────────────────────────────────────────────────
+
+_DEFAULT_CONCURRENCY = 20
+
+# ── Low-level helpers ────────────────────────────────────────────────────────
+
 
 def _extract_kex(cipher_name: str) -> str:
-    """Extract key exchange from cipher suite name (TLS 1.2 fallback)."""
     for kex, label in CIPHER_KEX_MAP.items():
         if kex in cipher_name.upper():
             return label
@@ -57,7 +73,6 @@ def _extract_kex(cipher_name: str) -> str:
 
 
 def _extract_auth(cipher_name: str) -> str:
-    """Extract authentication algorithm from cipher suite name."""
     upper = cipher_name.upper()
     if "ECDSA" in upper:
         return "ECDSA"
@@ -68,46 +83,71 @@ def _extract_auth(cipher_name: str) -> str:
     return "UNKNOWN"
 
 
-async def _run_openssl_brief(hostname: str, port: int) -> dict:
-    """Run openssl s_client -brief to extract the negotiated key exchange group.
+def _flatten_name(name: x509.Name) -> str:
+    return ", ".join(f"{attr.oid._name}={attr.value}" for attr in name)
 
-    This is the authoritative source for the ServerHello negotiated group,
-    which Python's ssl module does not expose.
+
+def _resolve_host(hostname: str) -> str | None:
+    """Resolve hostname to IP, supporting IPv4 and IPv6."""
+    try:
+        results = socket.getaddrinfo(hostname, None, socket.AF_UNSPEC, socket.SOCK_STREAM)
+        for _family, _, _, _, sockaddr in results:
+            return sockaddr[0]
+    except socket.gaierror:
+        pass
+    return None
+
+
+# ── openssl s_client wrapper ─────────────────────────────────────────────────
+
+
+async def _run_openssl(
+    hostname: str,
+    port: int,
+    *,
+    extra_args: list[str] | None = None,
+    timeout: float = 8.0,
+) -> dict[str, str]:
+    """Run ``openssl s_client -brief`` with optional extra args.
+
+    Returns a dict with keys: kex, cipher, version, sig, hash.
     """
-    info = {"kex": "", "cipher": "", "version": "", "sig": "", "hash": ""}
+    info: dict[str, str] = {"kex": "", "cipher": "", "version": "", "sig": "", "hash": ""}
+    cmd = [
+        "openssl", "s_client",
+        "-connect", f"{hostname}:{port}",
+        "-servername", hostname,
+        "-brief",
+    ]
+    if extra_args:
+        cmd.extend(extra_args)
+
     try:
         proc = await asyncio.create_subprocess_exec(
-            "openssl", "s_client",
-            "-connect", f"{hostname}:{port}",
-            "-servername", hostname,  # SNI
-            "-brief",
+            *cmd,
             stdin=asyncio.subprocess.DEVNULL,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
         )
-        stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=8.0)
+        stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=timeout)
         output = stdout.decode(errors="ignore") + "\n" + stderr.decode(errors="ignore")
 
         for line in output.splitlines():
             line = line.strip()
             if not line:
                 continue
-
             if line.startswith("Protocol version:"):
                 info["version"] = line.split(":", 1)[1].strip()
             elif line.startswith("Ciphersuite:"):
                 info["cipher"] = line.split(":", 1)[1].strip()
             elif line.startswith("Server Temp Key:"):
-                # e.g. "Server Temp Key: X25519, 253 bits"
-                # or "Server Temp Key: ECDH, P-256, 256 bits"
                 raw = line.split(":", 1)[1].strip()
                 info["kex"] = raw.split(",")[0].strip()
             elif line.startswith("Negotiated TLS1.3 group:"):
-                # Authoritative group for TLS 1.3
                 info["kex"] = line.split(":", 1)[1].strip()
             elif line.startswith("Peer signing digest:"):
                 info["hash"] = line.split(":", 1)[1].strip()
-            elif line.startswith("Peer signature type:") or line.startswith("Signature type:"):
+            elif line.startswith(("Peer signature type:", "Signature type:")):
                 sig = line.split(":", 1)[1].strip().upper()
                 if "ECDSA" in sig:
                     info["sig"] = "ECDSA"
@@ -117,57 +157,240 @@ async def _run_openssl_brief(hostname: str, port: int) -> dict:
                     info["sig"] = "ED25519"
                 else:
                     info["sig"] = sig
-
-        logger.debug("openssl s_client result for %s:%d — %s", hostname, port, info)
     except asyncio.TimeoutError:
-        logger.warning("openssl s_client timed out for %s:%d", hostname, port)
+        logger.debug("openssl timed out for %s:%d", hostname, port)
     except FileNotFoundError:
-        logger.warning("openssl binary not found — key exchange detection limited")
+        logger.warning("openssl binary not found")
     except Exception as exc:
-        logger.debug("openssl s_client failed for %s:%d: %s", hostname, port, exc)
+        logger.debug("openssl failed for %s:%d: %s", hostname, port, exc)
     return info
 
 
-async def _check_tls_version_supported(hostname: str, port: int, min_ver, max_ver) -> bool:
-    """Check if a specific TLS version range is supported by the server."""
+# ── Certificate extraction ───────────────────────────────────────────────────
+
+
+async def _extract_certificate(hostname: str, port: int) -> CertificateInfo:
+    """Connect via Python ssl, pull the DER cert, parse with cryptography."""
+    cert_info = CertificateInfo()
     try:
-        ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+        ctx = ssl.create_default_context()
         ctx.check_hostname = False
         ctx.verify_mode = ssl.CERT_NONE
-        ctx.minimum_version = min_ver
-        ctx.maximum_version = max_ver
 
         fut = asyncio.open_connection(hostname, port, ssl=ctx, server_hostname=hostname)
-        reader, writer = await asyncio.wait_for(fut, timeout=5.0)
+        reader, writer = await asyncio.wait_for(fut, timeout=10.0)
+
+        ssl_obj = writer.get_extra_info("ssl_object")
+        if ssl_obj:
+            cert_der = ssl_obj.getpeercert(binary_form=True)
+            if cert_der:
+                parsed = x509.load_der_x509_certificate(cert_der)
+                cert_info.subject = _flatten_name(parsed.subject)
+                cert_info.issuer = _flatten_name(parsed.issuer)
+                cert_info.serial_number = str(parsed.serial_number)
+                cert_info.not_before = parsed.not_valid_before_utc.strftime("%b %d %H:%M:%S %Y %Z").strip()
+                cert_info.not_after = parsed.not_valid_after_utc.strftime("%b %d %H:%M:%S %Y %Z").strip()
+                cert_info.signature_algorithm = parsed.signature_algorithm_oid._name
+
+                expiry = parsed.not_valid_after_utc
+                cert_info.days_until_expiry = (expiry - datetime.now(timezone.utc)).days
+                cert_info.is_expired = cert_info.days_until_expiry < 0
+
+                pub = parsed.public_key()
+                cert_info.public_key_type = type(pub).__name__.replace("PublicKey", "").replace("_", "")
+                if hasattr(pub, "key_size"):
+                    cert_info.public_key_bits = pub.key_size
+
+                try:
+                    ext = parsed.extensions.get_extension_for_class(x509.SubjectAlternativeName)
+                    cert_info.san_entries = [name.value for name in ext.value]
+                except x509.ExtensionNotFound:
+                    cert_info.san_entries = []
+
         writer.close()
         await writer.wait_closed()
-        return True
-    except Exception:
-        return False
+    except Exception as exc:
+        logger.debug("Certificate extraction failed for %s:%d — %s", hostname, port, exc)
+    return cert_info
 
 
-def _flatten_name(name: x509.Name) -> str:
-    """Flatten x509 Name object into a comma-separated string."""
-    return ", ".join(f"{attr.oid._name}={attr.value}" for attr in name)
+# ── Single-probe execution ───────────────────────────────────────────────────
 
 
-def _resolve_host(hostname: str) -> str | None:
-    """Resolve hostname to IP, supporting both IPv4 and IPv6."""
+async def _run_single_probe(
+    hostname: str,
+    port: int,
+    mode: str,
+    extra_args: list[str] | None = None,
+) -> ProbeProfile:
+    """Execute a single TLS probe via openssl s_client.
+
+    mode: "A" | "B" | "C"
+    extra_args: additional openssl s_client args for mode-specific behaviour.
+    """
+    profile = ProbeProfile(mode=mode)
     try:
-        results = socket.getaddrinfo(hostname, None, socket.AF_UNSPEC, socket.SOCK_STREAM)
-        for family, _, _, _, sockaddr in results:
-            return sockaddr[0]  # Return first resolved IP
-    except socket.gaierror:
-        pass
-    return None
+        info = await _run_openssl(hostname, port, extra_args=extra_args)
+
+        profile.tls_version = info.get("version") or None
+        profile.cipher_suite = info.get("cipher") or None
+        profile.key_exchange = info.get("kex") or None
+        profile.key_exchange_group = info.get("kex") or None
+        profile.authentication = info.get("sig") or None
+
+        # Cipher bits heuristic
+        if profile.cipher_suite:
+            cs = profile.cipher_suite.upper()
+            if "256" in cs:
+                profile.cipher_bits = 256
+            elif "128" in cs:
+                profile.cipher_bits = 128
+            elif "3DES" in cs:
+                profile.cipher_bits = 112
+
+        # Fallback KEX from cipher name when openssl didn't report it
+        if not profile.key_exchange and profile.cipher_suite:
+            profile.key_exchange = _extract_kex(profile.cipher_suite)
+        if not profile.authentication and profile.cipher_suite:
+            profile.authentication = _extract_auth(profile.cipher_suite)
+
+    except Exception as exc:
+        profile.error = str(exc)
+        logger.debug("Probe %s failed for %s:%d — %s", mode, hostname, port, exc)
+
+    return profile
+
+
+# ── Tri-mode probe ───────────────────────────────────────────────────────────
+
+
+async def probe_trimode(
+    hostname: str,
+    port: int = 443,
+    asset_type: AssetType = AssetType.WEB,
+    ip: str | None = None,
+) -> TriModeFingerprint:
+    """Execute three TLS probes (A/B/C) against a single host:port.
+
+    Probe A: PQC-capable   — offers ML-KEM-768 + X25519MLKEM768 groups
+    Probe B: TLS 1.3       — classical groups only (X25519, secp256r1)
+    Probe C: TLS 1.2 only  — max_version forced to TLS 1.2
+    """
+    t0 = time.monotonic()
+
+    # Run all 3 probes concurrently
+    probe_a_task = _run_single_probe(hostname, port, "A", extra_args=[
+        "-groups", "ML-KEM-768:X25519MLKEM768:X25519:secp256r1",
+    ])
+    probe_b_task = _run_single_probe(hostname, port, "B", extra_args=[
+        "-groups", "X25519:secp256r1:secp384r1",
+    ])
+    probe_c_task = _run_single_probe(hostname, port, "C", extra_args=[
+        "-tls1_2",
+    ])
+
+    probe_a, probe_b, probe_c = await asyncio.gather(
+        probe_a_task, probe_b_task, probe_c_task,
+        return_exceptions=False,
+    )
+
+    # Certificate (one extraction is enough — shared across probes)
+    certificate = await _extract_certificate(hostname, port)
+
+    elapsed = int((time.monotonic() - t0) * 1000)
+
+    # Enrich probes with cert info
+    for p in [probe_a, probe_b, probe_c]:
+        if certificate.serial_number:
+            p.certificate_serial = certificate.serial_number
+        if certificate.signature_algorithm and not p.signature_algorithm:
+            p.signature_algorithm = certificate.signature_algorithm
+        if certificate.public_key_type and not p.public_key_type:
+            p.public_key_type = certificate.public_key_type
+        if certificate.public_key_bits and not p.public_key_bits:
+            p.public_key_bits = certificate.public_key_bits
+
+    # Determine overall error
+    all_errors = [p.error for p in [probe_a, probe_b, probe_c] if p.error]
+    error = all_errors[0] if len(all_errors) == 3 else None
+
+    return TriModeFingerprint(
+        hostname=hostname,
+        port=port,
+        asset_type=asset_type,
+        ip=ip or _resolve_host(hostname),
+        probe_a=probe_a,
+        probe_b=probe_b,
+        probe_c=probe_c,
+        certificate=certificate,
+        scan_duration_ms=elapsed,
+        error=error,
+        mode="live",
+    )
+
+
+# ── Batch scanning with concurrency ─────────────────────────────────────────
+
+
+async def probe_batch(
+    assets: list[DiscoveredAsset],
+    *,
+    concurrency: int = _DEFAULT_CONCURRENCY,
+    demo: bool = False,
+) -> list[TriModeFingerprint]:
+    """Probe a list of assets with tri-mode scanning.
+
+    Single if/else: demo returns static fingerprints; live runs real probes.
+    """
+    # ── Demo mode ────────────────────────────────────────────────────────
+    if demo:
+        from backend.demo_data import DEMO_TRIMODE_FINGERPRINTS
+        logger.info("[DEMO] Returning %d pre-built TriModeFingerprints", len(DEMO_TRIMODE_FINGERPRINTS))
+        return list(DEMO_TRIMODE_FINGERPRINTS)
+
+    # ── Live mode ────────────────────────────────────────────────────────
+    sem = asyncio.Semaphore(concurrency)
+    results: list[TriModeFingerprint] = []
+
+    async def _scan(asset: DiscoveredAsset) -> TriModeFingerprint:
+        async with sem:
+            logger.info("Probing %s:%d …", asset.hostname, asset.port)
+            return await probe_trimode(
+                hostname=asset.hostname,
+                port=asset.port,
+                asset_type=asset.asset_type,
+                ip=asset.ip,
+            )
+
+    fps = await asyncio.gather(
+        *[_scan(a) for a in assets],
+        return_exceptions=True,
+    )
+
+    for i, fp in enumerate(fps):
+        if isinstance(fp, Exception):
+            logger.error("Probe failed for %s:%d — %s", assets[i].hostname, assets[i].port, fp)
+            results.append(TriModeFingerprint(
+                hostname=assets[i].hostname,
+                port=assets[i].port,
+                asset_type=assets[i].asset_type,
+                ip=assets[i].ip,
+                error=str(fp),
+                mode="live",
+            ))
+        else:
+            results.append(fp)
+
+    return results
+
+
+# ── Legacy compatibility: probe_tls ──────────────────────────────────────────
 
 
 async def probe_tls(hostname: str, port: int = 443) -> CryptoFingerprint:
-    """Perform full TLS handshake and extract cryptographic parameters.
+    """Legacy single-probe entry point (Phase 1-5 compatibility).
 
-    Returns a CryptoFingerprint with whatever data could be extracted.
-    On complete failure, returns a mostly-empty fingerprint — the caller
-    (classifier) will mark this as UNKNOWN status.
+    Runs Probe B (TLS 1.3 classical) and converts to CryptoFingerprint.
     """
     fingerprint = CryptoFingerprint()
     tls = TLSInfo()
@@ -195,7 +418,6 @@ async def probe_tls(hostname: str, port: int = 443) -> CryptoFingerprint:
                         tls.cipher_algorithm = algo
                         break
 
-            # Parse certificate
             cert_der = ssl_obj.getpeercert(binary_form=True)
             if cert_der:
                 try:
@@ -203,13 +425,8 @@ async def probe_tls(hostname: str, port: int = 443) -> CryptoFingerprint:
                     cert_info.subject = _flatten_name(parsed.subject)
                     cert_info.issuer = _flatten_name(parsed.issuer)
                     cert_info.serial_number = str(parsed.serial_number)
-                    cert_info.not_before = parsed.not_valid_before_utc.strftime(
-                        "%b %d %H:%M:%S %Y %Z"
-                    ).strip()
-                    cert_info.not_after = parsed.not_valid_after_utc.strftime(
-                        "%b %d %H:%M:%S %Y %Z"
-                    ).strip()
-
+                    cert_info.not_before = parsed.not_valid_before_utc.strftime("%b %d %H:%M:%S %Y %Z").strip()
+                    cert_info.not_after = parsed.not_valid_after_utc.strftime("%b %d %H:%M:%S %Y %Z").strip()
                     cert_info.signature_algorithm = parsed.signature_algorithm_oid._name
 
                     expiry = parsed.not_valid_after_utc
@@ -217,16 +434,12 @@ async def probe_tls(hostname: str, port: int = 443) -> CryptoFingerprint:
                     cert_info.is_expired = cert_info.days_until_expiry < 0
 
                     pub = parsed.public_key()
-                    cert_info.public_key_type = (
-                        type(pub).__name__.replace("PublicKey", "").replace("_", "")
-                    )
+                    cert_info.public_key_type = type(pub).__name__.replace("PublicKey", "").replace("_", "")
                     if hasattr(pub, "key_size"):
                         cert_info.public_key_bits = pub.key_size
 
                     try:
-                        ext = parsed.extensions.get_extension_for_class(
-                            x509.SubjectAlternativeName
-                        )
+                        ext = parsed.extensions.get_extension_for_class(x509.SubjectAlternativeName)
                         cert_info.san_entries = [name.value for name in ext.value]
                     except x509.ExtensionNotFound:
                         cert_info.san_entries = []
@@ -239,14 +452,13 @@ async def probe_tls(hostname: str, port: int = 443) -> CryptoFingerprint:
         logger.warning("TLS connection failed for %s:%d — %s", hostname, port, exc)
 
     # Phase 2: openssl s_client — authoritative key exchange group
-    openssl_info = await _run_openssl_brief(hostname, port)
+    openssl_info = await _run_openssl(hostname, port)
 
     if openssl_info["version"] and not tls.version:
         tls.version = openssl_info["version"]
     if openssl_info["cipher"] and not tls.cipher_suite:
         tls.cipher_suite = openssl_info["cipher"]
 
-    # Key exchange: openssl is authoritative for the ServerHello negotiated group
     if openssl_info.get("kex"):
         tls.key_exchange = openssl_info["kex"]
         tls.authentication = openssl_info.get("sig", "UNKNOWN")
@@ -254,32 +466,21 @@ async def probe_tls(hostname: str, port: int = 443) -> CryptoFingerprint:
         tls.key_exchange = "UNKNOWN"
         tls.authentication = openssl_info.get("sig", "UNKNOWN")
     else:
-        # TLS 1.2 fallback — derive from cipher suite name
         tls.key_exchange = _extract_kex(tls.cipher_suite)
         tls.authentication = _extract_auth(tls.cipher_suite)
 
-    # Cipher algorithm extraction
     if tls.cipher_suite.startswith("TLS_"):
         parts = tls.cipher_suite.split("_")
         if len(parts) > 2:
-            tls.cipher_algorithm = "_".join(parts[1:-1])  # e.g. AES_256_GCM
+            tls.cipher_algorithm = "_".join(parts[1:-1])
     elif not tls.cipher_algorithm:
         tls.cipher_algorithm = tls.cipher_suite
 
-    # Check TLS version support (using modern API with min/max version)
-    try:
-        tls12_supported = await _check_tls_version_supported(
-            hostname, port, ssl.TLSVersion.TLSv1_2, ssl.TLSVersion.TLSv1_2
-        )
-        tls.supports_tls_1_2 = "TLSv1.2" in tls.version or tls12_supported
-    except Exception:
-        tls.supports_tls_1_2 = "TLSv1.2" in tls.version
-
+    tls.supports_tls_1_2 = "TLSv1.2" in tls.version
     tls.supports_tls_1_3 = "TLSv1.3" in tls.version
 
-    # PQC detection — strictly from the negotiated group, not from client offers
     kex_upper = tls.key_exchange.upper().replace("-", "").replace("_", "")
-    sig_upper = cert_info.signature_algorithm.upper().replace("-", "").replace("_", "") if cert_info.signature_algorithm else ""
+    sig_upper = (cert_info.signature_algorithm or "").upper().replace("-", "").replace("_", "")
 
     fingerprint.has_pqc_kex = any(
         pqc.replace("-", "").replace("_", "") in kex_upper for pqc in PQC_KEX_ALGORITHMS
@@ -287,9 +488,7 @@ async def probe_tls(hostname: str, port: int = 443) -> CryptoFingerprint:
     fingerprint.has_pqc_signature = any(
         pqc.replace("-", "").replace("_", "") in sig_upper for pqc in PQC_SIG_ALGORITHMS
     )
-    fingerprint.has_hybrid_mode = (
-        "X25519" in tls.key_exchange.upper() and fingerprint.has_pqc_kex
-    )
+    fingerprint.has_hybrid_mode = "X25519" in tls.key_exchange.upper() and fingerprint.has_pqc_kex
     fingerprint.has_forward_secrecy = any(
         fs in tls.key_exchange.upper()
         for fs in ("DHE", "ECDHE", "X25519", "X448", "MLKEM", "KYBER")

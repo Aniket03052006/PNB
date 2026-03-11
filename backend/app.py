@@ -9,11 +9,17 @@ from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 import logging
 
-from backend.models import ScanSummary, PQCStatus
-from backend.demo_data import generate_demo_results
+from backend.models import ScanSummary, PQCStatus, TriModeFingerprint
+from backend.demo_data import (
+    generate_demo_results,
+    DEMO_TRIMODE_FINGERPRINTS,
+    get_demo_baseline_fingerprints,
+    get_historical_scan_summaries,
+    _trimode_to_crypto,
+)
 from backend.scanner.cbom_generator import generate_cbom
 from backend.scanner.classifier import classify
-from backend.scanner.prober import probe_tls
+from backend.scanner.prober import probe_tls, probe_trimode, probe_batch
 from backend.scanner.discoverer import discover_assets
 from backend.scanner.assessment import analyze_endpoint, analyze_batch
 from backend.scanner.remediation import generate_remediation, generate_batch_remediation
@@ -25,7 +31,7 @@ logger = logging.getLogger("qarmor.app")
 app = FastAPI(
     title="Q-ARMOR",
     description="Quantum-Aware Mapping & Observation for Risk Remediation",
-    version="5.0.0",
+    version="6.0.0",
 )
 
 app.add_middleware(
@@ -41,6 +47,7 @@ app.mount("/static", StaticFiles(directory=str(FRONTEND_DIR)), name="static")
 
 # In-memory cache for latest scan
 _latest_scan: ScanSummary | None = None
+_latest_trimode: list[TriModeFingerprint] = []
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -55,7 +62,7 @@ async def serve_dashboard():
 @app.get("/api/health")
 async def health_check():
     """Health check endpoint."""
-    return {"status": "operational", "service": "Q-ARMOR", "version": "1.0.0"}
+    return {"status": "operational", "service": "Q-ARMOR", "version": "6.0.0"}
 
 
 @app.get("/api/scan/demo")
@@ -431,3 +438,200 @@ async def send_alert_notifications(
         },
     )
     return JSONResponse(content=result)
+
+
+# ── Phase 6: Tri-Mode Probing & Asset Discovery ─────────────────────────────
+
+@app.get("/api/scan/trimode/demo")
+async def trimode_demo_scan():
+    """Run tri-mode scan with demo data (21 pre-built TriModeFingerprints).
+
+    Returns all 21 fingerprints with mode='demo' flag.  Downstream
+    classification uses the REAL classifier engine.
+    """
+    global _latest_scan, _latest_trimode
+    _latest_trimode = list(DEMO_TRIMODE_FINGERPRINTS)
+    _latest_scan = generate_demo_results()
+
+    classified = []
+    for fp in _latest_trimode:
+        crypto = _trimode_to_crypto(fp)
+        q = classify(crypto)
+        classified.append({
+            **fp.model_dump(mode="json"),
+            "q_score": q.model_dump(mode="json"),
+        })
+
+    return JSONResponse(content={
+        "mode": "demo",
+        "total_assets": len(classified),
+        "fingerprints": classified,
+        "summary": {
+            "total_assets": _latest_scan.total_assets,
+            "fully_quantum_safe": _latest_scan.fully_quantum_safe,
+            "pqc_transition": _latest_scan.pqc_transition,
+            "quantum_vulnerable": _latest_scan.quantum_vulnerable,
+            "critically_vulnerable": _latest_scan.critically_vulnerable,
+            "unknown": _latest_scan.unknown,
+            "average_q_score": _latest_scan.average_q_score,
+        },
+    })
+
+
+@app.post("/api/scan/trimode/live/{domain}")
+async def trimode_live_scan(domain: str):
+    """Run real tri-mode scan against a domain.
+
+    Pipeline: discover_assets -> probe_batch (tri-mode A/B/C) -> classify.
+    """
+    global _latest_scan, _latest_trimode
+
+    try:
+        assets = await discover_assets(domain, demo=False, include_ct=True, include_port_scan=False)
+        if not assets:
+            raise HTTPException(status_code=404, detail=f"No assets discovered for {domain}")
+
+        fingerprints = await probe_batch(assets[:20], concurrency=20, demo=False)
+        _latest_trimode = fingerprints
+
+        classified = []
+        for fp in fingerprints:
+            crypto = _trimode_to_crypto(fp)
+            q = classify(crypto)
+            classified.append({
+                **fp.model_dump(mode="json"),
+                "q_score": q.model_dump(mode="json"),
+            })
+
+        # Build legacy ScanSummary for backward compat
+        from backend.models import ScanResult, DiscoveredAsset
+        results = []
+        counts = {s: 0 for s in PQCStatus}
+        total_score = 0
+        for fp in fingerprints:
+            crypto = _trimode_to_crypto(fp)
+            q = classify(crypto)
+            asset = DiscoveredAsset(hostname=fp.hostname, ip=fp.ip, port=fp.port, asset_type=fp.asset_type)
+            results.append(ScanResult(asset=asset, fingerprint=crypto, q_score=q, scan_duration_ms=fp.scan_duration_ms))
+            counts[q.status] += 1
+            total_score += q.total
+
+        from backend.demo_data import _build_remediation_roadmap
+        from backend.scanner.label_issuer import issue_label
+        labels = [l for r in results if (l := issue_label(r.asset.hostname, r.asset.port, r.q_score))]
+        _latest_scan = ScanSummary(
+            total_assets=len(results),
+            fully_quantum_safe=counts[PQCStatus.FULLY_QUANTUM_SAFE],
+            pqc_transition=counts[PQCStatus.PQC_TRANSITION],
+            quantum_vulnerable=counts[PQCStatus.QUANTUM_VULNERABLE],
+            critically_vulnerable=counts[PQCStatus.CRITICALLY_VULNERABLE],
+            unknown=counts.get(PQCStatus.UNKNOWN, 0),
+            average_q_score=round(total_score / len(results), 1) if results else 0,
+            results=results,
+            remediation_roadmap=_build_remediation_roadmap(results),
+            labels=labels,
+        )
+
+        return JSONResponse(content={
+            "mode": "live",
+            "domain": domain,
+            "total_assets": len(classified),
+            "fingerprints": classified,
+            "summary": {
+                "total_assets": _latest_scan.total_assets,
+                "fully_quantum_safe": _latest_scan.fully_quantum_safe,
+                "pqc_transition": _latest_scan.pqc_transition,
+                "quantum_vulnerable": _latest_scan.quantum_vulnerable,
+                "critically_vulnerable": _latest_scan.critically_vulnerable,
+                "unknown": _latest_scan.unknown,
+                "average_q_score": _latest_scan.average_q_score,
+            },
+        })
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception("Tri-mode live scan failed for %s", domain)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/scan/trimode/single/{hostname}")
+async def trimode_single(hostname: str, port: int = 443):
+    """Tri-mode probe a single hostname:port."""
+    try:
+        fp = await probe_trimode(hostname, port)
+        crypto = _trimode_to_crypto(fp)
+        q = classify(crypto)
+        return JSONResponse(content={
+            **fp.model_dump(mode="json"),
+            "q_score": q.model_dump(mode="json"),
+        })
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/scan/trimode/fingerprints")
+async def get_trimode_fingerprints():
+    """Return the latest tri-mode fingerprints."""
+    if not _latest_trimode:
+        raise HTTPException(status_code=404, detail="No tri-mode scan data. Run /api/scan/trimode/demo first.")
+    classified = []
+    for fp in _latest_trimode:
+        crypto = _trimode_to_crypto(fp)
+        q = classify(crypto)
+        classified.append({**fp.model_dump(mode="json"), "q_score": q.model_dump(mode="json")})
+    return JSONResponse(content={"fingerprints": classified, "total": len(classified)})
+
+
+@app.get("/api/scan/trimode/baseline")
+async def get_baseline():
+    """Return the demo baseline fingerprints (one-week-ago degraded snapshot)."""
+    baseline = get_demo_baseline_fingerprints()
+    classified = []
+    for fp in baseline:
+        crypto = _trimode_to_crypto(fp)
+        q = classify(crypto)
+        classified.append({**fp.model_dump(mode="json"), "q_score": q.model_dump(mode="json")})
+    return JSONResponse(content={
+        "mode": "demo",
+        "description": "Baseline snapshot — 1 week ago (degraded)",
+        "total_assets": len(classified),
+        "fingerprints": classified,
+    })
+
+
+@app.get("/api/scan/trimode/history")
+async def get_history():
+    """Return 4 weeks of historical scan summaries (demo seed data)."""
+    summaries = get_historical_scan_summaries()
+    return JSONResponse(content={
+        "mode": "demo",
+        "weeks": [s.model_dump(mode="json") for s in summaries],
+    })
+
+
+@app.get("/api/discover/demo")
+async def discover_demo():
+    """Return the 21 demo discovered assets."""
+    assets = await discover_assets("bank.com", demo=True)
+    return JSONResponse(content={
+        "mode": "demo",
+        "total": len(assets),
+        "assets": [a.model_dump(mode="json") for a in assets],
+    })
+
+
+@app.post("/api/discover/{domain}")
+async def discover_domain(domain: str, include_ct: bool = True, include_port_scan: bool = False):
+    """Live asset discovery for a domain."""
+    try:
+        assets = await discover_assets(
+            domain, demo=False, include_ct=include_ct, include_port_scan=include_port_scan,
+        )
+        return JSONResponse(content={
+            "mode": "live",
+            "domain": domain,
+            "total": len(assets),
+            "assets": [a.model_dump(mode="json") for a in assets],
+        })
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))

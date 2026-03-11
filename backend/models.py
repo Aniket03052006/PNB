@@ -75,6 +75,65 @@ class CryptoFingerprint(BaseModel):
     jwt_algorithm: str | None = None
 
 
+# ── Phase 6: Tri-Mode Probe Profile ─────────────────────────────────────────
+
+class ProbeProfile(BaseModel):
+    """Single TLS probe result — one of three modes (A/B/C)."""
+    mode: str = ""                              # "A" | "B" | "C"
+    tls_version: str | None = None
+    cipher_suite: str | None = None
+    cipher_bits: int | None = None
+    key_exchange: str | None = None
+    key_exchange_group: str | None = None
+    authentication: str | None = None
+    signature_algorithm: str | None = None
+    public_key_type: str | None = None
+    public_key_bits: int | None = None
+    certificate_serial: str | None = None
+    error: str | None = None
+
+
+class TriModeFingerprint(BaseModel):
+    """Phase 6 tri-mode cryptographic fingerprint for a single asset.
+
+    Contains three probe profiles representing:
+      - Probe A: PQC-capable client hello (ML-KEM-768 + X25519MLKEM768)
+      - Probe B: TLS 1.3 classical client hello (no PQC groups)
+      - Probe C: TLS 1.2 downgrade attempt (worst-case)
+    """
+    hostname: str
+    port: int = 443
+    asset_type: AssetType = AssetType.WEB
+    ip: str | None = None
+    probe_a: ProbeProfile = Field(default_factory=lambda: ProbeProfile(mode="A"))
+    probe_b: ProbeProfile = Field(default_factory=lambda: ProbeProfile(mode="B"))
+    probe_c: ProbeProfile = Field(default_factory=lambda: ProbeProfile(mode="C"))
+    certificate: CertificateInfo = Field(default_factory=CertificateInfo)
+    probed_at: str = Field(
+        default_factory=lambda: datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+    )
+    scan_duration_ms: int = 0
+    error: str | None = None
+    mode: str = "live"                          # "live" | "demo"
+
+
+class HistoricalScanSummary(BaseModel):
+    """Pre-built historical scan summary for the History tab (Phase 6 demo seed)."""
+    week: int
+    scan_date: str
+    total_assets: int = 0
+    quantum_safety_score: int = 0
+    fully_quantum_safe: int = 0
+    pqc_transition: int = 0
+    quantum_vulnerable: int = 0
+    critically_vulnerable: int = 0
+    unknown: int = 0
+    mode: str = "demo"
+
+
+# ── Existing models (unchanged) ─────────────────────────────────────────────
+
+
 class QScore(BaseModel):
     total: int = 0
     tls_version_score: int = 0       # max 25

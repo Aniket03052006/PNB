@@ -2,6 +2,7 @@
  * Q-ARMOR Dashboard Controller
  * Phase 1: Scan data + overview
  * Phase 2: PQC Assessment, Remediation, NIST Matrix
+ * Phase 6: Tri-Mode Probing, History & Baseline
  */
 
 const API_BASE = '';
@@ -32,6 +33,8 @@ function showToast(message, type = 'error') {
 let scanData = null;
 let assessmentData = null;
 let remediationData = null;
+let trimodeData = null;
+let historyData = null;
 
 /* ─── API Calls ─── */
 async function apiCall(endpoint, method = 'GET') {
@@ -74,6 +77,9 @@ async function runDemoScan() {
 
         // Auto-fetch Phase 2 assessment
         fetchPhase2Assessment();
+
+        // Auto-fetch Phase 6 tri-mode demo data
+        fetchTrimodeDemoData();
     } catch (e) {
         showToast('Scan failed: ' + e.message, 'error');
     } finally {
@@ -909,4 +915,221 @@ function getScoreColor(score) {
     if (score >= 70) return 'var(--status-transition)';
     if (score >= 40) return 'var(--status-vulnerable)';
     return 'var(--status-critical)';
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Phase 6: Tri-Mode Probing
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+async function fetchTrimodeDemoData() {
+    try {
+        trimodeData = await apiCall('/api/scan/trimode/demo');
+        renderTrimode(trimodeData);
+    } catch (e) {
+        console.warn('Tri-mode demo fetch failed:', e);
+    }
+}
+
+function renderTrimode(data) {
+    const empty = document.getElementById('trimodeEmpty');
+    const content = document.getElementById('trimodeContent');
+    if (!data || !data.fingerprints || data.fingerprints.length === 0) {
+        if (empty) empty.style.display = '';
+        if (content) content.style.display = 'none';
+        return;
+    }
+    if (empty) empty.style.display = 'none';
+    if (content) content.style.display = '';
+
+    // Summary stats
+    const fps = data.fingerprints;
+    const counts = { safe: 0, transition: 0, vulnerable: 0, critical: 0, unknown: 0 };
+    fps.forEach(fp => {
+        const s = fp.q_score?.status || 'UNKNOWN';
+        if (s === 'FULLY_QUANTUM_SAFE') counts.safe++;
+        else if (s === 'PQC_TRANSITION') counts.transition++;
+        else if (s === 'QUANTUM_VULNERABLE') counts.vulnerable++;
+        else if (s === 'CRITICALLY_VULNERABLE') counts.critical++;
+        else counts.unknown++;
+    });
+
+    setText('tmStatTotal', fps.length);
+    setText('tmStatMode', `Mode: ${data.mode || 'live'}`);
+    setText('tmStatSafe', counts.safe);
+    setText('tmStatTransition', counts.transition);
+    setText('tmStatVulnerable', counts.vulnerable);
+    setText('tmStatCritical', counts.critical);
+    setText('tmAssetCount', `${fps.length} assets`);
+
+    // Demo banner
+    const banner = document.getElementById('trimodeDemoBanner');
+    if (banner) banner.style.display = data.mode === 'demo' ? '' : 'none';
+
+    // Build tri-mode table
+    const tbody = fps.map(fp => {
+        const st = fp.q_score?.status || 'UNKNOWN';
+        const cls = getStatusClass(st);
+        const lbl = getStatusLabel(st);
+        const score = fp.q_score?.total ?? '—';
+        const scColor = getScoreColor(score);
+
+        function probeCell(p) {
+            if (!p) return '<span class="probe-err">—</span>';
+            if (p.error) return `<span class="probe-err">${escHtml(p.error)}</span>`;
+            const tls = p.tls_version || '—';
+            const kex = p.key_exchange || '—';
+            const cipher = p.cipher_suite || '—';
+            const bits = p.cipher_bits ? `${p.cipher_bits}b` : '';
+
+            let colorClass = 'probe-warn';
+            if (tls.includes('1.3') && (kex.includes('ML-KEM') || kex.includes('MLKEM'))) colorClass = 'probe-ok';
+            else if (tls.includes('1.1') || tls.includes('1.0') || kex === 'RSA') colorClass = 'probe-bad';
+
+            return `<span class="${colorClass}">${tls} | ${kex} | ${bits}</span>`;
+        }
+
+        return `<tr>
+            <td><strong>${escHtml(fp.hostname)}</strong><br><span style="color:var(--text-dim);font-size:0.7rem">${fp.asset_type || 'web'} :${fp.port}</span></td>
+            <td><span class="status-badge status-badge--${cls}">${lbl}</span></td>
+            <td style="color:${scColor}; font-weight:600;">${score}</td>
+            <td class="probe-cell"><span class="probe-label">A</span> ${probeCell(fp.probe_a)}</td>
+            <td class="probe-cell"><span class="probe-label">B</span> ${probeCell(fp.probe_b)}</td>
+            <td class="probe-cell"><span class="probe-label">C</span> ${probeCell(fp.probe_c)}</td>
+        </tr>`;
+    }).join('');
+
+    const container = document.getElementById('trimodeTableContainer');
+    if (container) {
+        container.innerHTML = `
+            <table class="trimode-table">
+                <thead><tr>
+                    <th>Asset</th><th>Status</th><th>Q-Score</th>
+                    <th>Probe A (PQC)</th><th>Probe B (TLS 1.3)</th><th>Probe C (Downgrade)</th>
+                </tr></thead>
+                <tbody>${tbody}</tbody>
+            </table>`;
+    }
+}
+
+function setText(id, val) {
+    const el = document.getElementById(id);
+    if (el) el.textContent = val;
+}
+
+function escHtml(str) {
+    const div = document.createElement('div');
+    div.textContent = str || '';
+    return div.innerHTML;
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Phase 6: Historical Trends & Baseline
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+async function loadHistory() {
+    try {
+        const [histResp, baseResp] = await Promise.all([
+            apiCall('/api/scan/trimode/history'),
+            apiCall('/api/scan/trimode/baseline'),
+        ]);
+
+        historyData = histResp;
+        renderHistory(histResp);
+        renderBaseline(baseResp);
+
+        document.getElementById('historyEmpty').style.display = 'none';
+        document.getElementById('historyContent').style.display = '';
+    } catch (e) {
+        showToast('Failed to load history: ' + e.message, 'error');
+    }
+}
+
+function renderHistory(data) {
+    if (!data || !data.weeks) return;
+    const modeEl = document.getElementById('historyMode');
+    if (modeEl) modeEl.textContent = data.mode || 'live';
+
+    const maxScore = Math.max(...data.weeks.map(w => w.quantum_safety_score), 1);
+    const rows = data.weeks.map(w => {
+        const barW = Math.round((w.quantum_safety_score / 100) * 200);
+        const date = w.scan_date ? new Date(w.scan_date).toLocaleDateString() : `Week ${w.week}`;
+        return `<tr>
+            <td>Week ${w.week}</td>
+            <td>${date}</td>
+            <td>${w.total_assets}</td>
+            <td style="font-weight:600;color:var(--accent-green);">${w.quantum_safety_score} <span class="score-bar" style="width:${barW}px;"></span></td>
+            <td style="color:var(--status-safe);">${w.fully_quantum_safe}</td>
+            <td style="color:var(--status-transition);">${w.pqc_transition}</td>
+            <td style="color:var(--status-vulnerable);">${w.quantum_vulnerable}</td>
+            <td style="color:var(--status-critical);">${w.critically_vulnerable}</td>
+            <td style="color:var(--status-unknown);">${w.unknown}</td>
+        </tr>`;
+    }).join('');
+
+    const container = document.getElementById('historyTable');
+    if (container) {
+        container.innerHTML = `
+            <table class="history-table">
+                <thead><tr>
+                    <th>Week</th><th>Date</th><th>Assets</th><th>Q-Safety Score</th>
+                    <th>Safe</th><th>Transition</th><th>Vulnerable</th><th>Critical</th><th>Unknown</th>
+                </tr></thead>
+                <tbody>${rows}</tbody>
+            </table>`;
+    }
+}
+
+function renderBaseline(data) {
+    const container = document.getElementById('baselineContent');
+    if (!container) return;
+    if (!data || !data.fingerprints) {
+        container.innerHTML = '<div class="empty-state"><div class="empty-state-desc">No baseline data</div></div>';
+        return;
+    }
+
+    const total = data.total_assets || data.fingerprints.length;
+    const counts = { safe: 0, transition: 0, vulnerable: 0, critical: 0, unknown: 0 };
+    data.fingerprints.forEach(fp => {
+        const s = fp.q_score?.status || 'UNKNOWN';
+        if (s === 'FULLY_QUANTUM_SAFE') counts.safe++;
+        else if (s === 'PQC_TRANSITION') counts.transition++;
+        else if (s === 'QUANTUM_VULNERABLE') counts.vulnerable++;
+        else if (s === 'CRITICALLY_VULNERABLE') counts.critical++;
+        else counts.unknown++;
+    });
+
+    container.innerHTML = `
+        <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:16px;">
+            <div class="stat-card stat-card--total" style="padding:12px;">
+                <div class="stat-value" style="font-size:1.4rem;">${total}</div>
+                <div class="stat-label">Baseline Assets</div>
+            </div>
+            <div class="stat-card stat-card--safe" style="padding:12px;">
+                <div class="stat-value" style="font-size:1.4rem;">${counts.safe}</div>
+                <div class="stat-label">Quantum Safe</div>
+            </div>
+            <div class="stat-card stat-card--transition" style="padding:12px;">
+                <div class="stat-value" style="font-size:1.4rem;">${counts.transition}</div>
+                <div class="stat-label">Transition</div>
+            </div>
+            <div class="stat-card stat-card--vulnerable" style="padding:12px;">
+                <div class="stat-value" style="font-size:1.4rem;">${counts.vulnerable}</div>
+                <div class="stat-label">Vulnerable</div>
+            </div>
+            <div class="stat-card stat-card--critical" style="padding:12px;">
+                <div class="stat-value" style="font-size:1.4rem;">${counts.critical}</div>
+                <div class="stat-label">Critical</div>
+            </div>
+        </div>
+        <p style="font-size:0.82rem;color:var(--text-secondary);">
+            ${data.description || 'Baseline comparison from 1 week ago.'}
+            Current scan: <strong>${trimodeData?.total_assets || '—'}</strong> assets.
+            Baseline: <strong>${total}</strong> assets (${trimodeData?.total_assets - total > 0 ? '+' : ''}${(trimodeData?.total_assets || 0) - total} net change).
+        </p>
+        <div class="demo-banner" style="margin-top:12px;">
+            ⚠️ <strong>SIMULATED BASELINE</strong> — This comparison uses demo seed data.
+        </div>
+    `;
 }

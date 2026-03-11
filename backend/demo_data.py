@@ -1,213 +1,464 @@
-"""Demo Data — Realistic simulated bank asset scan for hackathon demonstration."""
+"""Phase 6 Demo Data — 21 TriModeFingerprint objects + backward-compatible helpers.
+
+Core philosophy: These fingerprints are the ONLY hardcoded values.  All downstream
+processing (scoring, labeling, CBOM generation) runs on real classifier logic.
+Scores, statuses, and recommendations are *computed*, never invented.
+
+Target distribution after real classification:
+  2  FULLY_QUANTUM_SAFE
+  4  PQC_TRANSITION
+  11 QUANTUM_VULNERABLE
+  3  CRITICALLY_VULNERABLE
+  1  UNKNOWN
+
+Module-level constants.  Imports in < 200 ms.  Zero network calls.
+"""
 
 from __future__ import annotations
+
 from datetime import datetime, timedelta, timezone
+from typing import Any
+
 from backend.models import (
-    DiscoveredAsset, AssetType, CryptoFingerprint, TLSInfo, CertificateInfo,
-    ScanResult, PQCStatus, ScanSummary, RemediationAction, RemediationPriority,
+    AssetType,
+    CertificateInfo,
+    CryptoFingerprint,
+    DiscoveredAsset,
+    HistoricalScanSummary,
+    PQCStatus,
+    ProbeProfile,
+    RemediationAction,
+    RemediationPriority,
+    ScanResult,
+    ScanSummary,
+    TLSInfo,
+    TriModeFingerprint,
 )
 from backend.scanner.classifier import classify
 from backend.scanner.label_issuer import issue_label
 
+# ── Helpers ──────────────────────────────────────────────────────────────────
 
-from typing import Any
-def _asset(hostname: str, port: int = 443, asset_type: AssetType = AssetType.WEB, ip: str = "203.0.113.") -> DiscoveredAsset:
-    """Shorthand builder for demo assets."""
-    return DiscoveredAsset(
-        hostname=hostname, ip=f"{ip}{hash(hostname) % 254 + 1}",
-        port=port, asset_type=asset_type, discovery_method="demo",
-    )
+_NOW = datetime.now(timezone.utc)
 
 
-def _tls(version: str, cipher: str, bits: int, kex: str, auth: str, algo: str = "AES") -> TLSInfo:
-    return TLSInfo(
-        version=version, cipher_suite=cipher, cipher_bits=bits,
-        cipher_algorithm=algo, key_exchange=kex, authentication=auth,
-        supports_tls_1_0="1.0" in version or "1.1" in version,
-        supports_tls_1_1="1.1" in version,
-        supports_tls_1_2="1.2" in version or "1.3" in version,
-        supports_tls_1_3="1.3" in version,
-    )
-
-
-def _cert(subject: str, issuer: str, sig_algo: str, pk_type: str, pk_bits: int, days_until: int = 365) -> CertificateInfo:
-    now = datetime.now(timezone.utc)
+def _cert(
+    subject: str,
+    issuer: str,
+    sig_algo: str,
+    pk_type: str,
+    pk_bits: int,
+    days_until: int = 365,
+    serial_override: str | None = None,
+) -> CertificateInfo:
+    """Build a demo CertificateInfo."""
     return CertificateInfo(
-        subject=subject, issuer=issuer,
-        serial_number=f"0x{abs(hash(subject)) & 0xFFFFFFFF:08X}",
-        not_before=(now - timedelta(days=90)).strftime("%b %d %H:%M:%S %Y GMT"),
-        not_after=(now + timedelta(days=days_until)).strftime("%b %d %H:%M:%S %Y GMT"),
-        signature_algorithm=sig_algo, public_key_type=pk_type, public_key_bits=pk_bits,
-        san_entries=[subject.split("=")[-1].strip()] if "=" in subject else [subject.strip()],
+        subject=f"CN={subject}",
+        issuer=f"CN={issuer}",
+        serial_number=serial_override or f"0x{abs(hash(subject)) & 0xFFFFFFFFFFFF:012X}",
+        not_before=(_NOW - timedelta(days=90)).strftime("%b %d %H:%M:%S %Y GMT"),
+        not_after=(_NOW + timedelta(days=days_until)).strftime("%b %d %H:%M:%S %Y GMT"),
+        signature_algorithm=sig_algo,
+        public_key_type=pk_type,
+        public_key_bits=pk_bits,
+        san_entries=[subject],
         is_expired=days_until < 0,
         days_until_expiry=days_until,
     )
 
 
-DEMO_ASSETS: list[dict[str, Any]] = [
-    # --- FULLY QUANTUM SAFE (2 assets) ---
-    {
-        "asset": _asset("pqc-gateway.demobank.com", asset_type=AssetType.API),
-        "tls": _tls("TLSv1.3", "TLS_AES_256_GCM_SHA384", 256, "ML-KEM-768", "ML-DSA-65"),
-        "cert": _cert("CN=pqc-gateway.demobank.com", "CN=DigiCert PQC Root CA", "ML-DSA-65", "ML-DSA", 2048, 730),
-        "pqc_kex": True, "pqc_sig": True, "hybrid": False,
-    },
-    {
-        "asset": _asset("quantum-safe.demobank.com"),
-        "tls": _tls("TLSv1.3", "TLS_AES_256_GCM_SHA384", 256, "ML-KEM-1024", "ML-DSA-87"),
-        "cert": _cert("CN=quantum-safe.demobank.com", "CN=GlobalSign PQC CA", "ML-DSA-87", "ML-DSA", 4096, 540),
-        "pqc_kex": True, "pqc_sig": True, "hybrid": False,
-    },
+def _ip(hostname: str) -> str:
+    """Deterministic demo IP from hostname."""
+    return f"203.0.113.{hash(hostname) % 254 + 1}"
 
-    # --- PQC TRANSITION / HYBRID (3 assets) ---
-    {
-        "asset": _asset("api.demobank.com", asset_type=AssetType.API),
-        "tls": _tls("TLSv1.3", "TLS_AES_256_GCM_SHA384", 256, "X25519MLKEM768", "ECDSA"),
-        "cert": _cert("CN=api.demobank.com", "CN=Let's Encrypt R3", "sha256WithRSAEncryption", "EC", 256, 60),
-        "pqc_kex": True, "pqc_sig": False, "hybrid": True,
-    },
-    {
-        "asset": _asset("secure.demobank.com"),
-        "tls": _tls("TLSv1.3", "TLS_CHACHA20_POLY1305_SHA256", 256, "X25519MLKEM768", "RSA", "CHACHA20"),
-        "cert": _cert("CN=secure.demobank.com", "CN=DigiCert SHA2 Extended Validation", "sha256WithRSAEncryption", "RSA", 4096, 220),
-        "pqc_kex": True, "pqc_sig": False, "hybrid": True,
-    },
-    {
-        "asset": _asset("corporate.demobank.com"),
-        "tls": _tls("TLSv1.3", "TLS_AES_256_GCM_SHA384", 256, "X25519MLKEM768", "ECDSA"),
-        "cert": _cert("CN=corporate.demobank.com", "CN=Comodo RSA Organization CA", "sha384WithRSAEncryption", "EC", 384, 180),
-        "pqc_kex": True, "pqc_sig": False, "hybrid": True,
-    },
 
-    # --- QUANTUM VULNERABLE (7 assets) ---
-    {
-        "asset": _asset("www.demobank.com"),
-        "tls": _tls("TLSv1.3", "TLS_AES_256_GCM_SHA384", 256, "ECDHE", "RSA"),
-        "cert": _cert("CN=www.demobank.com", "CN=DigiCert Global Root G2", "sha256WithRSAEncryption", "RSA", 2048, 400),
-        "pqc_kex": False, "pqc_sig": False, "hybrid": False,
-    },
-    {
-        "asset": _asset("netbanking.demobank.com"),
-        "tls": _tls("TLSv1.2", "TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384", 256, "ECDHE", "RSA"),
-        "cert": _cert("CN=netbanking.demobank.com", "CN=GeoTrust RSA CA 2018", "sha256WithRSAEncryption", "RSA", 2048, 300),
-        "pqc_kex": False, "pqc_sig": False, "hybrid": False,
-    },
-    {
-        "asset": _asset("mobileapi.demobank.com", asset_type=AssetType.API),
-        "tls": _tls("TLSv1.2", "TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384", 256, "ECDHE", "ECDSA"),
-        "cert": _cert("CN=mobileapi.demobank.com", "CN=DigiCert ECC Extended Validation", "ecdsa-with-SHA384", "EC", 384, 250),
-        "pqc_kex": False, "pqc_sig": False, "hybrid": False,
-    },
-    {
-        "asset": _asset("portal.demobank.com"),
-        "tls": _tls("TLSv1.2", "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256", 128, "ECDHE", "RSA"),
-        "cert": _cert("CN=portal.demobank.com", "CN=Let's Encrypt R3", "sha256WithRSAEncryption", "RSA", 2048, 45),
-        "pqc_kex": False, "pqc_sig": False, "hybrid": False,
-    },
-    {
-        "asset": _asset("payments.demobank.com", asset_type=AssetType.API),
-        "tls": _tls("TLSv1.2", "TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384", 256, "ECDHE", "RSA"),
-        "cert": _cert("CN=payments.demobank.com", "CN=Entrust Root CA - G2", "sha256WithRSAEncryption", "RSA", 4096, 500),
-        "pqc_kex": False, "pqc_sig": False, "hybrid": False,
-    },
-    {
-        "asset": _asset("developer.demobank.com", asset_type=AssetType.API),
-        "tls": _tls("TLSv1.2", "TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA384", 256, "ECDHE", "RSA"),
-        "cert": _cert("CN=developer.demobank.com", "CN=Let's Encrypt R3", "sha256WithRSAEncryption", "RSA", 2048, 80),
-        "pqc_kex": False, "pqc_sig": False, "hybrid": False,
-    },
-    {
-        "asset": _asset("cdn.demobank.com"),
-        "tls": _tls("TLSv1.3", "TLS_AES_128_GCM_SHA256", 128, "ECDHE", "ECDSA"),
-        "cert": _cert("CN=cdn.demobank.com", "CN=Cloudflare Inc ECC CA-3", "ecdsa-with-SHA256", "EC", 256, 320),
-        "pqc_kex": False, "pqc_sig": False, "hybrid": False,
-    },
+# ── 21 TriModeFingerprint objects ────────────────────────────────────────────
 
-    # --- CRITICALLY VULNERABLE (3 assets) ---
-    {
-        "asset": _asset("legacy-vpn.demobank.com", 1194, AssetType.VPN),
-        "tls": _tls("TLSv1.1", "TLS_RSA_WITH_AES_128_CBC_SHA", 128, "RSA", "RSA"),
-        "cert": _cert("CN=legacy-vpn.demobank.com", "CN=Internal CA", "sha1WithRSAEncryption", "RSA", 1024, 15),
-        "pqc_kex": False, "pqc_sig": False, "hybrid": False,
-    },
-    {
-        "asset": _asset("old-staging.demobank.com", 8443),
-        "tls": _tls("TLSv1.0", "TLS_RSA_WITH_3DES_EDE_CBC_SHA", 112, "RSA", "RSA", "3DES"),
-        "cert": _cert("CN=old-staging.demobank.com", "CN=Internal Self-Signed", "sha1WithRSAEncryption", "RSA", 1024, -30),
-        "pqc_kex": False, "pqc_sig": False, "hybrid": False,
-    },
-    {
-        "asset": _asset("test-api.demobank.com", 8080, AssetType.API),
-        "tls": _tls("TLSv1.1", "TLS_RSA_WITH_RC4_128_SHA", 128, "RSA", "RSA", "RC4"),
-        "cert": _cert("CN=test-api.demobank.com", "CN=Internal CA", "md5WithRSAEncryption", "RSA", 1024, 700),
-        "pqc_kex": False, "pqc_sig": False, "hybrid": False,
-    },
-    # --- REAL-WORLD TEST CASES (badssl.com) ---
-    {
-        "asset": _asset("rsa2048.badssl.com"),
-        "tls": _tls("TLSv1.2", "TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384", 256, "ECDHE", "RSA"),
-        "cert": _cert("CN=*.badssl.com", "CN=DigiCert SHA2 Secure Server CA", "sha256WithRSAEncryption", "RSA", 2048, 300),
-        "pqc_kex": False, "pqc_sig": False, "hybrid": False,
-    },
-    {
-        "asset": _asset("tls-v1-2.badssl.com"),
-        "tls": _tls("TLSv1.2", "TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384", 256, "ECDHE", "RSA"),
-        "cert": _cert("CN=*.badssl.com", "CN=DigiCert SHA2 Secure Server CA", "sha256WithRSAEncryption", "RSA", 2048, 300),
-        "pqc_kex": False, "pqc_sig": False, "hybrid": False,
-    },
-    {
-        "asset": _asset("tls-v1-3.badssl.com"),
-        "tls": _tls("TLSv1.3", "TLS_AES_256_GCM_SHA384", 256, "X25519", "RSA"),
-        "cert": _cert("CN=*.badssl.com", "CN=DigiCert SHA2 Secure Server CA", "sha256WithRSAEncryption", "RSA", 2048, 300),
-        "pqc_kex": False, "pqc_sig": False, "hybrid": False,
-    },
-    {
-        "asset": _asset("example.com"),
-        "tls": _tls("TLSv1.3", "TLS_AES_256_GCM_SHA384", 256, "X25519", "ECDSA"),
-        "cert": _cert("CN=www.example.org", "CN=DigiCert TLS RSA SHA256 2020 CA1", "sha256WithRSAEncryption", "RSA", 2048, 120),
-        "pqc_kex": False, "pqc_sig": False, "hybrid": False,
-    },
-    {
-        "asset": _asset("cloudflare.com"),
-        "tls": _tls("TLSv1.3", "TLS_AES_256_GCM_SHA384", 256, "X25519MLKEM768", "ECDSA"),
-        "cert": _cert("CN=cloudflare.com", "CN=Cloudflare Inc ECC CA-3", "ecdsa-with-SHA256", "EC", 256, 300),
-        "pqc_kex": True, "pqc_sig": False, "hybrid": True,
-    },
-    # --- UNKNOWN (1 asset — simulated scan failure) ---
-    {
-        "asset": _asset("internal-legacy.demobank.com", 4433),
-        "tls": _tls("", "", 0, "", "", ""),
-        "cert": _cert("", "", "", "", 0, 0),
-        "pqc_kex": False, "pqc_sig": False, "hybrid": False,
-        "scan_failure": True,
-    },
+# NOTE: Probe A = PQC-capable client hello (best the server can do)
+#       Probe B = TLS 1.3 classical client hello (typical behaviour)
+#       Probe C = TLS 1.2 downgrade attempt (worst case)
+
+# ─── 2 x FULLY_QUANTUM_SAFE ────────────────────────────────────────────────
+
+_netbanking = TriModeFingerprint(
+    hostname="netbanking.bank.com", port=443, asset_type=AssetType.WEB, ip=_ip("netbanking.bank.com"), mode="demo",
+    probe_a=ProbeProfile(
+        mode="A", tls_version="TLSv1.3", cipher_suite="TLS_AES_256_GCM_SHA384", cipher_bits=256,
+        key_exchange="ML-KEM-768", key_exchange_group="ML-KEM-768",
+        authentication="ML-DSA-65", signature_algorithm="ML-DSA-65",
+        public_key_type="ML-DSA", public_key_bits=2048,
+    ),
+    probe_b=ProbeProfile(
+        mode="B", tls_version="TLSv1.3", cipher_suite="TLS_AES_256_GCM_SHA384", cipher_bits=256,
+        key_exchange="ML-KEM-768", key_exchange_group="ML-KEM-768",
+        authentication="ML-DSA-65", signature_algorithm="ML-DSA-65",
+        public_key_type="ML-DSA", public_key_bits=2048,
+    ),
+    probe_c=ProbeProfile(
+        mode="C", tls_version="TLSv1.3", cipher_suite="TLS_AES_256_GCM_SHA384", cipher_bits=256,
+        key_exchange="ML-KEM-768", key_exchange_group="ML-KEM-768",
+        authentication="ML-DSA-65", signature_algorithm="ML-DSA-65",
+        public_key_type="ML-DSA", public_key_bits=2048,
+    ),
+    certificate=_cert("netbanking.bank.com", "DigiCert PQC Root CA", "ML-DSA-65", "ML-DSA", 2048, 730),
+)
+
+_auth = TriModeFingerprint(
+    hostname="auth.bank.com", port=443, asset_type=AssetType.WEB, ip=_ip("auth.bank.com"), mode="demo",
+    probe_a=ProbeProfile(
+        mode="A", tls_version="TLSv1.3", cipher_suite="TLS_AES_256_GCM_SHA384", cipher_bits=256,
+        key_exchange="ML-KEM-768", key_exchange_group="ML-KEM-768",
+        authentication="ML-DSA-65", signature_algorithm="ML-DSA-65",
+        public_key_type="ML-DSA", public_key_bits=2048,
+    ),
+    probe_b=ProbeProfile(
+        mode="B", tls_version="TLSv1.3", cipher_suite="TLS_AES_256_GCM_SHA384", cipher_bits=256,
+        key_exchange="ML-KEM-768", key_exchange_group="ML-KEM-768",
+        authentication="ML-DSA-65", signature_algorithm="ML-DSA-65",
+        public_key_type="ML-DSA", public_key_bits=2048,
+    ),
+    probe_c=ProbeProfile(
+        mode="C", tls_version="TLSv1.3", cipher_suite="TLS_AES_256_GCM_SHA384", cipher_bits=256,
+        key_exchange="ML-KEM-768", key_exchange_group="ML-KEM-768",
+        authentication="ML-DSA-65", signature_algorithm="ML-DSA-65",
+        public_key_type="ML-DSA", public_key_bits=2048,
+    ),
+    certificate=_cert("auth.bank.com", "GlobalSign PQC CA", "ML-DSA-65", "ML-DSA", 2048, 540),
+)
+
+
+# ─── 4 x PQC_TRANSITION ────────────────────────────────────────────────────
+
+def _pqc_transition_fp(hostname: str, asset_type: AssetType = AssetType.WEB) -> TriModeFingerprint:
+    """X25519MLKEM768 in A, X25519 in B, TLS 1.2 downgrade in C, ECDSA-P256 cert."""
+    return TriModeFingerprint(
+        hostname=hostname, port=443, asset_type=asset_type, ip=_ip(hostname), mode="demo",
+        probe_a=ProbeProfile(
+            mode="A", tls_version="TLSv1.3", cipher_suite="TLS_AES_256_GCM_SHA384", cipher_bits=256,
+            key_exchange="X25519MLKEM768", key_exchange_group="X25519MLKEM768",
+            authentication="ECDSA", signature_algorithm="ecdsa-with-SHA256",
+            public_key_type="EC", public_key_bits=256,
+        ),
+        probe_b=ProbeProfile(
+            mode="B", tls_version="TLSv1.3", cipher_suite="TLS_AES_256_GCM_SHA384", cipher_bits=256,
+            key_exchange="X25519", key_exchange_group="X25519",
+            authentication="ECDSA", signature_algorithm="ecdsa-with-SHA256",
+            public_key_type="EC", public_key_bits=256,
+        ),
+        probe_c=ProbeProfile(
+            mode="C", tls_version="TLSv1.2", cipher_suite="TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384", cipher_bits=256,
+            key_exchange="ECDHE", key_exchange_group="P-256",
+            authentication="ECDSA", signature_algorithm="ecdsa-with-SHA256",
+            public_key_type="EC", public_key_bits=256,
+        ),
+        certificate=_cert(hostname, "DigiCert ECC Extended Validation CA", "ecdsa-with-SHA256", "EC", 256, 180),
+    )
+
+
+_api = _pqc_transition_fp("api.bank.com", AssetType.API)
+_mobileapi = _pqc_transition_fp("mobileapi.bank.com", AssetType.API)
+_upi = _pqc_transition_fp("upi.bank.com", AssetType.API)
+_cards = _pqc_transition_fp("cards.bank.com", AssetType.WEB)
+
+
+# ─── 11 x QUANTUM_VULNERABLE ───────────────────────────────────────────────
+
+# 6 with ECDHE KEX + RSA-2048 + TLS 1.2 across all probes
+def _qv_ecdhe(hostname: str, asset_type: AssetType = AssetType.WEB) -> TriModeFingerprint:
+    return TriModeFingerprint(
+        hostname=hostname, port=443, asset_type=asset_type, ip=_ip(hostname), mode="demo",
+        probe_a=ProbeProfile(
+            mode="A", tls_version="TLSv1.2", cipher_suite="TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384", cipher_bits=256,
+            key_exchange="ECDHE", key_exchange_group="P-256",
+            authentication="RSA", signature_algorithm="sha256WithRSAEncryption",
+            public_key_type="RSA", public_key_bits=2048,
+        ),
+        probe_b=ProbeProfile(
+            mode="B", tls_version="TLSv1.2", cipher_suite="TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384", cipher_bits=256,
+            key_exchange="ECDHE", key_exchange_group="P-256",
+            authentication="RSA", signature_algorithm="sha256WithRSAEncryption",
+            public_key_type="RSA", public_key_bits=2048,
+        ),
+        probe_c=ProbeProfile(
+            mode="C", tls_version="TLSv1.2", cipher_suite="TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256", cipher_bits=128,
+            key_exchange="ECDHE", key_exchange_group="P-256",
+            authentication="RSA", signature_algorithm="sha256WithRSAEncryption",
+            public_key_type="RSA", public_key_bits=2048,
+        ),
+        certificate=_cert(hostname, "GeoTrust RSA CA 2018", "sha256WithRSAEncryption", "RSA", 2048, 300),
+    )
+
+
+_swift = _qv_ecdhe("swift.bank.com", AssetType.API)
+_imps = _qv_ecdhe("imps.bank.com", AssetType.API)
+_neft = _qv_ecdhe("neft.bank.com", AssetType.API)
+_fx = _qv_ecdhe("fx.bank.com", AssetType.WEB)
+_trade = _qv_ecdhe("trade.bank.com", AssetType.WEB)
+_custody = _qv_ecdhe("custody.bank.com", AssetType.WEB)
+
+
+# 5 with RSA KEX + RSA-2048, TLS 1.3 in A+B, TLS 1.2 accepted in C
+def _qv_rsa(hostname: str, asset_type: AssetType = AssetType.WEB) -> TriModeFingerprint:
+    return TriModeFingerprint(
+        hostname=hostname, port=443, asset_type=asset_type, ip=_ip(hostname), mode="demo",
+        probe_a=ProbeProfile(
+            mode="A", tls_version="TLSv1.3", cipher_suite="TLS_AES_256_GCM_SHA384", cipher_bits=256,
+            key_exchange="RSA", key_exchange_group=None,
+            authentication="RSA", signature_algorithm="sha256WithRSAEncryption",
+            public_key_type="RSA", public_key_bits=2048,
+        ),
+        probe_b=ProbeProfile(
+            mode="B", tls_version="TLSv1.3", cipher_suite="TLS_AES_256_GCM_SHA384", cipher_bits=256,
+            key_exchange="RSA", key_exchange_group=None,
+            authentication="RSA", signature_algorithm="sha256WithRSAEncryption",
+            public_key_type="RSA", public_key_bits=2048,
+        ),
+        probe_c=ProbeProfile(
+            mode="C", tls_version="TLSv1.2", cipher_suite="TLS_RSA_WITH_AES_256_GCM_SHA384", cipher_bits=256,
+            key_exchange="RSA", key_exchange_group=None,
+            authentication="RSA", signature_algorithm="sha256WithRSAEncryption",
+            public_key_type="RSA", public_key_bits=2048,
+        ),
+        certificate=_cert(hostname, "DigiCert Global Root G2", "sha256WithRSAEncryption", "RSA", 2048, 400),
+    )
+
+
+_loans = _qv_rsa("loans.bank.com")
+_corp = _qv_rsa("corp.bank.com")
+_sme = _qv_rsa("sme.bank.com")
+_kyc = _qv_rsa("kyc.bank.com", AssetType.API)
+_cms = _qv_rsa("cms.bank.com")
+
+
+# ─── 3 x CRITICALLY_VULNERABLE ─────────────────────────────────────────────
+
+def _crit_vuln(hostname: str, asset_type: AssetType = AssetType.WEB) -> TriModeFingerprint:
+    """RSA KEX + RSA-2048, TLS 1.1 accepted in probe C."""
+    return TriModeFingerprint(
+        hostname=hostname, port=443, asset_type=asset_type, ip=_ip(hostname), mode="demo",
+        probe_a=ProbeProfile(
+            mode="A", tls_version="TLSv1.2", cipher_suite="TLS_RSA_WITH_AES_256_CBC_SHA256", cipher_bits=256,
+            key_exchange="RSA", key_exchange_group=None,
+            authentication="RSA", signature_algorithm="sha256WithRSAEncryption",
+            public_key_type="RSA", public_key_bits=2048,
+        ),
+        probe_b=ProbeProfile(
+            mode="B", tls_version="TLSv1.2", cipher_suite="TLS_RSA_WITH_AES_128_CBC_SHA", cipher_bits=128,
+            key_exchange="RSA", key_exchange_group=None,
+            authentication="RSA", signature_algorithm="sha256WithRSAEncryption",
+            public_key_type="RSA", public_key_bits=2048,
+        ),
+        probe_c=ProbeProfile(
+            mode="C", tls_version="TLSv1.1", cipher_suite="TLS_RSA_WITH_AES_128_CBC_SHA", cipher_bits=128,
+            key_exchange="RSA", key_exchange_group=None,
+            authentication="RSA", signature_algorithm="sha1WithRSAEncryption",
+            public_key_type="RSA", public_key_bits=2048,
+        ),
+        certificate=_cert(hostname, "Internal CA", "sha1WithRSAEncryption", "RSA", 2048, 45),
+    )
+
+
+_vpn = _crit_vuln("vpn.bank.com", AssetType.VPN)
+_reporting = _crit_vuln("reporting.bank.com")
+_legacy = _crit_vuln("legacy.bank.com")
+
+
+# ─── 1 x UNKNOWN ───────────────────────────────────────────────────────────
+
+_staging = TriModeFingerprint(
+    hostname="staging.bank.com", port=443, asset_type=AssetType.WEB, ip=_ip("staging.bank.com"), mode="demo",
+    probe_a=ProbeProfile(mode="A", error="Connection timeout after 10s"),
+    probe_b=ProbeProfile(mode="B", error="Connection timeout after 10s"),
+    probe_c=ProbeProfile(mode="C", error="Connection timeout after 10s"),
+    certificate=CertificateInfo(),
+    error="Connection timeout after 10s",
+)
+
+
+# ── Module-Level Constants ───────────────────────────────────────────────────
+
+DEMO_TRIMODE_FINGERPRINTS: list[TriModeFingerprint] = [
+    # 2 Fully Quantum Safe
+    _netbanking, _auth,
+    # 4 PQC Transition
+    _api, _mobileapi, _upi, _cards,
+    # 6 QV ECDHE
+    _swift, _imps, _neft, _fx, _trade, _custody,
+    # 5 QV RSA
+    _loans, _corp, _sme, _kyc, _cms,
+    # 3 Critically Vulnerable
+    _vpn, _reporting, _legacy,
+    # 1 Unknown
+    _staging,
 ]
 
+assert len(DEMO_TRIMODE_FINGERPRINTS) == 21, f"Expected 21 fingerprints, got {len(DEMO_TRIMODE_FINGERPRINTS)}"
+
+
+# ── get_demo_baseline_fingerprints ───────────────────────────────────────────
+
+def get_demo_baseline_fingerprints() -> list[TriModeFingerprint]:
+    """Return a slightly degraded baseline (one-week-ago scan).
+
+    Differences from current:
+      - 4 assets degraded: probe_c weakened by one tier
+      - imps.bank.com and kyc.bank.com removed (not yet discovered)
+      - neft.bank.com has a different certificate serial number
+    """
+    excluded = {"imps.bank.com", "kyc.bank.com"}
+    degraded_hosts = {"swift.bank.com", "fx.bank.com", "trade.bank.com", "custody.bank.com"}
+
+    baseline: list[TriModeFingerprint] = []
+    for fp in DEMO_TRIMODE_FINGERPRINTS:
+        if fp.hostname in excluded:
+            continue
+
+        copy = fp.model_copy(deep=True)
+
+        if fp.hostname in degraded_hosts and copy.probe_c:
+            old_c = copy.probe_c
+            copy.probe_c = ProbeProfile(
+                mode="C",
+                tls_version="TLSv1.1" if old_c.tls_version == "TLSv1.2" else old_c.tls_version,
+                cipher_suite="TLS_RSA_WITH_AES_128_CBC_SHA",
+                cipher_bits=128,
+                key_exchange="RSA",
+                key_exchange_group=None,
+                authentication="RSA",
+                signature_algorithm=old_c.signature_algorithm,
+                public_key_type=old_c.public_key_type,
+                public_key_bits=old_c.public_key_bits,
+            )
+
+        if fp.hostname == "neft.bank.com":
+            copy.certificate = copy.certificate.model_copy(
+                update={"serial_number": "0xBASELINE00NEFT"}
+            )
+
+        baseline.append(copy)
+
+    return baseline
+
+
+# ── get_historical_scan_summaries ────────────────────────────────────────────
+
+def get_historical_scan_summaries() -> list[HistoricalScanSummary]:
+    """Return 4 pre-built historical scan summaries (weeks 1-4).
+
+    Quantum safety scores: 12 -> 18 -> 21 -> 24 (improving trend).
+    All marked mode='demo'.
+    """
+    base_date = _NOW - timedelta(weeks=4)
+    return [
+        HistoricalScanSummary(
+            week=1, scan_date=(base_date).isoformat().replace("+00:00", "Z"),
+            total_assets=18, quantum_safety_score=12,
+            fully_quantum_safe=0, pqc_transition=2, quantum_vulnerable=12,
+            critically_vulnerable=3, unknown=1, mode="demo",
+        ),
+        HistoricalScanSummary(
+            week=2, scan_date=(base_date + timedelta(weeks=1)).isoformat().replace("+00:00", "Z"),
+            total_assets=19, quantum_safety_score=18,
+            fully_quantum_safe=1, pqc_transition=3, quantum_vulnerable=11,
+            critically_vulnerable=3, unknown=1, mode="demo",
+        ),
+        HistoricalScanSummary(
+            week=3, scan_date=(base_date + timedelta(weeks=2)).isoformat().replace("+00:00", "Z"),
+            total_assets=20, quantum_safety_score=21,
+            fully_quantum_safe=2, pqc_transition=3, quantum_vulnerable=11,
+            critically_vulnerable=3, unknown=1, mode="demo",
+        ),
+        HistoricalScanSummary(
+            week=4, scan_date=(base_date + timedelta(weeks=3)).isoformat().replace("+00:00", "Z"),
+            total_assets=21, quantum_safety_score=24,
+            fully_quantum_safe=2, pqc_transition=4, quantum_vulnerable=11,
+            critically_vulnerable=3, unknown=1, mode="demo",
+        ),
+    ]
+
+
+# ── Backward-compatible bridge: TriModeFingerprint -> CryptoFingerprint ──────
+
+def _trimode_to_crypto(fp: TriModeFingerprint) -> CryptoFingerprint:
+    """Convert a Phase 6 TriModeFingerprint into a Phase 1-5 CryptoFingerprint.
+
+    Uses Probe A (best case) as the primary TLS info for legacy scoring.
+    """
+    a = fp.probe_a
+    tls = TLSInfo(
+        version=a.tls_version or "",
+        cipher_suite=a.cipher_suite or "",
+        cipher_bits=a.cipher_bits or 0,
+        cipher_algorithm="AES",
+        key_exchange=a.key_exchange or "",
+        authentication=a.authentication or "",
+        supports_tls_1_2=any(
+            p.tls_version and "1.2" in p.tls_version
+            for p in [fp.probe_a, fp.probe_b, fp.probe_c]
+        ),
+        supports_tls_1_3=any(
+            p.tls_version and "1.3" in p.tls_version
+            for p in [fp.probe_a, fp.probe_b, fp.probe_c]
+        ),
+        supports_tls_1_1=any(
+            p.tls_version and "1.1" in p.tls_version
+            for p in [fp.probe_a, fp.probe_b, fp.probe_c]
+        ),
+        supports_tls_1_0=any(
+            p.tls_version and "1.0" in p.tls_version
+            for p in [fp.probe_a, fp.probe_b, fp.probe_c]
+        ),
+    )
+
+    kex = (a.key_exchange or "").upper()
+    sig = (fp.certificate.signature_algorithm or "").upper()
+    pqc_kex_names = {"ML-KEM", "MLKEM", "KYBER", "X25519MLKEM768", "X25519KYBER768"}
+    pqc_sig_names = {"ML-DSA", "MLDSA", "SLH-DSA"}
+
+    has_pqc_kex = any(n in kex for n in pqc_kex_names)
+    has_pqc_sig = any(n in sig for n in pqc_sig_names)
+    has_hybrid = "X25519" in kex and has_pqc_kex
+    has_fs = any(k in kex for k in ("DHE", "ECDHE", "X25519", "X448", "MLKEM", "KYBER"))
+
+    return CryptoFingerprint(
+        tls=tls,
+        certificate=fp.certificate,
+        has_pqc_kex=has_pqc_kex,
+        has_pqc_signature=has_pqc_sig,
+        has_hybrid_mode=has_hybrid,
+        has_forward_secrecy=has_fs,
+    )
+
+
+# ── generate_demo_results (backward-compatible Phase 1-5 API) ───────────────
 
 def generate_demo_results() -> ScanSummary:
-    """Generate realistic demo scan results for a fictional bank."""
+    """Generate realistic demo scan results from Phase 6 TriModeFingerprints.
+
+    This bridges Phase 6 data into the Phase 1-5 ScanSummary format so
+    all existing endpoints (/api/scan/demo, /api/cbom, etc.) keep working.
+    """
     results: list[ScanResult] = []
 
-    for entry in DEMO_ASSETS:
-        tls_info: TLSInfo = entry["tls"]
-        fp = CryptoFingerprint(
-            tls=tls_info,
-            certificate=entry["cert"],
-            has_pqc_kex=entry["pqc_kex"],
-            has_pqc_signature=entry["pqc_sig"],
-            has_hybrid_mode=entry["hybrid"],
-            has_forward_secrecy=tls_info.key_exchange in ("ECDHE", "DHE") or "X25519" in tls_info.key_exchange or "KEM" in tls_info.key_exchange,
+    for fp in DEMO_TRIMODE_FINGERPRINTS:
+        crypto = _trimode_to_crypto(fp)
+        q = classify(crypto)
+
+        asset = DiscoveredAsset(
+            hostname=fp.hostname,
+            ip=fp.ip or _ip(fp.hostname),
+            port=fp.port,
+            asset_type=fp.asset_type,
+            discovery_method="demo",
         )
-        q = classify(fp)
 
         results.append(ScanResult(
-            asset=entry["asset"],
-            fingerprint=fp,
+            asset=asset,
+            fingerprint=crypto,
             q_score=q,
-            scan_duration_ms=150 + (len(entry["asset"].hostname) * 17) % 500,
+            scan_duration_ms=150 + (len(fp.hostname) * 17) % 500,
         ))
 
-    # Count statuses
     counts = {s: 0 for s in PQCStatus}
     total_score = 0
     for r in results:
@@ -236,13 +487,15 @@ def generate_demo_results() -> ScanSummary:
     )
 
 
+# ── Remediation roadmap builder ──────────────────────────────────────────────
+
 def _build_remediation_roadmap(results: list[ScanResult]) -> list[RemediationAction]:
     """Build prioritized remediation actions from scan results."""
     critical = [r for r in results if r.q_score.status == PQCStatus.CRITICALLY_VULNERABLE]
     vulnerable = [r for r in results if r.q_score.status == PQCStatus.QUANTUM_VULNERABLE]
     transition = [r for r in results if r.q_score.status == PQCStatus.PQC_TRANSITION]
 
-    actions = []
+    actions: list[RemediationAction] = []
 
     if critical:
         actions.append(RemediationAction(

@@ -1,6 +1,6 @@
 <div align="center">
 
-# Q-ARMOR v5.0.0
+# Q-ARMOR v6.0.0
 
 ### Quantum-Aware Mapping & Observation for Risk Remediation
 
@@ -68,6 +68,7 @@ Q-ARMOR covers the full lifecycle of **PQC compliance assessment**:
 | **Phase 3** | CycloneDX 1.6 CBOM Generation | `cbom_generator.py` |
 | **Phase 4** | 3-Tier Certification Labeling Engine | `labeler.py` |
 | **Phase 5** | Compliance-as-Code Attestation & Automation | `attestor.py`, `notifier.py` |
+| **Phase 6** | Tri-Mode Probing & Asset Discovery Foundation | `discoverer.py`, `prober.py`, `demo_data.py` |
 
 **In Scope:**
 - TLS handshake analysis (via Python `ssl` + `openssl s_client`)
@@ -1099,6 +1100,58 @@ All endpoints return JSON. Base URL: `http://localhost:8000`
 | `GET` | `/api/attestation/summary` | Get attestation summary |
 | `GET` | `/api/alerts` | Detect and return security alerts |
 | `POST` | `/api/alerts/notify` | Send alerts to Slack/Teams webhooks |
+
+### Phase 6: Tri-Mode Probing & Asset Discovery
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/api/scan/trimode/demo` | Run tri-mode demo scan (21 pre-built TriModeFingerprints) |
+| `POST` | `/api/scan/trimode/live/{domain}` | Run live tri-mode scan against a domain |
+| `GET` | `/api/scan/trimode/single/{hostname}` | Tri-mode probe a single hostname:port |
+| `GET` | `/api/scan/trimode/fingerprints` | Retrieve latest tri-mode fingerprints |
+| `GET` | `/api/scan/trimode/baseline` | Get demo baseline fingerprints (1 week ago) |
+| `GET` | `/api/scan/trimode/history` | Get 4-week historical scan summaries |
+| `GET` | `/api/discover/demo` | Return 21 demo discovered assets |
+| `POST` | `/api/discover/{domain}` | Live asset discovery (DNS + CT) |
+
+#### Tri-Mode Probe Architecture
+
+```
+Probe A ──── PQC-Capable Client Hello ──── ML-KEM-768 + X25519MLKEM768 groups
+Probe B ──── TLS 1.3 Classical ──────────── X25519 + secp256r1 groups (no PQC)
+Probe C ──── TLS 1.2 Downgrade ──────────── max_version = TLS 1.2 forced
+
+                ┌──────────────────────────────────┐
+                │         Target Server             │
+                │     (e.g. netbanking.bank.com)    │
+                └──────────────┬───────────────────┘
+                               │
+          ┌────────────────────┼────────────────────┐
+          ▼                    ▼                     ▼
+    ┌──────────┐        ┌──────────┐         ┌──────────┐
+    │ Probe A  │        │ Probe B  │         │ Probe C  │
+    │ PQC      │        │ Classic  │         │ Downgrade│
+    │ ML-KEM   │        │ X25519   │         │ TLS 1.2  │
+    └────┬─────┘        └────┬─────┘         └────┬─────┘
+         │                   │                     │
+         └───────────────────┼─────────────────────┘
+                             ▼
+                    TriModeFingerprint
+                    ├── probe_a: ProbeProfile
+                    ├── probe_b: ProbeProfile
+                    ├── probe_c: ProbeProfile
+                    └── certificate: CertificateInfo
+```
+
+#### Demo Data Distribution (21 Assets)
+
+| Status | Count | Hostnames |
+|--------|-------|-----------|
+| FULLY_QUANTUM_SAFE | 2 | netbanking.bank.com, auth.bank.com |
+| PQC_TRANSITION | 4 | api.bank.com, mobileapi.bank.com, upi.bank.com, cards.bank.com |
+| QUANTUM_VULNERABLE | 11 | swift, imps, neft, fx, trade, custody, loans, corp, sme, kyc, cms |
+| CRITICALLY_VULNERABLE | 3 | vpn.bank.com, reporting.bank.com, legacy.bank.com |
+| UNKNOWN | 1 | staging.bank.com (connection timeout) |
 
 ---
 

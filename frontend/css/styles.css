@@ -775,6 +775,80 @@ body {
 .phase-badge--p3 { border-color: rgba(167, 139, 250, 0.35); background: rgba(167, 139, 250, 0.08); color: var(--accent-purple); }
 .phase-badge--p4 { border-color: rgba(255, 179, 0, 0.35); background: rgba(255, 179, 0, 0.08); color: var(--accent-amber); }
 .phase-badge--p5 { border-color: rgba(168, 85, 247, 0.35); background: rgba(168, 85, 247, 0.08); color: #a855f7; }
+.phase-badge--p6 { border-color: rgba(255, 105, 180, 0.35); background: rgba(255, 105, 180, 0.08); color: #ff69b4; }
+
+/* Phase 6 demo banner */
+.demo-banner {
+    background: rgba(255, 179, 0, 0.1);
+    border: 1px solid rgba(255, 179, 0, 0.3);
+    border-radius: var(--radius-md);
+    padding: 12px 20px;
+    margin-top: 16px;
+    font-size: 0.82rem;
+    color: var(--accent-amber);
+    text-align: center;
+}
+
+/* Tri-mode probe table */
+.trimode-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.78rem;
+    font-family: var(--font-mono);
+}
+.trimode-table th {
+    background: rgba(0, 212, 255, 0.07);
+    color: var(--accent-cyan);
+    padding: 8px 10px;
+    text-align: left;
+    font-weight: 600;
+    border-bottom: 1px solid var(--border-subtle);
+    white-space: nowrap;
+}
+.trimode-table td {
+    padding: 7px 10px;
+    border-bottom: 1px solid rgba(55, 65, 81, 0.25);
+    color: var(--text-primary);
+    vertical-align: top;
+}
+.trimode-table tr:hover td {
+    background: rgba(0, 212, 255, 0.04);
+}
+.probe-cell { font-size: 0.72rem; line-height: 1.45; }
+.probe-label { color: var(--text-dim); font-weight: 600; display: inline-block; width: 14px; }
+.probe-ok { color: var(--accent-green); }
+.probe-warn { color: var(--accent-amber); }
+.probe-bad { color: var(--accent-red); }
+.probe-err { color: var(--status-unknown); font-style: italic; }
+
+/* History trend table */
+.history-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.82rem;
+}
+.history-table th {
+    background: rgba(168, 85, 247, 0.07);
+    color: #a855f7;
+    padding: 10px 14px;
+    text-align: left;
+    font-weight: 600;
+    border-bottom: 1px solid var(--border-subtle);
+}
+.history-table td {
+    padding: 10px 14px;
+    border-bottom: 1px solid rgba(55, 65, 81, 0.25);
+    color: var(--text-primary);
+}
+.history-table tr:hover td { background: rgba(168, 85, 247, 0.04); }
+.score-bar {
+    display: inline-block;
+    height: 8px;
+    border-radius: 4px;
+    background: var(--accent-green);
+    vertical-align: middle;
+    margin-left: 8px;
+}
 
 /* ═══════════════════════════════════════════════════════════════════════════
    Phase 2 — Charts

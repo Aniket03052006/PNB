@@ -31,6 +31,7 @@
                 <span class="phase-badge phase-badge--p3" title="Phase 3: Full CBOM Generation">📦 Phase 3</span>
                 <span class="phase-badge phase-badge--p4" title="Phase 4: Certification Labeling Engine">🏷️ Phase 4</span>
                 <span class="phase-badge phase-badge--p5" title="Phase 5: Compliance-as-Code Attestations">📜 Phase 5</span>
+                <span class="phase-badge phase-badge--p6" title="Phase 6: Tri-Mode Probing & Asset Discovery">🔬 Phase 6</span>
                 <button class="btn btn-primary" id="btnDemoScan" onclick="runDemoScan()">▶ Run Demo Scan</button>
                 <button class="btn" id="btnExportCBOM" onclick="exportCBOM()" disabled>↓ Export Phase 3 CBOM</button>
                 <button class="btn" id="btnExportCDXA" onclick="exportCDXA()" disabled>↓ Export CDXA</button>
@@ -51,6 +52,8 @@
             <button class="tab-btn" data-tab="assessment" onclick="switchTab('assessment')">🛡️ PQC Assessment</button>
             <button class="tab-btn" data-tab="remediation" onclick="switchTab('remediation')">🔧 Remediation Plan</button>
             <button class="tab-btn" data-tab="matrix" onclick="switchTab('matrix')">📋 NIST Matrix</button>
+            <button class="tab-btn" data-tab="trimode" onclick="switchTab('trimode')">🔬 Tri-Mode</button>
+            <button class="tab-btn" data-tab="history" onclick="switchTab('history')">📈 History</button>
         </div>
 
         <!-- ═══════════════ TAB: OVERVIEW (Phase 1) ═══════════════ -->
@@ -385,10 +388,89 @@
             </div>
         </div><!-- /tab-matrix -->
 
+        <!-- ═══════════════ TAB: TRI-MODE PROBING (Phase 6) ═══════════════ -->
+        <div class="tab-content" id="tab-trimode">
+            <div id="trimodeEmpty" class="empty-state" style="padding: 80px 20px;">
+                <div class="empty-state-icon">🔬</div>
+                <div class="empty-state-title">No tri-mode scan data</div>
+                <div class="empty-state-desc">Run a Demo Scan or Tri-Mode scan to see A/B/C probe results</div>
+            </div>
+            <div id="trimodeContent" style="display:none;">
+                <!-- Tri-Mode Summary Cards -->
+                <div class="stats-grid" id="trimodeStats">
+                    <div class="stat-card stat-card--total">
+                        <div class="stat-value" id="tmStatTotal">—</div>
+                        <div class="stat-label">Assets Probed</div>
+                        <div class="stat-pct" id="tmStatMode">Mode: —</div>
+                    </div>
+                    <div class="stat-card stat-card--safe">
+                        <div class="stat-value" id="tmStatSafe">—</div>
+                        <div class="stat-label">Fully Quantum Safe</div>
+                    </div>
+                    <div class="stat-card stat-card--transition">
+                        <div class="stat-value" id="tmStatTransition">—</div>
+                        <div class="stat-label">PQC Transition</div>
+                    </div>
+                    <div class="stat-card stat-card--vulnerable">
+                        <div class="stat-value" id="tmStatVulnerable">—</div>
+                        <div class="stat-label">Quantum Vulnerable</div>
+                    </div>
+                    <div class="stat-card stat-card--critical">
+                        <div class="stat-value" id="tmStatCritical">—</div>
+                        <div class="stat-label">Critically Vulnerable</div>
+                    </div>
+                </div>
+
+                <!-- Tri-Mode Fingerprint Table -->
+                <div class="panel">
+                    <div class="panel-header">
+                        <div class="panel-title">🔬 Tri-Mode Probe Results (A / B / C)</div>
+                        <div class="panel-badge" id="tmAssetCount" style="background: rgba(0, 212, 255, 0.12); color: var(--accent-cyan);">0 assets</div>
+                    </div>
+                    <div id="trimodeTableContainer" style="overflow-x:auto;"></div>
+                </div>
+
+                <!-- Demo mode banner -->
+                <div id="trimodeDemoBanner" class="demo-banner" style="display:none;">
+                    ⚠️ <strong>SIMULATED DATA</strong> — These results are pre-built demo fingerprints. No real network probes were executed.
+                </div>
+            </div>
+        </div><!-- /tab-trimode -->
+
+        <!-- ═══════════════ TAB: HISTORY (Phase 6) ═══════════════ -->
+        <div class="tab-content" id="tab-history">
+            <div id="historyEmpty" class="empty-state" style="padding: 80px 20px;">
+                <div class="empty-state-icon">📈</div>
+                <div class="empty-state-title">Historical trend data</div>
+                <div class="empty-state-desc">Click "Load History" to display the 4-week quantum safety trend</div>
+                <button class="btn btn-primary" onclick="loadHistory()" style="margin-top: 16px;">📈 Load History</button>
+            </div>
+            <div id="historyContent" style="display:none;">
+                <div class="panel">
+                    <div class="panel-header">
+                        <div class="panel-title">📈 Quantum Safety Score Trend (4 Weeks)</div>
+                        <div class="panel-badge" id="historyMode" style="background: rgba(168, 85, 247, 0.12); color: #a855f7;">demo</div>
+                    </div>
+                    <div id="historyTable" style="overflow-x:auto;"></div>
+                </div>
+                <div class="panel" style="margin-top: 16px;">
+                    <div class="panel-header">
+                        <div class="panel-title">📊 Baseline Comparison (Current vs 1 Week Ago)</div>
+                    </div>
+                    <div id="baselineContent">
+                        <div class="empty-state">
+                            <div class="empty-state-icon">⏳</div>
+                            <div class="empty-state-desc">Loading baseline comparison...</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div><!-- /tab-history -->
+
         <!-- Footer -->
         <footer class="footer">
             <div class="footer-text">
-                Q-ARMOR v5.0.0 — Scan. Classify. Assess. Remediate. Label. Attest. Future-proof.
+                Q-ARMOR v6.0.0 — Discover. Probe. Classify. Assess. Remediate. Label. Attest. Future-proof.
                 <br>
                 <span style="color: var(--accent-green); font-size: 0.75rem;">
                     ✓ Phase 1: Discovery &amp; Protocol Analysis
@@ -400,6 +482,8 @@
                     ✓ Phase 4: Certification Labels
                     &nbsp;|&nbsp;
                     ✓ Phase 5: Compliance Attestations &amp; Automation
+                    &nbsp;|&nbsp;
+                    ✓ Phase 6: Tri-Mode Probing &amp; Asset Discovery
                 </span>
                 <br>
                 Built on <a href="#">NIST FIPS 203/204/205</a> &middot; <a href="#">CycloneDX 1.6 CBOM</a> &middot; <a href="#">PQCC Whitepaper</a>
