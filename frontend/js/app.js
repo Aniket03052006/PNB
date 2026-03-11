@@ -3,6 +3,7 @@
  * Phase 1: Scan data + overview
  * Phase 2: PQC Assessment, Remediation, NIST Matrix
  * Phase 6: Tri-Mode Probing, History & Baseline
+ * Phase 7: PQC Classification + Agility Assessment + SQLite DB
  */
 
 const API_BASE = '';
@@ -35,6 +36,8 @@ let assessmentData = null;
 let remediationData = null;
 let trimodeData = null;
 let historyData = null;
+let classifiedData = null;
+let dbScansData = null;
 
 /* ─── API Calls ─── */
 async function apiCall(endpoint, method = 'GET') {
@@ -1213,5 +1216,269 @@ function renderBaseline(data) {
         <div class="demo-banner" style="margin-top:12px;">
             ⚠️ <strong>SIMULATED BASELINE</strong> — This comparison uses demo seed data.
         </div>
+    `;
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Phase 7: PQC Classification + Agility Assessment + SQLite DB
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+async function runPhase7Demo() {
+    showLoading('Running Phase 7 tri-mode classification on 21 demo assets...');
+    try {
+        const data = await apiCall('/api/classify/demo');
+        classifiedData = data;
+        renderPhase7(data);
+        loadDbScans();
+        showToast(`Classified ${data.total_assets} assets (scan #${data.scan_id})`, 'success');
+    } catch (e) {
+        showToast('Phase 7 classify failed: ' + e.message, 'error');
+    } finally {
+        hideLoading();
+    }
+}
+
+function renderPhase7(data) {
+    document.getElementById('p7Empty').style.display = 'none';
+    document.getElementById('p7Content').style.display = '';
+
+    const s = data.summary || {};
+    const total = data.total_assets || 0;
+
+    animateNumber('p7Total', total);
+    animateNumber('p7Safe', s.fully_quantum_safe || 0);
+    animateNumber('p7Trans', s.pqc_transition || 0);
+    animateNumber('p7Vuln', s.quantum_vulnerable || 0);
+    animateNumber('p7Crit', s.critically_vulnerable || 0);
+    animateNumber('p7Unknown', s.unknown || 0);
+    document.getElementById('p7AvgScore').textContent = `Avg Worst: ${data.avg_worst_score || 0}`;
+
+    const assets = data.assets || [];
+    document.getElementById('p7AssetCount').textContent = `${assets.length} assets`;
+
+    renderP7Table(assets);
+    renderP7Agility(assets);
+
+    const banner = document.getElementById('p7DemoBanner');
+    if (banner) banner.style.display = data.mode === 'demo' ? '' : 'none';
+}
+
+function renderP7Table(assets) {
+    const container = document.getElementById('p7TableContainer');
+    if (!assets.length) {
+        container.innerHTML = '<div class="empty-state"><div class="empty-state-title">No classified assets</div></div>';
+        return;
+    }
+
+    const sorted = [...assets].sort((a, b) => (a.worst_case_score || 0) - (b.worst_case_score || 0));
+
+    let html = `<table class="asset-table"><thead><tr>
+        <th>Asset</th><th>Type</th><th>Status</th>
+        <th>Best (A)</th><th>Typical (B)</th><th>Worst (C)</th>
+        <th>Agility</th><th>Summary</th><th>Action</th>
+    </tr></thead><tbody>`;
+
+    for (const a of sorted) {
+        const cls = getStatusClass(a.status);
+        const lbl = getStatusLabel(a.status);
+        const bestCol = getScoreColor(a.best_case_score || 0);
+        const typCol = getScoreColor(a.typical_score || 0);
+        const worstCol = getScoreColor(a.worst_case_score || 0);
+        const agiCol = a.agility_score >= 12 ? 'var(--status-safe)' : a.agility_score >= 6 ? 'var(--status-transition)' : 'var(--status-vulnerable)';
+
+        html += `<tr>
+            <td><span class="asset-hostname">${escHtml(a.hostname)}:${a.port}</span></td>
+            <td><span class="asset-type">${a.asset_type || 'web'}</span></td>
+            <td><span class="status-badge status-badge--${cls}">${lbl}</span></td>
+            <td>
+                <div class="qscore-bar-container">
+                    <div class="qscore-bar"><div class="qscore-bar-fill" style="width:${a.best_case_score}%;background:${bestCol}"></div></div>
+                    <span class="qscore-value" style="color:${bestCol}">${a.best_case_score}</span>
+                </div>
+            </td>
+            <td>
+                <div class="qscore-bar-container">
+                    <div class="qscore-bar"><div class="qscore-bar-fill" style="width:${a.typical_score}%;background:${typCol}"></div></div>
+                    <span class="qscore-value" style="color:${typCol}">${a.typical_score}</span>
+                </div>
+            </td>
+            <td>
+                <div class="qscore-bar-container">
+                    <div class="qscore-bar"><div class="qscore-bar-fill" style="width:${a.worst_case_score}%;background:${worstCol}"></div></div>
+                    <span class="qscore-value" style="color:${worstCol}">${a.worst_case_score}</span>
+                </div>
+            </td>
+            <td style="text-align:center;"><span style="color:${agiCol};font-weight:700;">${a.agility_score}/15</span></td>
+            <td style="font-size:0.75rem;max-width:200px;">${escHtml(a.summary)}</td>
+            <td style="font-size:0.75rem;color:var(--accent-cyan);max-width:180px;">${escHtml(a.recommended_action)}</td>
+        </tr>`;
+    }
+
+    html += '</tbody></table>';
+    container.innerHTML = html;
+
+    requestAnimationFrame(() => {
+        container.querySelectorAll('.qscore-bar-fill').forEach(el => {
+            const w = el.style.width;
+            el.style.width = '0';
+            requestAnimationFrame(() => { el.style.width = w; });
+        });
+    });
+}
+
+function renderP7Agility(assets) {
+    const container = document.getElementById('p7AgilityContainer');
+    if (!assets.length) {
+        container.innerHTML = '<div class="empty-state"><div class="empty-state-desc">No agility data</div></div>';
+        return;
+    }
+
+    const sorted = [...assets].sort((a, b) => (a.agility_score || 0) - (b.agility_score || 0));
+
+    let html = `<table class="asset-table"><thead><tr>
+        <th>Asset</th><th>Score</th><th>Bar</th><th>Indicators</th>
+    </tr></thead><tbody>`;
+
+    for (const a of sorted) {
+        const agiPct = ((a.agility_score || 0) / 15) * 100;
+        const agiCol = a.agility_score >= 12 ? 'var(--status-safe)' : a.agility_score >= 6 ? 'var(--status-transition)' : 'var(--status-vulnerable)';
+        const indicators = (a.agility_details || []).map(d => {
+            const icon = d.met ? '✅' : '❌';
+            return `<span style="font-size:0.72rem;margin-right:8px;" title="${escHtml(d.indicator)}: ${d.met ? 'met' : 'not met'} (+${d.points}pt)">${icon} ${escHtml(d.indicator)} <span style="color:${d.met ? 'var(--accent-green)' : 'var(--text-dim)'}">(+${d.points})</span></span>`;
+        }).join('');
+
+        html += `<tr>
+            <td><span class="asset-hostname">${escHtml(a.hostname)}:${a.port}</span></td>
+            <td style="text-align:center;"><span style="color:${agiCol};font-weight:700;">${a.agility_score}/15</span></td>
+            <td style="min-width:100px;">
+                <div class="qscore-bar"><div class="qscore-bar-fill" style="width:${agiPct}%;background:${agiCol}"></div></div>
+            </td>
+            <td>${indicators}</td>
+        </tr>`;
+    }
+
+    html += '</tbody></table>';
+    container.innerHTML = html;
+}
+
+
+/* ─── Phase 7: Scan Database UI ─────────────────────────────────────────── */
+
+async function loadDbScans() {
+    try {
+        const scans = await apiCall('/api/db/scans?limit=20');
+        dbScansData = scans;
+        renderDbScans(scans);
+    } catch (e) {
+        console.warn('Failed to load DB scans:', e);
+    }
+}
+
+function renderDbScans(scans) {
+    const container = document.getElementById('p7DbScansContainer');
+    if (!scans || !scans.length) {
+        container.innerHTML = '<div class="empty-state"><div class="empty-state-desc">No scans stored yet</div></div>';
+        return;
+    }
+
+    let html = `<table class="asset-table"><thead><tr>
+        <th>ID</th><th>Date</th><th>Mode</th><th>Domain</th><th>Assets</th><th>Avg Score</th>
+        <th>Safe</th><th>Trans</th><th>Vuln</th><th>Crit</th><th>Actions</th>
+    </tr></thead><tbody>`;
+
+    for (const s of scans) {
+        const date = s.scan_date ? new Date(s.scan_date).toLocaleString() : '—';
+        html += `<tr>
+            <td style="font-weight:600;">#${s.id}</td>
+            <td style="font-size:0.75rem;">${date}</td>
+            <td><span class="asset-type">${s.mode || '—'}</span></td>
+            <td>${escHtml(s.domain || '—')}</td>
+            <td style="text-align:center;">${s.total_assets || 0}</td>
+            <td style="text-align:center;color:${getScoreColor(s.avg_score || 0)};font-weight:600;">${s.avg_score || 0}</td>
+            <td style="color:var(--status-safe);text-align:center;">${s.fully_safe || 0}</td>
+            <td style="color:var(--status-transition);text-align:center;">${s.pqc_trans || 0}</td>
+            <td style="color:var(--status-vulnerable);text-align:center;">${s.q_vuln || 0}</td>
+            <td style="color:var(--status-critical);text-align:center;">${s.crit_vuln || 0}</td>
+            <td>
+                <button class="btn" style="font-size:0.7rem;padding:2px 8px;" onclick="viewScan(${s.id})">View</button>
+                ${scans.length >= 2 ? `<button class="btn" style="font-size:0.7rem;padding:2px 8px;margin-left:4px;" onclick="compareScanPick(${s.id})">Compare</button>` : ''}
+            </td>
+        </tr>`;
+    }
+
+    html += '</tbody></table>';
+    container.innerHTML = html;
+}
+
+async function viewScan(scanId) {
+    showLoading(`Loading scan #${scanId}...`);
+    try {
+        const scan = await apiCall(`/api/db/scans/${scanId}`);
+        if (scan.results_json) {
+            try {
+                const assets = JSON.parse(scan.results_json);
+                renderP7Table(assets);
+                renderP7Agility(assets);
+            } catch { /* ignore parse failure */ }
+        }
+        showToast(`Loaded scan #${scanId}`, 'info');
+    } catch (e) {
+        showToast('Failed to load scan: ' + e.message, 'error');
+    } finally {
+        hideLoading();
+    }
+}
+
+async function compareScanPick(scanId) {
+    if (!dbScansData || dbScansData.length < 2) {
+        showToast('Need at least two scans to compare', 'info');
+        return;
+    }
+    const other = dbScansData.find(s => s.id !== scanId);
+    if (!other) { showToast('No other scan to compare against', 'info'); return; }
+    await compareTwoScans(scanId, other.id);
+}
+
+async function compareTwoScans(a, b) {
+    showLoading(`Comparing scan #${a} vs #${b}...`);
+    try {
+        const delta = await apiCall(`/api/db/compare/${a}/${b}`);
+        renderScanComparison(delta, a, b);
+        showToast(`Comparison ready: scan #${a} vs #${b}`, 'success');
+    } catch (e) {
+        showToast('Comparison failed: ' + e.message, 'error');
+    } finally {
+        hideLoading();
+    }
+}
+
+function renderScanComparison(delta, idA, idB) {
+    const container = document.getElementById('p7DbScansContainer');
+    const a = delta.scan_a || {};
+    const b = delta.scan_b || {};
+    const d = delta.delta || {};
+
+    function diffBadge(val) {
+        if (val > 0) return `<span style="color:var(--accent-green);font-weight:600;">+${val}</span>`;
+        if (val < 0) return `<span style="color:var(--accent-pink);font-weight:600;">${val}</span>`;
+        return `<span style="color:var(--text-dim);">0</span>`;
+    }
+
+    container.innerHTML = `
+        <div style="margin-bottom:12px;display:flex;align-items:center;gap:12px;">
+            <strong style="color:var(--text-primary);">Scan #${idA} vs #${idB}</strong>
+            <button class="btn" style="font-size:0.7rem;padding:2px 8px;" onclick="loadDbScans()">← Back to list</button>
+        </div>
+        <table class="asset-table"><thead><tr>
+            <th>Metric</th><th>Scan #${idA}</th><th>Scan #${idB}</th><th>Delta</th>
+        </tr></thead><tbody>
+            <tr><td>Total Assets</td><td>${a.total_assets || 0}</td><td>${b.total_assets || 0}</td><td>${diffBadge(d.total_assets || 0)}</td></tr>
+            <tr><td>Avg Score</td><td>${a.avg_score || 0}</td><td>${b.avg_score || 0}</td><td>${diffBadge(d.avg_score || 0)}</td></tr>
+            <tr><td style="color:var(--status-safe)">Fully Safe</td><td>${a.fully_safe || 0}</td><td>${b.fully_safe || 0}</td><td>${diffBadge(d.fully_safe || 0)}</td></tr>
+            <tr><td style="color:var(--status-transition)">PQC Transition</td><td>${a.pqc_trans || 0}</td><td>${b.pqc_trans || 0}</td><td>${diffBadge(d.pqc_trans || 0)}</td></tr>
+            <tr><td style="color:var(--status-vulnerable)">Vulnerable</td><td>${a.q_vuln || 0}</td><td>${b.q_vuln || 0}</td><td>${diffBadge(d.q_vuln || 0)}</td></tr>
+            <tr><td style="color:var(--status-critical)">Critical</td><td>${a.crit_vuln || 0}</td><td>${b.crit_vuln || 0}</td><td>${diffBadge(d.crit_vuln || 0)}</td></tr>
+        </tbody></table>
     `;
 }

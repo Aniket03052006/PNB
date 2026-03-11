@@ -623,3 +623,39 @@ def get_hybrid_algorithms() -> List[str]:
         for e in _ALL_ENTRIES.values()
         if e.quantum_status == QuantumStatus.HYBRID_PQC
     })
+
+
+# ───────────────────────────────────────────────────────────────────────────
+# Phase 7: Simple Algorithm → Quantum Status Lookup Dict
+# ───────────────────────────────────────────────────────────────────────────
+
+ALGORITHM_STATUS: Dict[str, str] = {
+    # Asymmetric — quantum-vulnerable (Shor)
+    "RSA-1024":       "quantum_vulnerable",
+    "RSA-2048":       "quantum_vulnerable",
+    "RSA-4096":       "quantum_vulnerable",
+    "ECDSA-P256":     "quantum_vulnerable",
+    "ECDSA-P384":     "quantum_vulnerable",
+    "X25519":         "quantum_vulnerable",
+    "DH-Group2":      "quantum_vulnerable",
+    "DH-Group14":     "quantum_vulnerable",
+
+    # Symmetric — quantum impact varies
+    "AES-128":        "quantum_vulnerable",   # Grover halves effective bits → 64
+    "AES-256":        "quantum_safe",         # Grover → 128 effective bits — safe
+    "ChaCha20-Poly1305": "quantum_safe",
+    "3DES":           "quantum_vulnerable",
+
+    # PQC — NIST approved (FIPS 203/204/205)
+    "ML-KEM-512":     "quantum_safe",
+    "ML-KEM-768":     "quantum_safe",
+    "ML-KEM-1024":    "quantum_safe",
+    "ML-DSA-44":      "quantum_safe",
+    "ML-DSA-65":      "quantum_safe",
+    "ML-DSA-87":      "quantum_safe",
+    "SLH-DSA-128s":   "quantum_safe",
+
+    # Hybrid — transitional
+    "X25519MLKEM768": "hybrid",
+    "X25519KYBER768": "hybrid",
+}

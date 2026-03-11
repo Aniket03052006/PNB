@@ -1,6 +1,6 @@
 <div align="center">
 
-# Q-ARMOR v6.0.0
+# Q-ARMOR v7.0.0
 
 ### Quantum-Aware Mapping & Observation for Risk Remediation
 
@@ -69,6 +69,7 @@ Q-ARMOR covers the full lifecycle of **PQC compliance assessment**:
 | **Phase 4** | 3-Tier Certification Labeling Engine | `labeler.py` |
 | **Phase 5** | Compliance-as-Code Attestation & Automation | `attestor.py`, `notifier.py` |
 | **Phase 6** | Tri-Mode Probing & Asset Discovery Foundation | `discoverer.py`, `prober.py`, `demo_data.py` |
+| **Phase 7** | PQC Classification + Agility Assessment + SQLite DB | `classifier.py`, `agility_assessor.py`, `database.py`, `nist_matrix.py` |
 
 **In Scope:**
 - TLS handshake analysis (via Python `ssl` + `openssl s_client`)
@@ -104,9 +105,9 @@ Q-ARMOR covers the full lifecycle of **PQC compliance assessment**:
 
 ### 2.1 Product Perspective
 
-Q-ARMOR operates as a **standalone security assessment platform** consisting of:
+Q-ARMOR operates as a **standalone security assessment platform** with persistent storage, consisting of:
 
-1. **Backend Server** — A FastAPI application providing 20+ RESTful API endpoints
+1. **Backend Server** — A FastAPI application providing 35+ RESTful API endpoints with SQLite persistence
 2. **Web Dashboard** — A single-page application (SPA) served by the backend
 3. **CLI Scanner** — A standalone command-line tool for batch scanning
 
@@ -157,6 +158,9 @@ Q-ARMOR operates as a **standalone security assessment platform** consisting of:
 | F11 | **Webhook Notifications** | Slack and Microsoft Teams integration via incoming webhooks |
 | F12 | **CI/CD Gate** | Build-breaking exit code when HIGH quantum risk endpoints are detected (`--ci` flag) |
 | F13 | **Demo Mode** | 21 simulated bank assets covering all 5 PQC status categories |
+| F14 | **Phase 7 Classification** | 5-dimension Q-Score (TLS 20 + KEX 30 + Cert 20 + Cipher 15 + Agility 15 = 100) with best/typical/worst tri-mode scoring |
+| F15 | **Agility Assessment** | 5-indicator crypto-agility scoring: CDN, software currency, ACME CA, protocol flexibility, SAN diversity |
+| F16 | **SQLite Persistence** | WAL-mode SQLite database with 4 tables: scans, asset_scores, labels, alerts — full CRUD + delta comparison |
 
 ### 2.3 User Classes and Characteristics
 
@@ -178,7 +182,7 @@ Q-ARMOR operates as a **standalone security assessment platform** consisting of:
 | **Network** | Outbound TCP 443 (or custom ports) to scan targets |
 | **Browser** | Any modern browser (Chrome, Firefox, Safari, Edge) for the dashboard |
 | **Memory** | Minimum 512 MB RAM for 20-endpoint scans |
-| **Disk** | ~50 MB for application + dependencies |
+| **Disk** | ~50 MB for application + dependencies; SQLite DB grows with scan history |
 
 ### 2.5 Design and Implementation Constraints
 
@@ -187,7 +191,7 @@ Q-ARMOR operates as a **standalone security assessment platform** consisting of:
 3. **UNKNOWN on Failure** — If TLS parsing fails or returns insufficient data, the status is marked `UNKNOWN`, never defaulting to a vulnerability assumption
 4. **SNI Support** — All TLS probes include Server Name Indication (SNI) for virtual-hosted environments
 5. **IPv4/IPv6 Dual-Stack** — Address resolution supports both IPv4 and IPv6 via `socket.getaddrinfo()`
-6. **In-Memory Session Cache** — Latest scan results are stored in-memory on the server (`_latest_scan`); restarts clear state
+6. **In-Memory Session Cache** — Latest scan results are stored in-memory on the server (`_latest_scan`); restarts clear in-memory state (Phase 7 persists to SQLite)
 7. **Ed25519 Key Persistence** — CDXA signing keys are auto-generated and stored in `.keys/` directory
 
 ### 2.6 Assumptions and Dependencies
@@ -212,6 +216,7 @@ Q-ARMOR operates as a **standalone security assessment platform** consisting of:
 | `requests` | 2.31+ | Webhook notification delivery (Slack/Teams) |
 | `python-dateutil` | 2.9.0 | Date/time parsing |
 | `jinja2` | 3.1.5 | Template rendering |
+| `sqlite3` | (stdlib) | Phase 7 persistent storage (WAL mode) |
 
 ---
 
@@ -239,7 +244,7 @@ Q-ARMOR operates as a **standalone security assessment platform** consisting of:
 #### FR-3: PQC Classification
 | ID | Requirement |
 |----|------------|
-| FR-3.1 | The system SHALL compute a Q-Score (0-100) across 4 dimensions: TLS version (max 25), key exchange (max 35), certificate (max 25), cipher strength (max 15) |
+| FR-3.1 | The system SHALL compute a Q-Score (0-100) across 4 dimensions (legacy: TLS 25 + KEX 35 + Cert 25 + Cipher 15) or 5 dimensions (Phase 7: TLS 20 + KEX 30 + Cert 20 + Cipher 15 + Agility 15) |
 | FR-3.2 | The system SHALL assign one of 5 PQC statuses: FULLY_QUANTUM_SAFE, PQC_TRANSITION, QUANTUM_VULNERABLE, CRITICALLY_VULNERABLE, UNKNOWN |
 | FR-3.3 | The system SHALL never infer PQC readiness from client cipher offers |
 | FR-3.4 | The system SHALL mark scan failures as UNKNOWN status |
@@ -282,6 +287,17 @@ Q-ARMOR operates as a **standalone security assessment platform** consisting of:
 | FR-8.2 | The system SHALL send alert notifications to Slack via Incoming Webhooks |
 | FR-8.3 | The system SHALL send alert notifications to Microsoft Teams via Adaptive Cards |
 | FR-8.4 | The CI/CD mode SHALL exit with code 1 if any endpoint has HIGH quantum risk |
+
+#### FR-9: Phase 7 Classification + Agility + Persistence
+| ID | Requirement |
+|----|------------|
+| FR-9.1 | The system SHALL compute a 5-dimension Phase 7 Q-Score: TLS (20) + KEX (30) + Cert (20) + Cipher (15) + Agility (15) = 100 |
+| FR-9.2 | The system SHALL produce best-case (Probe A), typical (Probe B), and worst-case (Probe C) Q-Scores per asset |
+| FR-9.3 | The system SHALL assess crypto-agility via 5 indicators: CDN, software currency, ACME CA, protocol flexibility, SAN diversity |
+| FR-9.4 | The system SHALL persist scan results, asset scores, labels, and alerts to a SQLite database in WAL mode |
+| FR-9.5 | The system SHALL support delta comparison between any two historical scans |
+| FR-9.6 | The system SHALL maintain per-asset score history across scans |
+| FR-9.7 | The system SHALL maintain backward compatibility with the legacy 4-dimension classifier |
 
 ### 3.2 External Interface Requirements
 
@@ -351,6 +367,14 @@ To detect hidden downgrade vulnerabilities and ensure comprehensive cryptographi
 - **Probe B (Classical TLS 1.3):** Simulates a standard modern client without PQC capabilities (e.g., X25519). Establishes the classical cryptographic baseline.
 - **Probe C (TLS 1.2 Downgrade):** Forces a maximum protocol version of TLS 1.2 to check if the server intentionally permits legacy connections, exposing potential protocol downgrade attacks.
 
+#### SF-7: Phase 7 Classification + Agility + Database
+- **5-Dimension Q-Score:** TLS (20) + Key Exchange (30) + Certificate (20) + Cipher (15) + Agility (15) = 100
+- **Tri-Mode ClassifiedAsset:** Each asset gets best-case (Probe A), typical (Probe B), and worst-case (Probe C) Q-Scores
+- **Crypto-Agility Assessment:** 5 indicators × 3 points: CDN detection, software currency, ACME CA, protocol flexibility, SAN diversity
+- **SQLite Persistence:** WAL-mode database at `data/scanner.db` with 4 tables (scans, asset_scores, labels, alerts)
+- **Scan Comparison:** Delta analysis between any two historical scans
+- **Asset History:** Score progression tracking per hostname across scans
+
 ### 3.4 Non-Functional Requirements
 
 #### 3.4.1 Performance Requirements
@@ -370,7 +394,7 @@ To detect hidden downgrade vulnerabilities and ensure comprehensive cryptographi
 | Attribute | Implementation |
 |-----------|---------------|
 | **Reliability** | Graceful degradation on scan failure (UNKNOWN status); partial fingerprints returned instead of exceptions |
-| **Maintainability** | Modular architecture with 12 dedicated scanner modules; clear separation of concerns across 5 phases |
+| **Maintainability** | Modular architecture with 14 dedicated scanner modules; clear separation of concerns across 7 phases |
 | **Security** | Ed25519 digital signatures; no PQC false positives; CORS-configured API; no credential storage |
 | **Extensibility** | New scanner modules can be added by implementing the module pattern; API endpoints are additive |
 | **Usability** | Intuitive dark-themed dashboard; one-click demo scan; downloadable reports |
@@ -403,7 +427,7 @@ graph TB
         Teams["Microsoft Teams"]
     end
 
-    subgraph "Q-ARMOR Platform v5.0.0"
+    subgraph "Q-ARMOR Platform v7.0.0"
         subgraph "Presentation Layer"
             Dashboard["Web Dashboard<br/>(HTML/CSS/JS)"]
             CLI["CLI Scanner<br/>(scan.py + rich)"]
@@ -440,8 +464,14 @@ graph TB
             History["Trend Tracker<br/>(4-Week Baseline)"]
         end
 
+        subgraph "Phase 7: Classification + Agility + DB"
+            ClassifierV7["Phase 7 Classifier<br/>(5-Dim Q-Score)"]
+            Agility["Agility Assessor<br/>(5 Indicators)"]
+            SQLiteDB["SQLite Database<br/>(scanner.db)"]
+        end
+
         subgraph "Data Layer"
-            Models["Pydantic Models<br/>(12 Schemas)"]
+            Models["Pydantic Models<br/>(14 Schemas)"]
             DemoData["Demo Data<br/>(21 Bank Assets)"]
             Keys[".keys/<br/>(Ed25519 Keypair)"]
         end
@@ -468,6 +498,9 @@ graph TB
     API --> Notifier
     API --> TriMode
     API --> History
+    API --> ClassifierV7
+    API --> Agility
+    API --> SQLiteDB
     Discoverer --> DNS
     Discoverer --> CTLogs
     Prober --> Targets
@@ -519,6 +552,7 @@ graph TD
         P9["9.0<br/>Detect & Send<br/>Alerts"]
         P10["10.0<br/>Tri-Mode<br/>Probing (A/B/C)"]
         P11["11.0<br/>Historical<br/>Trend Analysis"]
+        P12["12.0<br/>Phase 7<br/>Classify & Persist"]
     end
 
     subgraph "Data Stores"
@@ -569,6 +603,8 @@ graph TD
     P10 -- "Tri-Mode FP" --> D2
     D3 --> P11
     P11 -- "Baseline & Trend" --> User
+    D2 --> P12
+    P12 -- "ClassifiedAsset" --> User
 ```
 
 #### Level 2 — TLS Probing Process Detail
@@ -678,9 +714,27 @@ classDiagram
         +int key_exchange_score
         +int certificate_score
         +int cipher_strength_score
+        +int agility_score
         +PQCStatus status
         +list~str~ findings
         +list~str~ recommendations
+    }
+
+    class ClassifiedAsset {
+        +str hostname
+        +int port
+        +AssetType asset_type
+        +int best_case_score
+        +int typical_score
+        +int worst_case_score
+        +QScore best_case_q
+        +QScore typical_q
+        +QScore worst_case_q
+        +PQCStatus status
+        +str summary
+        +str recommended_action
+        +int agility_score
+        +list~dict~ agility_details
     }
 
     class ScanResult {
@@ -730,6 +784,8 @@ classDiagram
     CryptoFingerprint *-- TLSInfo
     CryptoFingerprint *-- CertificateInfo
     QScore --> PQCStatus
+    ClassifiedAsset *-- QScore : best/typical/worst
+    ClassifiedAsset --> PQCStatus
     ScanSummary *-- ScanResult
     ScanSummary *-- RemediationAction
     ScanSummary *-- PQCLabel
@@ -858,6 +914,11 @@ graph LR
         F1["Tri-Mode Probing<br/>(A/B/C Profiles)"] --> F2["History &<br/>Baseline Tracking"]
     end
 
+    subgraph "Phase 7"
+        G1["5-Dim Classify<br/>(TLS+KEX+Cert+Cipher+Agility)"] --> G2["Agility<br/>Assessment"]
+        G2 --> G3["SQLite<br/>Persistence"]
+    end
+
     A3 --> B1
     A3 --> C1
     B1 --> B2
@@ -868,13 +929,14 @@ graph LR
     B1 --> E3
     A3 --> F1
     F1 --> F2
+    F1 --> G1
 ```
 
 ### ASCII Workflow Flowchart
 
 ```
  ╔══════════════════════════════════════════════════════════════════════════╗
- ║                    Q-ARMOR v5.0.0 — System Workflow                     ║
+ ║                    Q-ARMOR v7.0.0 — System Workflow                     ║
  ╚══════════════════════════════════════════════════════════════════════════╝
 
           ┌─────────────────────────┐   ┌─────────────────────────┐
@@ -967,6 +1029,22 @@ graph LR
  │  └─────────────────────────────────┘    └───────────────────────────┘│
  └────────────────────────────────────┬─────────────────────────────────┘
                                       │
+ ┌────────────────────────────────────▼─────────────────────────────────┐
+ │                  PHASE 7 — Classification + Agility + Database        │
+ │                                                                       │
+ │  ┌──────────────────┐  ┌──────────────────┐  ┌──────────────────┐   │
+ │  │  13. Phase 7     │  │  14. Agility     │  │  15. SQLite DB   │   │
+ │  │  Classifier      │  │  Assessor        │  │  WAL-mode        │   │
+ │  │  5-dim Q-Score   │  │  CDN detection   │  │  4 tables:       │   │
+ │  │  Best / Typical  │  │  ACME CA         │  │  scans           │   │
+ │  │  / Worst case    │  │  Protocol flex   │  │  asset_scores    │   │
+ │  │  classify_trimode│  │  SAN diversity   │  │  labels          │   │
+ │  │  classifier.py   │  │  agility.py      │  │  alerts          │   │
+ │  └────────┬─────────┘  └────────┬─────────┘  │  database.py     │   │
+ │           └─────────────────────┴────────────▶│  data/scanner.db │   │
+ │                                               └──────────────────┘   │
+ └────────────────────────────────────┬─────────────────────────────────┘
+                                      │
                                       ▼
  ┌──────────────────────────────────────────────────────────────────────┐
  │                          Final Outputs                               │
@@ -987,37 +1065,35 @@ graph LR
 PNB/
 ├── backend/
 │   ├── __init__.py                 # Package marker
-│   ├── app.py                      # FastAPI application (20+ endpoints)
+│   ├── app.py                      # FastAPI application (35+ endpoints, v7.0.0)
 │   ├── demo_data.py                # 21 simulated bank assets
-│   ├── models.py                   # 12 Pydantic data schemas
+│   ├── models.py                   # 14 Pydantic data schemas (incl. ClassifiedAsset)
 │   └── scanner/
 │       ├── __init__.py
 │       ├── discoverer.py           # Phase 1: DNS + CT log asset discovery
-│       ├── prober.py               # Phase 1: TLS handshake & cert extraction
-│       ├── classifier.py           # Phase 1: Q-Score engine & PQC classification
-│       ├── nist_matrix.py          # Phase 2: NIST algorithm reference database
+│       ├── prober.py               # Phase 1+6: TLS handshake & tri-mode probing
+│       ├── classifier.py           # Phase 1+7: Q-Score engine (legacy 4-dim + Phase 7 5-dim)
+│       ├── nist_matrix.py          # Phase 2+7: NIST algorithm reference + ALGORITHM_STATUS dict
 │       ├── assessment.py           # Phase 2: 4-dimension PQC assessment engine
 │       ├── remediation.py          # Phase 2: P1-P4 remediation generator
 │       ├── cbom_generator.py       # Phase 3: CycloneDX 1.6 CBOM output
 │       ├── label_issuer.py         # Phase 1: PQC-Ready label issuance
 │       ├── labeler.py              # Phase 4: 3-tier certification labeling engine
 │       ├── attestor.py             # Phase 5: CDXA attestation + Ed25519 signing
-│       └── notifier.py             # Phase 5: Slack/Teams webhook alerts
+│       ├── notifier.py             # Phase 5: Slack/Teams webhook alerts
+│       ├── agility_assessor.py     # Phase 7: 5-indicator crypto-agility scoring
+│       └── database.py             # Phase 7: SQLite persistence (4 tables, WAL mode)
+├── data/
+│   └── scanner.db                  # Auto-created SQLite database (Phase 7)
 ├── frontend/
-│   ├── index.html                  # Dashboard SPA (single-page application)
+│   ├── index.html                  # Dashboard SPA (7 tabs, Phase 1-7)
 │   ├── css/
 │   │   └── styles.css              # Dark-themed responsive styles
 │   └── js/
 │       └── app.js                  # Dashboard logic and API integration
-├── src/
-│   └── cbom_generator.py           # Phase 3 advanced CBOM generator
 ├── tests/
 │   └── test_classifier.py          # 21 automated tests
 ├── .keys/                          # Auto-generated Ed25519 signing keys
-├── .github/
-│   └── workflows/
-│       └── pqc-scan.yml            # GitHub Actions CI/CD workflow
-├── scan.py                         # CLI entry point (rich output)
 ├── run.py                          # Web server entry point (uvicorn)
 ├── requirements.txt                # Python dependencies
 └── README.md                       # This document
@@ -1147,6 +1223,48 @@ All endpoints return JSON. Base URL: `http://localhost:8000`
 | `GET` | `/api/discover/demo` | Return 21 demo discovered assets |
 | `POST` | `/api/discover/{domain}` | Live asset discovery (DNS + CT) |
 
+### Phase 7: PQC Classification + Agility + Database
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/api/classify/demo` | Phase 7 classify all 21 demo assets (5-dim scoring), persist to DB |
+| `GET` | `/api/classify/single/{hostname}` | Tri-mode probe + Phase 7 classify a single host |
+| `POST` | `/api/classify/live/{domain}` | Discover + probe + classify entire domain, persist to DB |
+| `GET` | `/api/db/scans` | List recent scans from SQLite (query param: `limit`) |
+| `GET` | `/api/db/scans/{scan_id}` | Load a specific scan by ID |
+| `GET` | `/api/db/scans/latest` | Load the most recent scan |
+| `GET` | `/api/db/compare/{scan_a}/{scan_b}` | Delta comparison between two scans |
+| `GET` | `/api/db/asset/{hostname}/history` | Score history for a specific asset |
+| `GET` | `/api/db/labels` | List PQC labels from database (query param: `include_revoked`) |
+| `GET` | `/api/db/labels/{label_id}` | Verify / look up a label by ID |
+| `POST` | `/api/db/labels/{label_id}/revoke` | Revoke a PQC label |
+| `GET` | `/api/db/alerts` | Retrieve alerts (query params: `scan_id`, `severity`, `limit`) |
+
+#### Phase 7 Scoring Breakdown
+
+```
+ ┌──────────────────────────────────────────────────────────────────┐
+ │              Phase 7 — 5-Dimension Q-Score (max 100)             │
+ ├──────────────────┬────────┬──────────────────────────────────────┤
+ │  Dimension       │  Max   │  Scoring Details                     │
+ ├──────────────────┼────────┼──────────────────────────────────────┤
+ │  TLS Version     │   20   │  TLSv1.3=20, TLSv1.2=10, ≤1.1=2   │
+ │  Key Exchange    │   30   │  ML-KEM=30, Hybrid=22, ECDHE=12    │
+ │  Certificate     │   20   │  ML-DSA/SLH-DSA=20, ECDSA-384=12  │
+ │  Cipher Strength │   15   │  256-bit=15, 128-bit=10            │
+ │  Agility Score   │   15   │  5 indicators × 3 pts each         │
+ ├──────────────────┼────────┼──────────────────────────────────────┤
+ │  TOTAL           │  100   │  Best / Typical / Worst per asset   │
+ └──────────────────┴────────┴──────────────────────────────────────┘
+
+ Agility Indicators (3 pts each):
+   1. CDN Detection     — Known CDN issuer in certificate
+   2. Software Currency — TLS 1.3 negotiated in Probe A
+   3. ACME CA           — Let's Encrypt / ZeroSSL automated CA
+   4. Protocol Flex     — TLS 1.3 in Probe B (classical client)
+   5. SAN Diversity     — ≥2 Subject Alt Name entries
+```
+
 #### Tri-Mode Probe Architecture
 
 ```
@@ -1256,7 +1374,7 @@ python -m pytest tests/ -v
 
 <div align="center">
 
-**Q-ARMOR v5.0.0** — Scan. Classify. Assess. Remediate. Label. Attest. Future-proof.
+**Q-ARMOR v7.0.0** — Scan. Classify. Assess. Remediate. Label. Attest. Persist. Future-proof.
 
 Built for the **PNB Cybersecurity Hackathon 2025-26**
 

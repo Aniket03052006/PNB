@@ -136,13 +136,32 @@ class HistoricalScanSummary(BaseModel):
 
 class QScore(BaseModel):
     total: int = 0
-    tls_version_score: int = 0       # max 25
-    key_exchange_score: int = 0      # max 35
-    certificate_score: int = 0       # max 25
+    tls_version_score: int = 0       # max 25 (legacy) / 20 (Phase 7)
+    key_exchange_score: int = 0      # max 35 (legacy) / 30 (Phase 7)
+    certificate_score: int = 0       # max 25 (legacy) / 20 (Phase 7)
     cipher_strength_score: int = 0   # max 15
+    agility_score: int = 0           # max 15  (Phase 7 — crypto agility)
     status: PQCStatus = PQCStatus.CRITICALLY_VULNERABLE
     findings: list[str] = Field(default_factory=list)
     recommendations: list[str] = Field(default_factory=list)
+
+
+class ClassifiedAsset(BaseModel):
+    """Phase 7 classified asset — tri-mode scoring with best/typical/worst Q-Scores."""
+    hostname: str
+    port: int = 443
+    asset_type: AssetType = AssetType.WEB
+    best_case_score: int = 0          # From Probe A
+    typical_score: int = 0            # From Probe B
+    worst_case_score: int = 0         # From Probe C
+    best_case_q: QScore = Field(default_factory=QScore)
+    typical_q: QScore = Field(default_factory=QScore)
+    worst_case_q: QScore = Field(default_factory=QScore)
+    status: PQCStatus = PQCStatus.UNKNOWN   # Derived from worst_case
+    summary: str = ""                 # One-line plain English
+    recommended_action: str = ""      # Single recommended next step
+    agility_score: int = 0            # 0-15
+    agility_details: list[dict] = Field(default_factory=list)
 
 
 class ScanResult(BaseModel):

@@ -48,6 +48,7 @@
             <button class="tab-btn" data-tab="matrix" onclick="switchTab('matrix')"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path><rect x="8" y="2" width="8" height="4" rx="1" ry="1"></rect></svg> NIST Matrix</button>
             <button class="tab-btn" data-tab="trimode" onclick="switchTab('trimode')"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12a10 10 0 1 1 10 10"></path><line x1="12" y1="2" x2="12" y2="22"></line><line x1="2" y1="12" x2="22" y2="12"></line></svg> Tri-Mode</button>
             <button class="tab-btn" data-tab="history" onclick="switchTab('history')"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg> History</button>
+            <button class="tab-btn" data-tab="phase7" onclick="switchTab('phase7')"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"></path><path d="M2 17l10 5 10-5"></path><path d="M2 12l10 5 10-5"></path></svg> Phase 7</button>
         </div>
 
         <!-- ═══════════════ TAB: OVERVIEW (Phase 1) ═══════════════ -->
@@ -478,10 +479,84 @@
             </div>
         </div><!-- /tab-history -->
 
+        <!-- ═══════════════ TAB: PHASE 7 — PQC Classification + Agility + DB ═══════════════ -->
+        <div class="tab-content" id="tab-phase7">
+            <div id="p7Empty" class="empty-state" style="padding: 80px 20px;">
+                <div class="empty-state-icon"><svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 2L2 7l10 5 10-5-10-5z"></path><path d="M2 17l10 5 10-5"></path><path d="M2 12l10 5 10-5"></path></svg></div>
+                <div class="empty-state-title">Phase 7: PQC Classification + Agility</div>
+                <div class="empty-state-desc">Click below to run tri-mode classification with 5-dimension scoring (TLS + KEX + Cert + Cipher + Agility = 100)</div>
+                <button class="btn btn-primary" onclick="runPhase7Demo()" style="margin-top: 16px;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg> Run Phase 7 Demo Classification</button>
+            </div>
+            <div id="p7Content" style="display:none;">
+
+                <!-- Phase 7 Summary Cards -->
+                <div class="stats-grid" id="p7Stats">
+                    <div class="stat-card stat-card--total">
+                        <div class="stat-value" id="p7Total">—</div>
+                        <div class="stat-label">Classified Assets</div>
+                        <div class="stat-pct" id="p7AvgScore">Avg Worst: —</div>
+                    </div>
+                    <div class="stat-card stat-card--safe">
+                        <div class="stat-value" id="p7Safe">—</div>
+                        <div class="stat-label">Fully Quantum Safe</div>
+                    </div>
+                    <div class="stat-card stat-card--transition">
+                        <div class="stat-value" id="p7Trans">—</div>
+                        <div class="stat-label">PQC Transition</div>
+                    </div>
+                    <div class="stat-card stat-card--vulnerable">
+                        <div class="stat-value" id="p7Vuln">—</div>
+                        <div class="stat-label">Quantum Vulnerable</div>
+                    </div>
+                    <div class="stat-card stat-card--critical">
+                        <div class="stat-value" id="p7Crit">—</div>
+                        <div class="stat-label">Critically Vulnerable</div>
+                    </div>
+                    <div class="stat-card stat-card--unknown">
+                        <div class="stat-value" id="p7Unknown">—</div>
+                        <div class="stat-label">Unknown</div>
+                    </div>
+                </div>
+
+                <!-- Classified Assets Table -->
+                <div class="panel">
+                    <div class="panel-header">
+                        <div class="panel-title"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"></path><path d="M2 17l10 5 10-5"></path><path d="M2 12l10 5 10-5"></path></svg> Phase 7 Classified Assets (Best / Typical / Worst)</div>
+                        <div class="panel-badge" id="p7AssetCount" style="background: rgba(168, 85, 247, 0.12); color: #a855f7;">0 assets</div>
+                    </div>
+                    <div id="p7TableContainer" style="overflow-x:auto;"></div>
+                </div>
+
+                <!-- Agility Breakdown -->
+                <div class="panel" style="margin-top: 16px;">
+                    <div class="panel-header">
+                        <div class="panel-title"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="13 17 18 12 13 7"></polyline><polyline points="6 17 11 12 6 7"></polyline></svg> Crypto-Agility Scores (max 15)</div>
+                    </div>
+                    <div id="p7AgilityContainer" style="overflow-x:auto;"></div>
+                </div>
+
+                <!-- Scan History from Database -->
+                <div class="panel" style="margin-top: 16px;">
+                    <div class="panel-header">
+                        <div class="panel-title"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect><line x1="8" y1="21" x2="16" y2="21"></line><line x1="12" y1="17" x2="12" y2="21"></line></svg> Scan Database</div>
+                        <button class="btn" onclick="loadDbScans()">Refresh</button>
+                    </div>
+                    <div id="p7DbScansContainer">
+                        <div class="empty-state"><div class="empty-state-desc">Run a Phase 7 classification to populate the database</div></div>
+                    </div>
+                </div>
+
+                <!-- Demo banner -->
+                <div id="p7DemoBanner" class="demo-banner" style="display:none;margin-top:16px;">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg> <strong>SIMULATED DATA</strong> — Five-dimension scoring on pre-built demo fingerprints. Agility indicators use heuristics.
+                </div>
+            </div>
+        </div><!-- /tab-phase7 -->
+
         <!-- Footer -->
         <footer class="footer">
             <div class="footer-text">
-                Q-ARMOR v6.0.0 — Discover. Probe. Classify. Assess. Remediate. Label. Attest. Future-proof.
+                Q-ARMOR v7.0.0 — Discover. Probe. Classify. Assess. Remediate. Label. Attest. Persist. Future-proof.
                 <br>
                 <span style="color: var(--accent-green); font-size: 0.75rem;">
                     ✓ Phase 1: Discovery &amp; Protocol Analysis
@@ -495,6 +570,8 @@
                     ✓ Phase 5: Compliance Attestations &amp; Automation
                     &nbsp;|&nbsp;
                     ✓ Phase 6: Tri-Mode Probing &amp; Asset Discovery
+                    &nbsp;|&nbsp;
+                    ✓ Phase 7: PQC Classification + Agility + SQLite DB
                 </span>
                 <br>
                 Built on <a href="#">NIST FIPS 203/204/205</a> &middot; <a href="#">CycloneDX 1.6 CBOM</a> &middot; <a href="#">PQCC Whitepaper</a>

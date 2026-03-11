@@ -18,20 +18,21 @@ from backend.demo_data import (
     _trimode_to_crypto,
 )
 from backend.scanner.cbom_generator import generate_cbom
-from backend.scanner.classifier import classify
+from backend.scanner.classifier import classify, classify_trimode
 from backend.scanner.prober import probe_tls, probe_trimode, probe_batch
 from backend.scanner.discoverer import discover_assets
 from backend.scanner.assessment import analyze_endpoint, analyze_batch
 from backend.scanner.remediation import generate_remediation, generate_batch_remediation
 from backend.scanner.attestor import generate_attestation, verify_attestation, get_attestation_summary
 from backend.scanner.notifier import detect_alerts, send_alerts, get_alert_summary
+from backend.scanner import database as db
 
 logger = logging.getLogger("qarmor.app")
 
 app = FastAPI(
     title="Q-ARMOR",
     description="Quantum-Aware Mapping & Observation for Risk Remediation",
-    version="6.0.0",
+    version="7.0.0",
 )
 
 app.add_middleware(
@@ -62,7 +63,7 @@ async def serve_dashboard():
 @app.get("/api/health")
 async def health_check():
     """Health check endpoint."""
-    return {"status": "operational", "service": "Q-ARMOR", "version": "6.0.0"}
+    return {"status": "operational", "service": "Q-ARMOR", "version": "7.0.0"}
 
 
 @app.get("/api/scan/demo")
@@ -661,3 +662,205 @@ async def discover_domain(domain: str, include_ct: bool = True, include_port_sca
         })
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# ── Phase 7: PQC Classification + Agility + Database ────────────────────────
+
+@app.get("/api/classify/demo")
+async def classify_demo():
+    """Classify all 21 demo assets with Phase 7 tri-mode classifier.
+
+    Returns ClassifiedAsset list with best/typical/worst Q-Scores,
+    status derived from worst case, plain English summary, and agility score.
+    """
+    classified = []
+    for fp in DEMO_TRIMODE_FINGERPRINTS:
+        ca = classify_trimode(fp)
+        classified.append(ca.model_dump(mode="json"))
+
+    # Persist to database
+    counts = {s.value: 0 for s in PQCStatus}
+    total_worst = 0
+    for c in classified:
+        counts[c["status"]] = counts.get(c["status"], 0) + 1
+        total_worst += c["worst_case_score"]
+
+    avg = round(total_worst / len(classified), 1) if classified else 0
+    scan_id = db.save_scan(
+        mode="demo",
+        domain="bank.com",
+        total_assets=len(classified),
+        avg_score=avg,
+        fully_safe=counts.get("FULLY_QUANTUM_SAFE", 0),
+        pqc_trans=counts.get("PQC_TRANSITION", 0),
+        q_vuln=counts.get("QUANTUM_VULNERABLE", 0),
+        crit_vuln=counts.get("CRITICALLY_VULNERABLE", 0),
+        unknown=counts.get("UNKNOWN", 0),
+        results_json=json.dumps(classified),
+        classified_assets=classified,
+    )
+
+    return JSONResponse(content={
+        "mode": "demo",
+        "scan_id": scan_id,
+        "total_assets": len(classified),
+        "avg_worst_score": avg,
+        "summary": {
+            "fully_quantum_safe": counts.get("FULLY_QUANTUM_SAFE", 0),
+            "pqc_transition": counts.get("PQC_TRANSITION", 0),
+            "quantum_vulnerable": counts.get("QUANTUM_VULNERABLE", 0),
+            "critically_vulnerable": counts.get("CRITICALLY_VULNERABLE", 0),
+            "unknown": counts.get("UNKNOWN", 0),
+        },
+        "assets": classified,
+    })
+
+
+@app.get("/api/classify/single/{hostname}")
+async def classify_single(hostname: str, port: int = 443):
+    """Classify a single host with Phase 7 tri-mode classifier."""
+    try:
+        fp = await probe_trimode(hostname, port)
+        ca = classify_trimode(fp)
+        return JSONResponse(content=ca.model_dump(mode="json"))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/classify/live/{domain}")
+async def classify_live(domain: str):
+    """Discover + tri-mode probe + Phase 7 classify a live domain."""
+    try:
+        import asyncio
+        try:
+            assets = await asyncio.wait_for(
+                discover_assets(domain, include_ct=True, include_port_scan=False),
+                timeout=20.0,
+            )
+        except asyncio.TimeoutError:
+            assets = await asyncio.wait_for(
+                discover_assets(domain, include_ct=False, include_port_scan=False),
+                timeout=10.0,
+            )
+        if not assets:
+            raise HTTPException(status_code=404, detail=f"No assets discovered for {domain}")
+
+        fingerprints = await probe_batch(assets[:20], concurrency=20, demo=False)
+
+        classified = []
+        for fp in fingerprints:
+            ca = classify_trimode(fp)
+            classified.append(ca.model_dump(mode="json"))
+
+        counts = {s.value: 0 for s in PQCStatus}
+        total_worst = 0
+        for c in classified:
+            counts[c["status"]] = counts.get(c["status"], 0) + 1
+            total_worst += c["worst_case_score"]
+
+        avg = round(total_worst / len(classified), 1) if classified else 0
+        scan_id = db.save_scan(
+            mode="live",
+            domain=domain,
+            total_assets=len(classified),
+            avg_score=avg,
+            fully_safe=counts.get("FULLY_QUANTUM_SAFE", 0),
+            pqc_trans=counts.get("PQC_TRANSITION", 0),
+            q_vuln=counts.get("QUANTUM_VULNERABLE", 0),
+            crit_vuln=counts.get("CRITICALLY_VULNERABLE", 0),
+            unknown=counts.get("UNKNOWN", 0),
+            results_json=json.dumps(classified),
+            classified_assets=classified,
+        )
+
+        return JSONResponse(content={
+            "mode": "live",
+            "domain": domain,
+            "scan_id": scan_id,
+            "total_assets": len(classified),
+            "avg_worst_score": avg,
+            "summary": {
+                "fully_quantum_safe": counts.get("FULLY_QUANTUM_SAFE", 0),
+                "pqc_transition": counts.get("PQC_TRANSITION", 0),
+                "quantum_vulnerable": counts.get("QUANTUM_VULNERABLE", 0),
+                "critically_vulnerable": counts.get("CRITICALLY_VULNERABLE", 0),
+                "unknown": counts.get("UNKNOWN", 0),
+            },
+            "assets": classified,
+        })
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception("Phase 7 live classify failed for %s", domain)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ── Phase 7: Database Endpoints ──────────────────────────────────────────────
+
+@app.get("/api/db/scans")
+async def db_list_scans(limit: int = 20):
+    """List recent scans from the database."""
+    return JSONResponse(content=db.list_scans(limit))
+
+
+@app.get("/api/db/scans/{scan_id}")
+async def db_get_scan(scan_id: int):
+    """Load a specific scan by ID."""
+    scan = db.load_scan(scan_id)
+    if not scan:
+        raise HTTPException(status_code=404, detail="Scan not found")
+    return JSONResponse(content=scan)
+
+
+@app.get("/api/db/scans/latest")
+async def db_latest_scan():
+    """Load the most recent scan."""
+    scan = db.load_latest_scan()
+    if not scan:
+        raise HTTPException(status_code=404, detail="No scans in database")
+    return JSONResponse(content=scan)
+
+
+@app.get("/api/db/compare/{scan_a}/{scan_b}")
+async def db_compare_scans(scan_a: int, scan_b: int):
+    """Compare two scans and return delta analysis."""
+    result = db.compare_scans(scan_a, scan_b)
+    if "error" in result:
+        raise HTTPException(status_code=404, detail=result["error"])
+    return JSONResponse(content=result)
+
+
+@app.get("/api/db/asset/{hostname}/history")
+async def db_asset_history(hostname: str, limit: int = 10):
+    """Get score history for a specific asset."""
+    return JSONResponse(content=db.get_asset_history(hostname, limit))
+
+
+@app.get("/api/db/labels")
+async def db_list_labels(include_revoked: bool = False):
+    """List PQC labels from the database."""
+    return JSONResponse(content=db.list_labels(include_revoked))
+
+
+@app.get("/api/db/labels/{label_id}")
+async def db_verify_label(label_id: str):
+    """Verify / look up a label by ID."""
+    label = db.verify_label(label_id)
+    if not label:
+        raise HTTPException(status_code=404, detail="Label not found")
+    return JSONResponse(content=label)
+
+
+@app.post("/api/db/labels/{label_id}/revoke")
+async def db_revoke_label(label_id: str):
+    """Revoke a PQC label."""
+    ok = db.revoke_label(label_id)
+    if not ok:
+        raise HTTPException(status_code=500, detail="Revocation failed")
+    return {"status": "revoked", "label_id": label_id}
+
+
+@app.get("/api/db/alerts")
+async def db_get_alerts(scan_id: int | None = None, severity: str | None = None, limit: int = 50):
+    """Retrieve alerts with optional filters."""
+    return JSONResponse(content=db.get_alerts(scan_id=scan_id, severity=severity, limit=limit))
