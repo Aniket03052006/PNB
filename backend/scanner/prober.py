@@ -227,10 +227,22 @@ async def _run_single_probe(
 
     mode: "A" | "B" | "C"
     extra_args: additional openssl s_client args for mode-specific behaviour.
+
+    If the probe with extra_args returns no TLS version or cipher (common when
+    the installed openssl/LibreSSL does not support flags like ``-groups``),
+    the probe is automatically retried without extra_args.
     """
     profile = ProbeProfile(mode=mode)
     try:
         info = await _run_openssl(hostname, port, extra_args=extra_args)
+
+        # Fallback: if extra_args caused a silent failure, retry without them
+        if extra_args and not info.get("version") and not info.get("cipher"):
+            logger.debug(
+                "Probe %s with extra_args %s returned empty for %s:%d — retrying plain",
+                mode, extra_args, hostname, port,
+            )
+            info = await _run_openssl(hostname, port)
 
         profile.tls_version = info.get("version") or None
         profile.cipher_suite = info.get("cipher") or None

@@ -345,6 +345,12 @@ Q-ARMOR does not interface directly with hardware. It communicates over standard
 - SHA-256 content hashing + Ed25519 digital signature
 - Verification endpoint for independent signature validation
 
+#### SF-6: Tri-Mode Probing (Phase 6)
+To detect hidden downgrade vulnerabilities and ensure comprehensive cryptographic coverage, Q-ARMOR performs **Tri-Mode Probing** during a scan:
+- **Probe A (PQC-Capable):** Simulates a modern PQC client (e.g., requesting ML-KEM-768 or X25519MLKEM768). Verifies if the server can negotiate a quantum-safe connection.
+- **Probe B (Classical TLS 1.3):** Simulates a standard modern client without PQC capabilities (e.g., X25519). Establishes the classical cryptographic baseline.
+- **Probe C (TLS 1.2 Downgrade):** Forces a maximum protocol version of TLS 1.2 to check if the server intentionally permits legacy connections, exposing potential protocol downgrade attacks.
+
 ### 3.4 Non-Functional Requirements
 
 #### 3.4.1 Performance Requirements
@@ -429,6 +435,11 @@ graph TB
             Notifier["Webhook Notifier<br/>(Slack/Teams)"]
         end
 
+        subgraph "Phase 6: Tri-Mode & History"
+            TriMode["Tri-Mode Engine<br/>(A/B/C Probing)"]
+            History["Trend Tracker<br/>(4-Week Baseline)"]
+        end
+
         subgraph "Data Layer"
             Models["Pydantic Models<br/>(12 Schemas)"]
             DemoData["Demo Data<br/>(21 Bank Assets)"]
@@ -455,6 +466,8 @@ graph TB
     API --> Labeler
     API --> Attestor
     API --> Notifier
+    API --> TriMode
+    API --> History
     Discoverer --> DNS
     Discoverer --> CTLogs
     Prober --> Targets
@@ -504,6 +517,8 @@ graph TD
         P7["7.0<br/>Assign<br/>Certification Labels"]
         P8["8.0<br/>Generate CDXA<br/>Attestation"]
         P9["9.0<br/>Detect & Send<br/>Alerts"]
+        P10["10.0<br/>Tri-Mode<br/>Probing (A/B/C)"]
+        P11["11.0<br/>Historical<br/>Trend Analysis"]
     end
 
     subgraph "Data Stores"
@@ -549,6 +564,11 @@ graph TD
     D4 --> P9
     P9 -- "Alert Payload" --> Webhook
     P9 -- "Alert Summary" --> User
+
+    D1 --> P10
+    P10 -- "Tri-Mode FP" --> D2
+    D3 --> P11
+    P11 -- "Baseline & Trend" --> User
 ```
 
 #### Level 2 — TLS Probing Process Detail
@@ -834,6 +854,10 @@ graph LR
         E3["CI/CD<br/>Gate Check"]
     end
 
+    subgraph "Phase 6"
+        F1["Tri-Mode Probing<br/>(A/B/C Profiles)"] --> F2["History &<br/>Baseline Tracking"]
+    end
+
     A3 --> B1
     A3 --> C1
     B1 --> B2
@@ -842,6 +866,8 @@ graph LR
     D1 --> E1
     B1 --> E2
     B1 --> E3
+    A3 --> F1
+    F1 --> F2
 ```
 
 ### ASCII Workflow Flowchart
@@ -926,19 +952,26 @@ graph LR
  │  │  Ed25519 sign  │   │  Slack webhook    │   │  exit(0) = pass  │  │
  │  │  90-day valid  │   │  Teams webhook    │   │  exit(1) = fail  │  │
  │  │  attestor.py   │   │  notifier.py      │   │  (HIGH risk)     │  │
- │  └───────┬────────┘   └────────┬──────────┘   └──────────────────┘  │
- └──────────┼──────────────────────┼────────────────────────────────────┘
-            │                      │
-            ▼                      ▼
- ┌──────────────────┐   ┌──────────────────────┐
- │  CDXA Attestation│   │  Alert Notifications │
- │  (signed JSON)   │   │  Slack / Teams       │
- └──────────────────┘   └──────────────────────┘
-
+ │  └───────┬────────┘   └────────┬──────────┘   └─────────┬────────┘  │
+ └──────────┼──────────────────────┼───────────────────────┼────────────┘
+            │                      │                       │
+ ┌──────────▼──────────────────────▼───────────────────────▼────────────┐
+ │                  PHASE 6 — Tri-Mode Probing & History                 │
+ │                                                                       │
+ │  ┌─────────────────────────────────┐    ┌───────────────────────────┐│
+ │  │  11. Tri-Mode Engine            │───▶│  12. Historical Tracker   ││
+ │  │  Probe A: PQC (ML-KEM)          │    │  4-Week Trend Analysis    ││
+ │  │  Probe B: Classic (TLS 1.3)     │    │  1-Week Baseline Compare  ││
+ │  │  Probe C: Downgrade (TLS 1.2)   │    │  Q-Score Delta tracking   ││
+ │  │  prober.py                      │    │  app.py                   ││
+ │  └─────────────────────────────────┘    └───────────────────────────┘│
+ └────────────────────────────────────┬─────────────────────────────────┘
+                                      │
+                                      ▼
  ┌──────────────────────────────────────────────────────────────────────┐
  │                          Final Outputs                               │
  │                                                                      │
- │  📊 Dashboard         Rich table view in browser or terminal        │
+ │  📊 Dashboard         Tri-Mode & History UI visualization           │
  │  📄 CBOM JSON         CycloneDX 1.6 cryptographic inventory         │
  │  🔏 CDXA Attestation  Ed25519-signed NIST FIPS compliance doc       │
  │  🔔 Webhook Alerts    Slack / Microsoft Teams notifications         │

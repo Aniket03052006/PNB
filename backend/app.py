@@ -70,7 +70,7 @@ async def run_demo_scan():
     """Run a demo scan with simulated bank assets."""
     global _latest_scan
     _latest_scan = generate_demo_results()
-    return _latest_scan.model_dump()
+    return _latest_scan.model_dump(mode="json")
 
 
 @app.post("/api/scan/domain/{domain}")
@@ -78,20 +78,44 @@ async def scan_domain(domain: str):
     """Scan a real domain for cryptographic configuration."""
     global _latest_scan
     from backend.models import ScanResult
+    import asyncio
 
     try:
-        import asyncio
-        assets = await discover_assets(domain, include_ct=True, include_port_scan=False)
-        
-        async def scan_single_asset(asset) -> ScanResult:
-            try:
-                fp = await probe_tls(asset.hostname, asset.port)
-                q = classify(fp)
-                return ScanResult(asset=asset, fingerprint=fp, q_score=q)
-            except Exception as e:
-                return ScanResult(asset=asset, error=str(e))
+        # Discovery with timeout — CT logs can be slow
+        try:
+            assets = await asyncio.wait_for(
+                discover_assets(domain, include_ct=True, include_port_scan=False),
+                timeout=20.0,
+            )
+        except asyncio.TimeoutError:
+            # Fall back to DNS-only if CT takes too long
+            logger.warning("CT log timeout for %s, falling back to DNS-only", domain)
+            assets = await asyncio.wait_for(
+                discover_assets(domain, include_ct=False, include_port_scan=False),
+                timeout=10.0,
+            )
 
-        tasks = [scan_single_asset(asset) for asset in assets[:20]] # Cap at 20 assets
+        if not assets:
+            raise HTTPException(status_code=404, detail=f"No assets discovered for {domain}")
+
+        # Probe with per-asset timeout to avoid hanging
+        sem = asyncio.Semaphore(10)
+
+        async def scan_single_asset(asset) -> ScanResult:
+            async with sem:
+                try:
+                    fp = await asyncio.wait_for(
+                        probe_tls(asset.hostname, asset.port),
+                        timeout=15.0,
+                    )
+                    q = classify(fp)
+                    return ScanResult(asset=asset, fingerprint=fp, q_score=q)
+                except asyncio.TimeoutError:
+                    return ScanResult(asset=asset, error="probe timeout")
+                except Exception as e:
+                    return ScanResult(asset=asset, error=str(e))
+
+        tasks = [scan_single_asset(asset) for asset in assets[:20]]
         results = await asyncio.gather(*tasks)
 
         counts = {s: 0 for s in PQCStatus}
@@ -122,8 +146,10 @@ async def scan_domain(domain: str):
             remediation_roadmap=_build_remediation_roadmap(results),
             labels=labels,
         )
-        return _latest_scan.model_dump()
+        return _latest_scan.model_dump(mode="json")
 
+    except HTTPException:
+        raise
     except Exception as e:
         logger.exception("Domain scan failed for %s", domain)
         raise HTTPException(status_code=500, detail=str(e))
@@ -138,7 +164,7 @@ async def scan_single(hostname: str, port: int = 443):
         from backend.models import DiscoveredAsset, ScanResult
         asset = DiscoveredAsset(hostname=hostname, port=port)
         result = ScanResult(asset=asset, fingerprint=fp, q_score=q)
-        return result.model_dump()
+        return result.model_dump(mode="json")
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -190,7 +216,7 @@ async def get_remediation():
     """Get the prioritized remediation roadmap."""
     if not _latest_scan:
         raise HTTPException(status_code=404, detail="No scan data. Run /api/scan/demo first.")
-    return [r.model_dump() for r in _latest_scan.remediation_roadmap]
+    return [r.model_dump(mode="json") for r in _latest_scan.remediation_roadmap]
 
 
 @app.get("/api/labels")
@@ -198,7 +224,7 @@ async def get_labels():
     """Get all PQC-Ready labels issued."""
     if not _latest_scan:
         raise HTTPException(status_code=404, detail="No scan data. Run /api/scan/demo first.")
-    return [l.model_dump() for l in _latest_scan.labels]
+    return [l.model_dump(mode="json") for l in _latest_scan.labels]
 
 
 # ── Phase 2: PQC Assessment Endpoints ───────────────────────────────────────

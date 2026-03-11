@@ -931,6 +931,88 @@ async function fetchTrimodeDemoData() {
     }
 }
 
+/* ── probeSingleHost: live TLS probe for any user-supplied hostname ── */
+async function probeSingleHost() {
+    const hostname = (document.getElementById('singleHostInput')?.value || '').trim();
+    const port = parseInt(document.getElementById('singlePortInput')?.value) || 443;
+    if (!hostname) { showToast('Enter a hostname first', 'warn'); return; }
+
+    const btn = document.getElementById('singleProbeBtn');
+    const resultEl = document.getElementById('singleHostResult');
+    if (btn) { btn.disabled = true; btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/></svg> Probing…'; }
+    if (resultEl) resultEl.innerHTML = '<div style="color:var(--text-dim);padding:12px 0;font-size:0.85rem;">Running three TLS handshakes (A/B/C) against <strong>' + escHtml(hostname) + '</strong>…</div>';
+
+    try {
+        const fp = await apiCall(`/api/scan/trimode/single/${encodeURIComponent(hostname)}?port=${port}`);
+        renderSingleHostResult(fp, resultEl);
+    } catch (e) {
+        if (resultEl) resultEl.innerHTML = `<div style="color:var(--accent-pink);padding:12px 0;font-size:0.85rem;">⚠ Probe failed: ${escHtml(e.message)}</div>`;
+        showToast('Probe failed: ' + e.message, 'error');
+    } finally {
+        if (btn) { btn.disabled = false; btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg> Probe'; }
+    }
+}
+
+function renderSingleHostResult(fp, container) {
+    if (!fp || !container) return;
+
+    const st = fp.q_score?.status || 'UNKNOWN';
+    const score = fp.q_score?.total ?? '—';
+    const cls = getStatusClass(st);
+    const lbl = getStatusLabel(st);
+    const scColor = getScoreColor(score);
+
+    function probeRow(label, p, description) {
+        if (!p) return `<tr><td><span class="probe-label">${label}</span></td><td colspan="4" style="color:var(--text-dim)">—</td></tr>`;
+        const tls = escHtml(p.tls_version || '—');
+        const kex = escHtml(p.key_exchange_group || p.key_exchange || '—');
+        const cipher = escHtml(p.cipher_suite || '—');
+        const bits = p.cipher_bits ? `${p.cipher_bits}-bit` : '—';
+        const err = p.error ? `<span style="color:var(--accent-pink)">${escHtml(p.error)}</span>` : '';
+
+        const isPqc = kex.includes('ML-KEM') || kex.includes('MLKEM') || kex.includes('KYBER');
+        const isBad = tls.includes('TLSv1.0') || tls.includes('TLSv1.1') || tls.includes('SSLv');
+        let tlsColor = isBad ? 'var(--accent-pink)' : tls.includes('1.3') ? 'var(--accent-green)' : 'var(--accent-yellow)';
+        let kexColor = isPqc ? 'var(--accent-cyan)' : (kex === 'RSA' ? 'var(--accent-pink)' : 'var(--text-primary)');
+
+        return `<tr>
+            <td><span class="probe-label">${label}</span><br><span style="color:var(--text-dim);font-size:0.7rem">${description}</span></td>
+            <td style="color:${tlsColor};font-weight:600">${tls}</td>
+            <td style="color:${kexColor}">${kex}</td>
+            <td style="color:var(--text-dim)">${cipher}</td>
+            <td>${bits}${err}</td>
+        </tr>`;
+    }
+
+    const cert = fp.certificate || {};
+    const certInfo = cert.subject
+        ? `<div style="font-size:0.75rem;color:var(--text-dim);margin-top:10px;padding:8px 12px;background:rgba(255,255,255,0.03);border-radius:6px;border:1px solid var(--border-subtle)">
+            <strong style="color:var(--text-secondary)">Certificate</strong> &nbsp;
+            ${escHtml(cert.subject || '')} &nbsp;·&nbsp;
+            expires ${escHtml(cert.not_after || '?')} &nbsp;·&nbsp;
+            <span style="color:${(cert.days_until_expiry||0) < 30 ? 'var(--accent-pink)' : 'var(--accent-green)'}">${cert.days_until_expiry ?? '?'} days left</span>
+          </div>` : '';
+
+    container.innerHTML = `
+        <div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--border-subtle);">
+            <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;">
+                <span style="font-size:1rem;font-weight:700;color:var(--text-primary)">${escHtml(fp.hostname)}</span>
+                <span class="status-badge status-badge--${cls}">${lbl}</span>
+                <span style="font-size:1.1rem;font-weight:700;color:${scColor}">Q-Score: ${score}</span>
+                <span style="color:var(--text-dim);font-size:0.75rem;margin-left:auto">${fp.scan_duration_ms ? fp.scan_duration_ms + ' ms' : ''}</span>
+            </div>
+            <table class="trimode-table" style="margin-bottom:0">
+                <thead><tr><th>Probe</th><th>TLS Version</th><th>Key Exchange</th><th>Cipher Suite</th><th>Key Bits</th></tr></thead>
+                <tbody>
+                    ${probeRow('A', fp.probe_a, 'PQC-capable')}
+                    ${probeRow('B', fp.probe_b, 'TLS 1.3 classical')}
+                    ${probeRow('C', fp.probe_c, 'TLS 1.2 downgrade')}
+                </tbody>
+            </table>
+            ${certInfo}
+        </div>`;
+}
+
 function renderTrimode(data) {
     const empty = document.getElementById('trimodeEmpty');
     const content = document.getElementById('trimodeContent');
