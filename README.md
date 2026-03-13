@@ -49,6 +49,121 @@
 
 ---
 
+## Latest Updates (March 2026)
+
+- Added a cybersecurity-grid animated background to the landing page with low-impact, pointer-reactive glow.
+- Added dashboard alias routing (`/dashboard`) and static landing entry (`/static/landing.html`) for CTA-driven navigation.
+- Added mode-aware API behavior (`demo` and `live`) for home summary, asset inventory, heatmap, cyber rating, and reporting endpoints.
+- Unified execution flow through `backend/pipeline.py` for discovery, tri-mode probing, negotiation policy, classification, regression, CBOM v2, labels, attestation, and alerts.
+- Updated architecture and diagram documentation in:
+    - `docs/architecture.md`
+    - `docs/diagrams.md`
+
+---
+
+## Solution Snapshot (Submission Criteria)
+
+### Tools, Technologies, and Frameworks
+
+- Backend: Python 3.10+, FastAPI, Uvicorn, Pydantic
+- Security and crypto analysis: OpenSSL TLS negotiation extraction, cryptography (Ed25519 signing)
+- Data and persistence: SQLite (WAL mode), JSON report exports, CycloneDX 1.7 CBOM
+- Frontend: HTML, CSS, JavaScript dashboard and landing page with cybersecurity grid visualization
+- Monitoring and notifications: Slack/Teams webhook notifier
+- Developer tooling: pytest, rich CLI output, Mermaid diagrams
+- Intelligence method: deterministic tri-mode probing and rule-based scoring for explainable decisions
+
+### Architecture Diagram and Dataflow
+
+- Architecture diagram: see Architecture and Diagrams section in this README and `docs/architecture.md`.
+- Dataflow summary:
+    1. User selects mode (`demo` or `live`) and optional domain.
+    2. Unified pipeline discovers assets and runs tri-mode TLS probing.
+    3. Negotiation policy, PQC classification, agility, regression, heatmap, and enterprise cyber rating are computed.
+    4. CBOM v2, certification labels, attestation, and alerts are generated.
+    5. Results are persisted to SQLite and served to dashboard/reporting endpoints.
+
+### Key Features
+
+- Demo and live mode scanning through one unified pipeline
+- Tri-mode TLS negotiation analysis (PQC-capable, classical, legacy paths)
+- Negotiation-policy scoring and migration heatmap
+- Enterprise cyber rating with tier mapping
+- CycloneDX 1.7 CBOM and CDXA v2 attestation
+- Label registry with verification and revocation flows
+- Regression detection across historical scans
+- Dashboard, API, and CLI interfaces for the same core logic
+
+### Impact and Benefits
+
+Impact:
+
+- Improves cybersecurity by surfacing downgrade risk, legacy cryptography exposure, and PQC migration gaps before they become exploit paths.
+
+Benefits:
+
+- Beneficiaries:
+    - Banks and enterprises with internet-facing assets
+    - Security teams and SOC analysts
+    - Compliance and audit teams
+    - DevSecOps and engineering teams
+- Outcomes:
+    - Earlier detection of crypto posture drift
+    - Faster remediation prioritization with actionable evidence
+    - Better compliance readiness through signed attestations
+    - Lower operational risk and reduced manual audit effort
+
+### Feasibility and Scalability
+
+Feasibility:
+
+- Uses proven, production-ready components (FastAPI, SQLite, OpenSSL, Pydantic).
+- Works with existing TLS infrastructure without requiring intrusive agents.
+- Provides immediate value in demo mode and progressive adoption for live domains.
+
+Scalability:
+
+- Async probing and batched processing support larger asset sets.
+- SQLite history and modular scanner components allow future migration to distributed storage/workers.
+- API-first design supports integration with SIEM, ticketing, CI/CD, and enterprise dashboards.
+
+### Potential Challenges and Mitigation
+
+- Incomplete external visibility (network restrictions, DNS variance)
+    - Mitigation: retry logic, graceful UNKNOWN classification, multi-source discovery paths
+- False confidence from static snapshots
+    - Mitigation: historical regression tracking and repeatable scheduled scans
+- Live-scan latency on large domains
+    - Mitigation: concurrency controls, incremental scans, cache-aware mode/context reuse
+- Evolving crypto standards and policy baselines
+    - Mitigation: modular scoring/matrix layers and versioned rule updates
+
+### Prototype or Demo
+
+- Web prototype:
+    - Landing page at `http://localhost:8000/static/landing.html`
+    - Dashboard at `http://localhost:8000` and `http://localhost:8000/dashboard`
+- CLI demo:
+    - `python scan.py --demo`
+- Demo data includes realistic mixed PQC posture for end-to-end visualization and reporting.
+
+### Future Roadmap
+
+Next steps:
+
+- Add scheduled scan orchestration and richer diff reports
+- Expand report templates for executive, audit, and engineering audiences
+- Add export adapters for SIEM and GRC tooling
+
+Long-term enhancements:
+
+- Multi-tenant deployment model with RBAC and tenancy isolation
+- Policy-as-code engine for organization-specific risk rules
+- Distributed scanning workers and queue-based orchestration for very large attack surfaces
+- Advanced anomaly detection on negotiation and score drift trends
+
+---
+
 ## 1. Introduction
 
 ### 1.1 Purpose
@@ -65,7 +180,7 @@ Q-ARMOR covers the full lifecycle of **PQC compliance assessment**:
 |-------|-----------|-----------|
 | **Phase 1** | Asset Discovery & TLS Protocol Analysis | `discoverer.py`, `prober.py`, `classifier.py` |
 | **Phase 2** | PQC Assessment & Remediation | `assessment.py`, `remediation.py`, `nist_matrix.py` |
-| **Phase 3** | CycloneDX 1.6 CBOM Generation | `cbom_generator.py` |
+| **Phase 3** | CycloneDX 1.7 CBOM Generation | `cbom_generator.py` |
 | **Phase 4** | 3-Tier Certification Labeling Engine | `labeler.py` |
 | **Phase 5** | Compliance-as-Code Attestation & Automation | `attestor.py`, `notifier.py` |
 | **Phase 6** | Tri-Mode Probing & Asset Discovery Foundation | `discoverer.py`, `prober.py`, `demo_data.py` |
@@ -430,97 +545,75 @@ To detect hidden downgrade vulnerabilities and ensure comprehensive cryptographi
 
 ```mermaid
 graph TB
-    subgraph "External Systems"
-        Browser["Web Browser"]
+    subgraph "Users & Integrations"
+        Landing["Landing Page<br/>/static/landing.html"]
+        Dashboard["Dashboard SPA<br/>/ and /dashboard"]
+        CLI["CLI Scanner<br/>scan.py"]
         CI["CI/CD Pipeline"]
-        Slack["Slack"]
-        Teams["Microsoft Teams"]
+        Slack["Slack / Teams Webhooks"]
     end
 
-    subgraph "Q-ARMOR Platform v7.0.0"
-        subgraph "Presentation Layer"
-            Dashboard["Web Dashboard<br/>(HTML/CSS/JS)"]
-            CLI["CLI Scanner<br/>(scan.py + rich)"]
-            API["FastAPI REST API<br/>(app.py)"]
-        end
+    subgraph "Q-ARMOR Backend (FastAPI)"
+        API["API Router<br/>backend/app.py"]
+        ModeCache["Mode Context Cache<br/>demo/live + domain"]
+        Pipeline["Unified Pipeline Orchestrator<br/>backend/pipeline.py"]
 
-        subgraph "Phase 1: Discovery & Analysis"
-            Discoverer["Asset Discoverer<br/>(DNS + CT Logs)"]
-            Prober["TLS Prober<br/>(ssl + openssl)"]
-            Classifier["PQC Classifier<br/>(Q-Score Engine)"]
-        end
-
-        subgraph "Phase 2: Assessment & Remediation"
-            Assessor["PQC Assessment Engine<br/>(NIST Matrix)"]
-            Remediator["Remediation Generator<br/>(P1-P4 Actions)"]
-            NistMatrix["NIST Validation Matrix<br/>(Algorithm DB)"]
-        end
-
-        subgraph "Phase 3: CBOM"
-            CBOMGen["CBOM Generator<br/>(CycloneDX 1.6)"]
-        end
-
-        subgraph "Phase 4: Certification"
-            Labeler["Certification Labeler<br/>(3-Tier Engine)"]
-        end
-
-        subgraph "Phase 5: Compliance Automation"
-            Attestor["CDXA Attestor<br/>(Ed25519 Signing)"]
-            Notifier["Webhook Notifier<br/>(Slack/Teams)"]
-        end
-
-        subgraph "Phase 6: Tri-Mode & History"
-            TriMode["Tri-Mode Engine<br/>(A/B/C Probing)"]
-            History["Trend Tracker<br/>(4-Week Baseline)"]
-        end
-
-        subgraph "Phase 7: Classification + Agility + DB"
-            ClassifierV7["Phase 7 Classifier<br/>(5-Dim Q-Score)"]
-            Agility["Agility Assessor<br/>(5 Indicators)"]
-            SQLiteDB["SQLite Database<br/>(scanner.db)"]
-        end
-
-        subgraph "Data Layer"
-            Models["Pydantic Models<br/>(14 Schemas)"]
-            DemoData["Demo Data<br/>(21 Bank Assets)"]
-            Keys[".keys/<br/>(Ed25519 Keypair)"]
+        subgraph "Scanner Modules"
+            Discoverer["discoverer.py"]
+            Prober["prober.py"]
+            Negotiation["negotiation_policy.py"]
+            Classifier["classifier.py + agility_assessor.py"]
+            Regression["regression_detector.py"]
+            CBOM["cbom_generator.py (CycloneDX 1.7)"]
+            Labeling["labeler.py + label_registry.py"]
+            Attestor["attestor.py (CDXA v2 / Ed25519)"]
+            Notifier["notifier.py"]
+            Rating["cyber_rating.py"]
         end
     end
 
-    subgraph "Scan Targets"
-        Targets["Internet-Facing<br/>TLS Endpoints"]
-        DNS["DNS Servers"]
-        CTLogs["CT Log Servers"]
+    subgraph "Data Layer"
+        Demo["Demo Dataset (21 assets)<br/>backend/demo_data.py"]
+        DB["SQLite WAL<br/>data/scanner.db"]
+        Keys["Signing Keys<br/>.keys/"]
     end
 
-    Browser --> Dashboard
-    CI --> CLI
-    CLI --> API
+    subgraph "External Targets"
+        DNS["DNS + CT Logs"]
+        TLS["Internet TLS Endpoints"]
+    end
+
+    Landing --> Dashboard
     Dashboard --> API
-    API --> Discoverer
-    API --> Prober
-    API --> Classifier
-    API --> Assessor
-    API --> Remediator
-    API --> CBOMGen
-    API --> Labeler
-    API --> Attestor
-    API --> Notifier
-    API --> TriMode
-    API --> History
-    API --> ClassifierV7
-    API --> Agility
-    API --> SQLiteDB
+    CLI --> API
+    CI --> CLI
+
+    API --> ModeCache
+    API --> Pipeline
+    Pipeline --> Discoverer
+    Pipeline --> Prober
+    Pipeline --> Negotiation
+    Pipeline --> Classifier
+    Pipeline --> Regression
+    Pipeline --> CBOM
+    Pipeline --> Labeling
+    Pipeline --> Attestor
+    Pipeline --> Notifier
+    Pipeline --> Rating
+
     Discoverer --> DNS
-    Discoverer --> CTLogs
-    Prober --> Targets
-    Assessor --> NistMatrix
-    Notifier --> Slack
-    Notifier --> Teams
+    Prober --> TLS
+    Pipeline --> Demo
+    Pipeline --> DB
     Attestor --> Keys
-    API --> Models
-    API --> DemoData
+    Notifier --> Slack
 ```
+
+Current architecture highlights:
+
+- Demo and live flows are normalized through the same pipeline entrypoint, with cached mode/domain context.
+- Home, asset inventory, heatmap, cyber-rating, negotiation, and reporting endpoints are mode-aware (`mode=demo|live`, optional `domain`).
+- Landing page is served from static assets; dashboard is available at both `/` and `/dashboard`.
 
 ### Data Flow Diagrams (DFD)
 
@@ -528,544 +621,230 @@ graph TB
 
 ```mermaid
 graph LR
-    User(("User /<br/>CI Pipeline"))
-    QARMOR["Q-ARMOR<br/>System"]
-    Targets(("TLS<br/>Endpoints"))
-    Webhooks(("Slack /<br/>Teams"))
+    User(("Analyst / CISO / CI"))
+    App["Q-ARMOR API + Pipeline"]
+    Target(("DNS / CT / TLS Endpoints"))
+    Notify(("Slack / Teams"))
 
-    User -- "Scan Request<br/>(Domain/Demo)" --> QARMOR
-    QARMOR -- "TLS Handshake<br/>+ Certificate" --> Targets
-    Targets -- "ServerHello<br/>Negotiation" --> QARMOR
-    QARMOR -- "Reports:<br/>CBOM, CDXA,<br/>Alerts, Dashboard" --> User
-    QARMOR -- "Alert<br/>Notifications" --> Webhooks
+    User -- "Mode + domain request" --> App
+    App -- "Discovery + tri-mode probes" --> Target
+    Target -- "TLS metadata + negotiation evidence" --> App
+    App -- "Dashboard data, CBOM, labels, attestation" --> User
+    App -- "Risk alerts" --> Notify
 ```
 
 #### Level 1 — System DFD
 
 ```mermaid
 graph TD
-    subgraph "External Entities"
-        User(("User"))
-        Target(("TLS Target"))
-        Webhook(("Slack/Teams"))
+    subgraph "Client Layer"
+        UI(("Landing + Dashboard + CLI"))
     end
 
-    subgraph "Q-ARMOR Processes"
-        P1["1.0<br/>Discover Assets"]
-        P2["2.0<br/>Probe TLS"]
-        P3["3.0<br/>Classify PQC"]
-        P4["4.0<br/>Assess Against<br/>NIST Matrix"]
-        P5["5.0<br/>Generate<br/>Remediation"]
-        P6["6.0<br/>Generate CBOM"]
-        P7["7.0<br/>Assign<br/>Certification Labels"]
-        P8["8.0<br/>Generate CDXA<br/>Attestation"]
-        P9["9.0<br/>Detect & Send<br/>Alerts"]
-        P10["10.0<br/>Tri-Mode<br/>Probing (A/B/C)"]
-        P11["11.0<br/>Historical<br/>Trend Analysis"]
-        P12["12.0<br/>Phase 7<br/>Classify & Persist"]
+    subgraph "Q-ARMOR Core"
+        P0["0.0<br/>Mode Resolver + Cache"]
+        P1["1.0<br/>Discover + Probe (A/B/C)"]
+        P2["2.0<br/>Negotiation + Classification + Agility"]
+        P3["3.0<br/>Regression + Heatmap + Cyber Rating"]
+        P4["4.0<br/>CBOM v2 + Labels + Registry"]
+        P5["5.0<br/>Attestation + Alerts + Reporting"]
     end
 
     subgraph "Data Stores"
-        D1[("D1: Discovered<br/>Assets")]
-        D2[("D2: Crypto<br/>Fingerprints")]
-        D3[("D3: Q-Scores &<br/>Scan Results")]
-        D4[("D4: Assessments")]
-        D5[("D5: NIST<br/>Matrix")]
-        D6[("D6: Ed25519<br/>Keys")]
+        D1[("D1: Demo Fixtures")]
+        D2[("D2: SQLite Scans/Labels/Alerts")]
+        D3[("D3: Key Material (.keys)")]
     end
 
-    User -- "Domain" --> P1
-    P1 -- "DNS/CT Query" --> Target
-    Target -- "IPs" --> P1
-    P1 -- "Asset List" --> D1
-
-    D1 --> P2
-    P2 -- "TLS Handshake" --> Target
-    Target -- "ServerHello" --> P2
-    P2 -- "Fingerprint" --> D2
-
-    D2 --> P3
-    P3 -- "Q-Score" --> D3
-
-    D3 --> P4
-    D5 --> P4
-    P4 -- "Assessment" --> D4
-
-    D4 --> P5
-    P5 -- "Remediation Plan" --> User
-
-    D3 --> P6
-    D4 --> P6
-    P6 -- "CBOM JSON" --> User
-
-    D4 --> P7
-    P7 -- "Certification Labels" --> User
-
-    D4 --> P8
-    D6 --> P8
-    P8 -- "Signed CDXA" --> User
-
-    D4 --> P9
-    P9 -- "Alert Payload" --> Webhook
-    P9 -- "Alert Summary" --> User
-
-    D1 --> P10
-    P10 -- "Tri-Mode FP" --> D2
-    D3 --> P11
-    P11 -- "Baseline & Trend" --> User
-    D2 --> P12
-    P12 -- "ClassifiedAsset" --> User
+    UI --> P0 --> P1 --> P2 --> P3 --> P4 --> P5
+    P0 --> D1
+    P3 --> D2
+    P4 --> D2
+    P5 --> D3
+    P5 --> UI
 ```
 
-#### Level 2 — TLS Probing Process Detail
+#### Level 2 — Unified Pipeline Detail
 
 ```mermaid
 graph TD
-    Start["Start: probe_tls()"]
-    PySsl["Python SSL<br/>Handshake"]
-    ParseCert["Parse X.509<br/>Certificate"]
-    OpenSSL["openssl s_client<br/>-brief"]
-    ExtractKEX["Extract<br/>Negotiated Group"]
-    CheckTLS12["Check TLS 1.2<br/>Support"]
-    PQCDetect["PQC Detection<br/>(KEX + Sig)"]
-    BuildFP["Build<br/>CryptoFingerprint"]
-    Return["Return<br/>Fingerprint"]
-
-    Start --> PySsl
-    PySsl -- "Success" --> ParseCert
-    PySsl -- "Failure" --> OpenSSL
-    ParseCert --> OpenSSL
-    OpenSSL --> ExtractKEX
-    ExtractKEX --> CheckTLS12
-    CheckTLS12 --> PQCDetect
-    PQCDetect --> BuildFP
-    BuildFP --> Return
+    A["Input: mode + domain"] --> B["discover_assets() or demo fixtures"]
+    B --> C["probe_batch() tri-mode fingerprints"]
+    C --> D["analyze_negotiation_policy()"]
+    D --> E["classify_trimode() + agility assessor"]
+    E --> F["detect_regressions()"]
+    F --> G["generate_cbom_v2()"]
+    G --> H["label_classified_assets() + append_all_labels()"]
+    H --> I["generate_attestation_v2()"]
+    I --> J["detect_alerts()"]
+    J --> K["compute_enterprise_cyber_rating() + compute_heatmap()"]
+    K --> L["save_scan() + PipelineResult"]
 ```
 
 ### UML Class Diagram
 
 ```mermaid
 classDiagram
-    class PQCStatus {
-        <<enumeration>>
-        FULLY_QUANTUM_SAFE
-        PQC_TRANSITION
-        QUANTUM_VULNERABLE
-        CRITICALLY_VULNERABLE
-        UNKNOWN
+    class PipelineResult {
+        +int|None scan_id
+        +str timestamp
+        +str mode
+        +list assets
+        +dict negotiation_policies
+        +dict heatmap
+        +dict enterprise_cyber_rating
+        +dict cbom
+        +dict labels
+        +list alerts
+        +dict regression_summary
+        +dict attestation
     }
 
-    class RemediationPriority {
-        <<enumeration>>
-        P1_IMMEDIATE
-        P2_SHORT_TERM
-        P3_MEDIUM_TERM
-        P4_STRATEGIC
-    }
-
-    class AssetType {
-        <<enumeration>>
-        WEB
-        API
-        VPN
-        MAIL
-        OTHER
-    }
-
-    class DiscoveredAsset {
+    class TriModeFingerprint {
         +str hostname
-        +str|None ip
-        +int port
-        +AssetType asset_type
-        +str discovery_method
-        +datetime discovered_at
+        +ProbeProfile probe_a
+        +ProbeProfile probe_b
+        +ProbeProfile probe_c
     }
 
-    class TLSInfo {
-        +str version
-        +str cipher_suite
-        +str cipher_algorithm
-        +int cipher_bits
-        +str key_exchange
-        +str authentication
-        +bool supports_tls_1_0
-        +bool supports_tls_1_1
-        +bool supports_tls_1_2
-        +bool supports_tls_1_3
-    }
-
-    class CertificateInfo {
-        +str subject
-        +str issuer
-        +str serial_number
-        +str not_before
-        +str not_after
-        +str signature_algorithm
-        +str public_key_type
-        +int public_key_bits
-        +list~str~ san_entries
-        +bool is_expired
-        +int days_until_expiry
-    }
-
-    class CryptoFingerprint {
-        +TLSInfo tls
-        +CertificateInfo certificate
-        +bool has_forward_secrecy
-        +bool has_pqc_kex
-        +bool has_pqc_signature
-        +bool has_hybrid_mode
-        +str|None jwt_algorithm
-    }
-
-    class QScore {
-        +int total
-        +int tls_version_score
-        +int key_exchange_score
-        +int certificate_score
-        +int cipher_strength_score
-        +int agility_score
-        +PQCStatus status
-        +list~str~ findings
-        +list~str~ recommendations
+    class NegotiationPolicy {
+        +str negotiation_tier
+        +int negotiation_security_score
+        +str summary
     }
 
     class ClassifiedAsset {
         +str hostname
-        +int port
-        +AssetType asset_type
         +int best_case_score
         +int typical_score
         +int worst_case_score
-        +QScore best_case_q
-        +QScore typical_q
-        +QScore worst_case_q
-        +PQCStatus status
-        +str summary
-        +str recommended_action
-        +int agility_score
-        +list~dict~ agility_details
-    }
-
-    class ScanResult {
-        +DiscoveredAsset asset
-        +CryptoFingerprint fingerprint
-        +QScore q_score
-        +datetime scanned_at
-        +int scan_duration_ms
-        +str|None error
-    }
-
-    class ScanSummary {
-        +int total_assets
-        +int fully_quantum_safe
-        +int pqc_transition
-        +int quantum_vulnerable
-        +int critically_vulnerable
-        +int unknown
-        +float average_q_score
-        +str scan_timestamp
-        +list~ScanResult~ results
-        +list~RemediationAction~ remediation_roadmap
-        +list~PQCLabel~ labels
-    }
-
-    class RemediationAction {
-        +RemediationPriority priority
-        +str timeframe
-        +str description
-        +list~str~ affected_assets
-        +list~str~ specific_actions
-    }
-
-    class PQCLabel {
-        +str label_id
-        +str asset
-        +str issued_at
-        +str valid_until
-        +list~str~ algorithms
-        +list~str~ standards
         +str status
+        +int agility_score
     }
 
-    ScanResult *-- DiscoveredAsset
-    ScanResult *-- CryptoFingerprint
-    ScanResult *-- QScore
-    CryptoFingerprint *-- TLSInfo
-    CryptoFingerprint *-- CertificateInfo
-    QScore --> PQCStatus
-    ClassifiedAsset *-- QScore : best/typical/worst
-    ClassifiedAsset --> PQCStatus
-    ScanSummary *-- ScanResult
-    ScanSummary *-- RemediationAction
-    ScanSummary *-- PQCLabel
-    RemediationAction --> RemediationPriority
-    DiscoveredAsset --> AssetType
+    class RegressionReport {
+        +list new_assets
+        +list score_regressions
+        +list missed_upgrades
+    }
+
+    class LabelSummary {
+        +dict tier_counts
+        +list labels
+    }
+
+    TriModeFingerprint --> NegotiationPolicy
+    TriModeFingerprint --> ClassifiedAsset
+    ClassifiedAsset --> RegressionReport
+    ClassifiedAsset --> LabelSummary
+    LabelSummary --> PipelineResult
+    RegressionReport --> PipelineResult
 ```
 
 ### UML Sequence Diagrams
 
-#### Demo Scan Sequence
+#### Dashboard (Mode-Aware) Sequence
 
 ```mermaid
 sequenceDiagram
     actor User
-    participant Browser as Web Dashboard
-    participant API as FastAPI Server
-    participant DemoData as Demo Data Generator
-    participant Classifier as PQC Classifier
-    participant Assessor as Assessment Engine
-    participant Labeler as Certification Labeler
-    participant Attestor as CDXA Attestor
-    participant Notifier as Alert Notifier
+    participant Landing as Landing Page
+    participant Dashboard as Dashboard SPA
+    participant API as FastAPI app.py
+    participant Cache as Mode Cache
+    participant Pipeline as run_pipeline()
 
-    User->>Browser: Click "Run Demo Scan"
-    Browser->>API: GET /api/scan/demo
-    API->>DemoData: generate_demo_results()
-    loop For each of 21 demo assets
-        DemoData->>Classifier: classify(fingerprint)
-        Classifier-->>DemoData: QScore + PQCStatus
+    User->>Landing: Open /static/landing.html
+    User->>Landing: Click "Launch Scanner"
+    Landing->>Dashboard: Navigate to /dashboard
+    Dashboard->>API: GET /api/home/summary?mode=demo
+    API->>Cache: Check mode/domain cache
+    alt Cache miss or refresh
+      API->>Pipeline: Execute unified pipeline
+      Pipeline-->>API: PipelineResult
+      API->>Cache: Store result + context
     end
-    DemoData-->>API: ScanSummary (21 results)
-    API-->>Browser: JSON response
-    Browser->>Browser: renderDashboard()
-    Browser->>Browser: renderStats(), renderTable()
+    API-->>Dashboard: Summary payload
 
-    Browser->>API: GET /api/assess
-    API->>Assessor: analyze_batch(summary)
-    Assessor-->>API: Assessments + Aggregate KPIs
-    API-->>Browser: Assessment JSON
+    par Dashboard widgets
+      Dashboard->>API: GET /api/assets/network-graph?mode=demo
+      Dashboard->>API: GET /api/pqc/heatmap?mode=demo
+      Dashboard->>API: GET /api/cyber-rating?mode=demo
+      Dashboard->>API: GET /api/pqc/negotiation?mode=demo
+    end
 
-    Browser->>API: GET /api/labels/phase4
-    API->>Labeler: evaluate_and_label(assessments)
-    Labeler-->>API: Labels + Summary
-    API-->>Browser: Labels JSON
-
-    Browser->>API: GET /api/attestation/summary
-    API->>Attestor: generate_attestation(assessments)
-    Attestor->>Attestor: Sign with Ed25519
-    Attestor-->>API: CDXA document
-    API-->>Browser: Attestation Summary
-
-    Browser->>API: GET /api/alerts
-    API->>Notifier: detect_alerts(assessments, labels)
-    Notifier-->>API: Alert list
-    API-->>Browser: Alerts JSON
-    Browser->>Browser: renderAlerts()
+    API-->>Dashboard: Widget data (demo_mode + source metadata)
 ```
 
-#### Real Domain Scan Sequence
+#### Live Domain Sequence
 
 ```mermaid
 sequenceDiagram
     actor User
-    participant CLI as CLI Scanner
-    participant Discoverer as Asset Discoverer
-    participant DNS as DNS Server
-    participant CTLog as CT Log API
-    participant Prober as TLS Prober
-    participant Target as Target Server
-    participant OpenSSL as openssl subprocess
-    participant Classifier as PQC Classifier
+    participant Dashboard as Dashboard SPA
+    participant API as FastAPI app.py
+    participant Pipeline as run_pipeline(mode=live)
+    participant Scanner as scanner modules
+    participant Targets as DNS + CT + TLS endpoints
 
-    User->>CLI: scan.py -t example.com --discover
-    CLI->>Discoverer: discover_assets("example.com")
-    Discoverer->>DNS: A/AAAA lookup
-    DNS-->>Discoverer: IP addresses
-    Discoverer->>CTLog: Query CT logs
-    CTLog-->>Discoverer: Subdomain list
-    Discoverer-->>CLI: DiscoveredAsset[]
-
-    loop For each asset (parallel async)
-        CLI->>Prober: probe_tls(hostname, port)
-        Prober->>Target: Python SSL handshake
-        Target-->>Prober: TLS session + certificate
-        Prober->>OpenSSL: s_client -brief -servername
-        OpenSSL->>Target: TLS handshake
-        Target-->>OpenSSL: ServerHello + negotiated group
-        OpenSSL-->>Prober: KEX group, cipher, version
-        Prober-->>CLI: CryptoFingerprint
-
-        CLI->>Classifier: classify(fingerprint)
-        Classifier-->>CLI: QScore
-    end
-
-    CLI->>CLI: Print results (rich table)
-    CLI->>CLI: Write output file (JSON/CBOM)
+    User->>Dashboard: Set mode=live, domain=example.com
+    Dashboard->>API: GET /api/home/summary?mode=live&domain=example.com
+    API->>Pipeline: run_pipeline(mode="live", domain="example.com")
+    Pipeline->>Scanner: discover + probe + classify + regress + cbom + label + attest
+    Scanner->>Targets: Network discovery and tri-mode negotiation
+    Targets-->>Scanner: Fingerprints and cert metadata
+    Scanner-->>Pipeline: Structured outputs
+    Pipeline-->>API: PipelineResult
+    API-->>Dashboard: Live summary + demo_mode=false
 ```
 
 ### Workflow Diagram
 
 ```mermaid
 graph LR
-    subgraph "Phase 1"
-        A1["Discover<br/>Assets"] --> A2["Probe<br/>TLS"] --> A3["Classify<br/>PQC"]
-    end
-
-    subgraph "Phase 2"
-        B1["Assess vs<br/>NIST Matrix"] --> B2["Generate<br/>Remediation"]
-    end
-
-    subgraph "Phase 3"
-        C1["Generate<br/>CycloneDX CBOM"]
-    end
-
-    subgraph "Phase 4"
-        D1["Assign<br/>Certification<br/>Labels"]
-    end
-
-    subgraph "Phase 5"
-        E1["Generate & Sign<br/>CDXA Attestation"]
-        E2["Detect Alerts<br/>& Notify"]
-        E3["CI/CD<br/>Gate Check"]
-    end
-
-    subgraph "Phase 6"
-        F1["Tri-Mode Probing<br/>(A/B/C Profiles)"] --> F2["History &<br/>Baseline Tracking"]
-    end
-
-    subgraph "Phase 7"
-        G1["5-Dim Classify<br/>(TLS+KEX+Cert+Cipher+Agility)"] --> G2["Agility<br/>Assessment"]
-        G2 --> G3["SQLite<br/>Persistence"]
-    end
-
-    A3 --> B1
-    A3 --> C1
-    B1 --> B2
-    B1 --> D1
-    B1 --> C1
-    D1 --> E1
-    B1 --> E2
-    B1 --> E3
-    A3 --> F1
-    F1 --> F2
-    F1 --> G1
+    A["Request<br/>mode + domain"] --> B["Discover + Tri-Mode Probe"]
+    B --> C["Negotiation Policy"]
+    C --> D["Classification + Agility"]
+    D --> E["Regression Detection"]
+    E --> F["Heatmap + Cyber Rating"]
+    F --> G["CBOM v2"]
+    G --> H["Labels + Registry"]
+    H --> I["CDXA v2 Attestation"]
+    I --> J["Alerts + Reporting"]
+    J --> K["Persist to SQLite"]
+    K --> L["Dashboard/API Responses"]
 ```
 
 ### ASCII Workflow Flowchart
 
 ```
- ╔══════════════════════════════════════════════════════════════════════════╗
- ║                    Q-ARMOR v7.0.0 — System Workflow                     ║
- ╚══════════════════════════════════════════════════════════════════════════╝
+ Q-ARMOR Current Workflow (Demo + Live)
 
-          ┌─────────────────────────┐   ┌─────────────────────────┐
-          │   CLI Scanner (scan.py) │   │  Web Dashboard (SPA)    │
-          │   --target / --list     │   │  http://localhost:8000  │
-          └────────────┬────────────┘   └────────────┬────────────┘
-                       │                             │
-                       └──────────────┬──────────────┘
-                                      │
-                                      ▼
-                       ┌──────────────────────────────┐
-                       │   FastAPI REST API            │
-                       │   backend/app.py              │
-                       │   (20+ endpoints)             │
-                       └──────────────┬───────────────┘
-                                      │
- ┌────────────────────────────────────▼─────────────────────────────────┐
- │                  PHASE 1 — Discovery & Analysis                       │
- │                                                                       │
- │  ┌─────────────────┐    ┌──────────────────┐    ┌─────────────────┐  │
- │  │  1. Discoverer  │───▶│  2. TLS Prober   │───▶│  3. Classifier  │  │
- │  │  DNS A/AAAA     │    │  Python ssl      │    │  Q-Score 0–100  │  │
- │  │  CT Log (crt.sh)│    │  openssl s_client│    │  5-Tier Status  │  │
- │  │  Port Scanner   │    │  Cert Parser     │    │  FIPS 203/204   │  │
- │  │  discoverer.py  │    │  prober.py       │    │  classifier.py  │  │
- │  └─────────────────┘    └──────────────────┘    └────────┬────────┘  │
- └─────────────────────────────────────────────────────────┬┘           │
-         │                                                 │             │
-         │                             ScanResult[]        │             │
-         └─────────────────────────────────────────────────┘            │
-                                      │
- ┌────────────────────────────────────▼─────────────────────────────────┐
- │                  PHASE 2 — Assessment & Remediation                   │
- │                                                                       │
- │  ┌────────────────────────┐       ┌─────────────────────────────┐    │
- │  │  4. Assessment Engine  │──────▶│  5. Remediation Generator   │    │
- │  │  4-Dimension NIST eval │       │  P1 Immediate (0–30 days)   │    │
- │  │  HIGH / MEDIUM / LOW   │       │  P2 Short-Term (3 months)   │    │
- │  │  HNDL detection        │       │  P3 Medium-Term (6 months)  │    │
- │  │  nist_matrix.py        │       │  P4 Strategic (12+ months)  │    │
- │  │  assessment.py         │       │  remediation.py             │    │
- │  └────────────────────────┘       └─────────────────────────────┘    │
- └────────────────────────────────────┬─────────────────────────────────┘
-                                      │ Assessments[]
- ┌────────────────────────────────────▼─────────────────────────────────┐
- │                  PHASE 3 — CBOM Generation                            │
- │                                                                       │
- │  ┌───────────────────────────────────────────────────────────────┐   │
- │  │  6. CycloneDX 1.6 CBOM Generator                             │   │
- │  │  Crypto components + protocol + cipher + KEX properties       │   │
- │  │  cbom_generator.py  →  Output: cbom.json                     │   │
- │  └───────────────────────────────────────────────────────────────┘   │
- └────────────────────────────────────┬─────────────────────────────────┘
-                                      │ CBOM JSON
- ┌────────────────────────────────────▼─────────────────────────────────┐
- │                  PHASE 4 — Certification Labeling                     │
- │                                                                       │
- │  ┌───────────────────────────────────────────────────────────────┐   │
- │  │  7. 3-Tier Certification Labeler                              │   │
- │  │                                                               │   │
- │  │   Tier 1: ✅ Fully Quantum Safe  (TLS 1.3 + pure PQC KEM)   │   │
- │  │   Tier 2: 🔄 PQC Ready          (TLS 1.3 + hybrid KEX)      │   │
- │  │   Tier 3: ❌ Non-Compliant       (classical crypto only)     │   │
- │  │                                                               │   │
- │  │   labeler.py                                                  │   │
- │  └───────────────────────────────────────────────────────────────┘   │
- └────────────────────────────────────┬─────────────────────────────────┘
-                                      │ Labels[]
- ┌────────────────────────────────────▼─────────────────────────────────┐
- │                  PHASE 5 — Compliance & Automation                    │
- │                                                                       │
- │  ┌────────────────┐   ┌───────────────────┐   ┌──────────────────┐  │
- │  │  8. Attestor   │   │  9. Notifier      │   │  10. CI/CD Gate  │  │
- │  │  CDXA document │   │  Alert detection  │   │  --ci flag       │  │
- │  │  Ed25519 sign  │   │  Slack webhook    │   │  exit(0) = pass  │  │
- │  │  90-day valid  │   │  Teams webhook    │   │  exit(1) = fail  │  │
- │  │  attestor.py   │   │  notifier.py      │   │  (HIGH risk)     │  │
- │  └───────┬────────┘   └────────┬──────────┘   └─────────┬────────┘  │
- └──────────┼──────────────────────┼───────────────────────┼────────────┘
-            │                      │                       │
- ┌──────────▼──────────────────────▼───────────────────────▼────────────┐
- │                  PHASE 6 — Tri-Mode Probing & History                 │
- │                                                                       │
- │  ┌─────────────────────────────────┐    ┌───────────────────────────┐│
- │  │  11. Tri-Mode Engine            │───▶│  12. Historical Tracker   ││
- │  │  Probe A: PQC (ML-KEM)          │    │  4-Week Trend Analysis    ││
- │  │  Probe B: Classic (TLS 1.3)     │    │  1-Week Baseline Compare  ││
- │  │  Probe C: Downgrade (TLS 1.2)   │    │  Q-Score Delta tracking   ││
- │  │  prober.py                      │    │  app.py                   ││
- │  └─────────────────────────────────┘    └───────────────────────────┘│
- └────────────────────────────────────┬─────────────────────────────────┘
-                                      │
- ┌────────────────────────────────────▼─────────────────────────────────┐
- │                  PHASE 7 — Classification + Agility + Database        │
- │                                                                       │
- │  ┌──────────────────┐  ┌──────────────────┐  ┌──────────────────┐   │
- │  │  13. Phase 7     │  │  14. Agility     │  │  15. SQLite DB   │   │
- │  │  Classifier      │  │  Assessor        │  │  WAL-mode        │   │
- │  │  5-dim Q-Score   │  │  CDN detection   │  │  4 tables:       │   │
- │  │  Best / Typical  │  │  ACME CA         │  │  scans           │   │
- │  │  / Worst case    │  │  Protocol flex   │  │  asset_scores    │   │
- │  │  classify_trimode│  │  SAN diversity   │  │  labels          │   │
- │  │  classifier.py   │  │  agility.py      │  │  alerts          │   │
- │  └────────┬─────────┘  └────────┬─────────┘  │  database.py     │   │
- │           └─────────────────────┴────────────▶│  data/scanner.db │   │
- │                                               └──────────────────┘   │
- └────────────────────────────────────┬─────────────────────────────────┘
-                                      │
-                                      ▼
- ┌──────────────────────────────────────────────────────────────────────┐
- │                          Final Outputs                               │
- │                                                                      │
- │  📊 Dashboard         Tri-Mode & History UI visualization           │
- │  📄 CBOM JSON         CycloneDX 1.6 cryptographic inventory         │
- │  🔏 CDXA Attestation  Ed25519-signed NIST FIPS compliance doc       │
- │  🔔 Webhook Alerts    Slack / Microsoft Teams notifications         │
- │  🚦 CI/CD Exit Code   0 = safe  |  1 = HIGH quantum risk detected   │
- └──────────────────────────────────────────────────────────────────────┘
+   Landing (/static/landing.html)
+              |
+              v
+   Dashboard (/ and /dashboard) OR CLI scan.py
+              |
+              v
+    FastAPI app.py (mode/domain-aware APIs)
+              |
+              v
+    Unified Pipeline backend/pipeline.py
+      1) Discover + Tri-Mode Probe
+      2) Negotiation + Classification + Agility
+      3) Regression + Heatmap + Cyber Rating
+      4) CBOM v2 + Labels + Registry
+      5) Attestation v2 + Alerts + Reporting
+      6) SQLite persistence (scan history)
+              |
+              v
+     JSON APIs + Reports + Dashboard Widgets
 ```
+
+For separate docs, see:
+
+- `docs/architecture.md`
+- `docs/diagrams.md`
 
 ---
 
@@ -1075,38 +854,46 @@ graph LR
 PNB/
 ├── backend/
 │   ├── __init__.py                 # Package marker
-│   ├── app.py                      # FastAPI application (45+ endpoints, v9.0.0)
-│   ├── demo_data.py                # 21 simulated bank assets + baseline
-│   ├── models.py                   # 18 Pydantic schemas (incl. RegressionReport, PQCLabelV9, LabelSummary)
+│   ├── app.py                      # FastAPI API + static mounts + mode-aware endpoints
+│   ├── pipeline.py                 # Unified demo/live orchestration pipeline
+│   ├── cyber_rating.py             # Enterprise cyber-rating computation
+│   ├── demo_data.py                # Demo assets and visualization seed data
+│   ├── models.py                   # Pydantic models for scans and dashboard payloads
 │   └── scanner/
 │       ├── __init__.py
-│       ├── discoverer.py           # Phase 1: DNS + CT log asset discovery
-│       ├── prober.py               # Phase 1+6: TLS handshake & tri-mode probing
-│       ├── classifier.py           # Phase 1+7: Q-Score engine (legacy 4-dim + Phase 7 5-dim)
-│       ├── nist_matrix.py          # Phase 2+7: NIST algorithm reference + ALGORITHM_STATUS dict
-│       ├── assessment.py           # Phase 2: 4-dimension PQC assessment engine
-│       ├── remediation.py          # Phase 2: P1-P4 remediation generator
-│       ├── cbom_generator.py       # Phase 3+8: CycloneDX 1.6/1.7 CBOM with pqcAssessment ext
-│       ├── label_issuer.py         # Phase 1: PQC-Ready label issuance
-│       ├── labeler.py              # Phase 4+9: 3-tier certification labeling (ClassifiedAsset-based)
-│       ├── attestor.py             # Phase 5+9: CDXA v2 + Ed25519 signing + FIPS compliance claims
-│       ├── notifier.py             # Phase 5: Slack/Teams webhook alerts
-│       ├── agility_assessor.py     # Phase 7: 5-indicator crypto-agility scoring
-│       ├── database.py             # Phase 7: SQLite persistence (4 tables, WAL mode)
-│       ├── regression_detector.py  # Phase 8: Cross-scan regression detection (3 categories)
-│       └── label_registry.py       # Phase 9: Append-only label registry + auto-revoke + FastAPI router
+│       ├── discoverer.py           # Domain/IP discovery via DNS + CT logs
+│       ├── prober.py               # TLS probing and tri-mode fingerprints
+│       ├── negotiation_policy.py   # Negotiation tier analysis + heatmap logic
+│       ├── classifier.py           # Q-score and PQC status classification
+│       ├── agility_assessor.py     # Crypto-agility scoring indicators
+│       ├── regression_detector.py  # Cross-scan drift and regression detection
+│       ├── cbom_generator.py       # CycloneDX 1.7 CBOM generation
+│       ├── labeler.py              # Label generation and summary logic
+│       ├── label_registry.py       # Registry append/list/verify/revoke helpers
+│       ├── attestor.py             # CDXA v2 attestations and signature verification
+│       ├── notifier.py             # Alert detection and webhook notifications
+│       ├── database.py             # SQLite persistence layer
+│       ├── assessment.py           # NIST posture evaluation endpoints support
+│       ├── remediation.py          # Remediation roadmap generation
+│       ├── nist_matrix.py          # NIST algorithm support matrix
+│       └── label_issuer.py         # Legacy label compatibility utilities
 ├── data/
-│   └── scanner.db                  # Auto-created SQLite database (Phase 7)
+│   └── scanner.db                  # Auto-created SQLite database
 ├── frontend/
-│   ├── index.html                  # Dashboard SPA (8 tabs, Phase 1-9)
+│   ├── landing.html                # Marketing/entry landing page with cyber-grid background
+│   ├── index.html                  # Dashboard SPA
 │   ├── css/
 │   │   └── styles.css              # Dark-themed responsive styles
 │   └── js/
 │       └── app.js                  # Dashboard logic and API integration
+├── docs/
+│   ├── architecture.md             # Updated architecture overview
+│   └── diagrams.md                 # Updated Mermaid diagrams and flows
 ├── tests/
-│   └── test_classifier.py          # 21 automated tests
+│   └── test_classifier.py          # Classification unit tests
 ├── .keys/                          # Auto-generated Ed25519 signing keys
 ├── run.py                          # Web server entry point (uvicorn)
+├── scan.py                         # CLI scanner entry point
 ├── requirements.txt                # Python dependencies
 └── README.md                       # This document
 ```
@@ -1144,6 +931,11 @@ python run.py
 ```
 
 Open `http://localhost:8000` in a browser and click **"Run Demo Scan"**.
+
+Also available:
+
+- Landing page: `http://localhost:8000/static/landing.html`
+- Dashboard alias: `http://localhost:8000/dashboard`
 
 ### Run the CLI Scanner
 

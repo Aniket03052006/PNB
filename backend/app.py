@@ -1,9 +1,13 @@
 """Q-ARMOR — FastAPI Application (v9.0.0)."""
 
 from __future__ import annotations
+import asyncio
+import hashlib
 import json
 import os
+from datetime import datetime, timezone
 from pathlib import Path
+from typing import Any
 from fastapi import FastAPI, HTTPException
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse, JSONResponse
@@ -16,8 +20,15 @@ from backend.demo_data import (
     DEMO_TRIMODE_FINGERPRINTS,
     get_demo_baseline_fingerprints,
     get_historical_scan_summaries,
+    get_demo_domain_assets,
+    get_demo_ssl_assets,
+    get_demo_ip_assets,
+    get_demo_software_assets,
+    get_demo_network_graph,
     _trimode_to_crypto,
 )
+from backend.cyber_rating import TIER_CRITERIA
+from backend.pipeline import run_pipeline
 from backend.scanner.cbom_generator import generate_cbom, generate_cbom_v2
 from backend.scanner.classifier import classify, classify_trimode
 from backend.scanner.prober import probe_tls, probe_trimode, probe_batch
@@ -71,6 +82,358 @@ _latest_scan: ScanSummary | None = None
 _latest_trimode: list[TriModeFingerprint] = []
 _latest_classified: list[ClassifiedAsset] = []
 _latest_phase9: dict = {}
+_latest_pipeline_result: dict[str, Any] = {}
+_latest_pipeline_context: dict[str, Any] = {"mode": "demo", "domain": None}
+
+
+def _data_notice(demo_mode: bool) -> str:
+    return "SIMULATED DATA" if demo_mode else "LIVE DATA"
+
+
+def _normalize_pipeline_mode(mode: str | None) -> str:
+    normalized = (mode or "demo").strip().lower()
+    if normalized not in {"demo", "live"}:
+        raise HTTPException(status_code=400, detail="mode must be one of: demo, live")
+    return normalized
+
+
+def _status_to_asset_state(status: str) -> str:
+    if status in {"FULLY_QUANTUM_SAFE", "PQC_TRANSITION"}:
+        return "confirmed"
+    if status in {"QUANTUM_VULNERABLE", "CRITICALLY_VULNERABLE"}:
+        return "new"
+    return "review"
+
+
+def _status_to_display_tier(status: str) -> str:
+    mapping = {
+        "FULLY_QUANTUM_SAFE": "Elite-PQC",
+        "PQC_TRANSITION": "Standard",
+        "QUANTUM_VULNERABLE": "Legacy",
+        "CRITICALLY_VULNERABLE": "Critical",
+        "UNKNOWN": "Unclassified",
+    }
+    return mapping.get(status, "Unclassified")
+
+
+def _company_from_hostname(hostname: str) -> str:
+    parts = [p for p in hostname.split(".") if p]
+    if len(parts) >= 2:
+        return parts[-2].upper()
+    return "LIVE"
+
+
+def _pipeline_detection_date(pipeline_result: dict[str, Any]) -> str:
+    ts = str(pipeline_result.get("timestamp", ""))
+    if ts:
+        return ts.split("T")[0]
+    return datetime.now(timezone.utc).date().isoformat()
+
+
+def _live_domain_assets(pipeline_result: dict[str, Any]) -> list[dict[str, Any]]:
+    detection_date = _pipeline_detection_date(pipeline_result)
+    records: list[dict[str, Any]] = []
+    for asset in pipeline_result.get("assets", []):
+        host = str(asset.get("hostname", ""))
+        if not host:
+            continue
+        records.append({
+            "detection_date": detection_date,
+            "domain_name": host,
+            "registration_date": "",
+            "registrar": "Live DNS/CT Discovery",
+            "company_name": _company_from_hostname(host),
+            "status": _status_to_asset_state(str(asset.get("status", "UNKNOWN"))),
+        })
+    return records
+
+
+def _live_ssl_assets(pipeline_result: dict[str, Any]) -> list[dict[str, Any]]:
+    detection_date = _pipeline_detection_date(pipeline_result)
+    records: list[dict[str, Any]] = []
+    for asset in pipeline_result.get("assets", []):
+        host = str(asset.get("hostname", ""))
+        if not host:
+            continue
+        fp_hash = hashlib.sha1(host.encode("utf-8")).hexdigest()
+        records.append({
+            "detection_date": detection_date,
+            "ssl_sha_fingerprint": fp_hash,
+            "valid_from": detection_date,
+            "common_name": host,
+            "company_name": _company_from_hostname(host),
+            "certificate_authority": str(asset.get("cert_algorithm") or "Unknown"),
+        })
+    return records
+
+
+def _live_ip_assets(pipeline_result: dict[str, Any]) -> list[dict[str, Any]]:
+    detection_date = _pipeline_detection_date(pipeline_result)
+    dedup: dict[str, dict[str, Any]] = {}
+
+    for asset in pipeline_result.get("assets", []):
+        ip = str(asset.get("ip") or "").strip()
+        if not ip:
+            continue
+        port = int(asset.get("port", 443))
+        if ip not in dedup:
+            dedup[ip] = {
+                "detection_date": detection_date,
+                "ip_address": ip,
+                "ports": [port],
+                "subnet": "",
+                "asn": "",
+                "netname": "Live Discovery",
+                "location": "",
+                "company": _company_from_hostname(str(asset.get("hostname", ""))),
+            }
+        elif port not in dedup[ip]["ports"]:
+            dedup[ip]["ports"].append(port)
+
+    return list(dedup.values())
+
+
+def _live_software_assets(pipeline_result: dict[str, Any]) -> list[dict[str, Any]]:
+    detection_date = _pipeline_detection_date(pipeline_result)
+    records: list[dict[str, Any]] = []
+    for asset in pipeline_result.get("assets", []):
+        host = str(asset.get("hostname", ""))
+        if not host:
+            continue
+        records.append({
+            "detection_date": detection_date,
+            "product": str(asset.get("key_exchange") or "Crypto Stack"),
+            "version": str(asset.get("tls_version") or ""),
+            "type": "CryptoProfile",
+            "port": int(asset.get("port", 443)),
+            "host": host,
+            "company_name": _company_from_hostname(host),
+        })
+    return records
+
+
+def _live_network_graph(pipeline_result: dict[str, Any]) -> dict[str, Any]:
+    nodes: list[dict[str, Any]] = []
+    edges: list[dict[str, str]] = []
+    ip_nodes: set[str] = set()
+    domain_nodes: list[str] = []
+
+    for asset in pipeline_result.get("assets", []):
+        host = str(asset.get("hostname", "")).strip()
+        if not host:
+            continue
+
+        status = str(asset.get("status", "UNKNOWN"))
+        ip = str(asset.get("ip") or "").strip()
+
+        nodes.append({
+            "id": host,
+            "label": host.split(".")[0] if "." in host else host,
+            "type": "domain",
+            "pqc_status": status,
+            "display_tier": _status_to_display_tier(status),
+            "ip_address": ip,
+        })
+        domain_nodes.append(host)
+
+        if ip:
+            ip_id = f"ip-{ip}"
+            if ip_id not in ip_nodes:
+                nodes.append({
+                    "id": ip_id,
+                    "label": ip,
+                    "type": "ip",
+                    "pqc_status": status,
+                    "display_tier": _status_to_display_tier(status),
+                    "ip_address": ip,
+                })
+                ip_nodes.add(ip_id)
+            edges.append({"source": host, "target": ip_id})
+
+    for idx in range(len(domain_nodes) - 1):
+        edges.append({"source": domain_nodes[idx], "target": domain_nodes[idx + 1]})
+
+    return {"nodes": nodes, "edges": edges}
+
+
+def _derive_asset_discovery_payload(pipeline_result: dict[str, Any]) -> dict[str, Any]:
+    demo_mode = pipeline_result.get("mode") == "demo"
+    return {
+        "domains": get_demo_domain_assets() if demo_mode else _live_domain_assets(pipeline_result),
+        "ssl": get_demo_ssl_assets() if demo_mode else _live_ssl_assets(pipeline_result),
+        "ip": get_demo_ip_assets() if demo_mode else _live_ip_assets(pipeline_result),
+        "software": get_demo_software_assets() if demo_mode else _live_software_assets(pipeline_result),
+        "network_graph": get_demo_network_graph() if demo_mode else _live_network_graph(pipeline_result),
+    }
+
+
+async def _ensure_latest_pipeline_result(
+    *,
+    mode: str = "demo",
+    domain: str | None = None,
+    force_refresh: bool = False,
+) -> dict[str, Any]:
+    """Return the latest pipeline result, generating requested mode if needed."""
+    global _latest_pipeline_result, _latest_pipeline_context
+
+    requested_mode = _normalize_pipeline_mode(mode)
+    requested_domain = (domain or "").strip() or None
+
+    if requested_mode == "live" and not requested_domain:
+        cached_mode = _latest_pipeline_context.get("mode")
+        cached_domain = _latest_pipeline_context.get("domain")
+        if cached_mode == "live" and cached_domain:
+            requested_domain = str(cached_domain)
+        else:
+            raise HTTPException(status_code=400, detail="domain is required when mode=live")
+
+    if (
+        not force_refresh
+        and _latest_pipeline_result
+        and _latest_pipeline_context.get("mode") == requested_mode
+        and _latest_pipeline_context.get("domain") == requested_domain
+    ):
+        return _latest_pipeline_result
+
+    result = await run_pipeline(mode=requested_mode, domain=requested_domain)
+    _latest_pipeline_result = result.model_dump(mode="json")
+    _latest_pipeline_context = {"mode": requested_mode, "domain": requested_domain}
+    return _latest_pipeline_result
+
+
+def _compute_home_summary(pipeline_result: dict[str, Any]) -> dict[str, Any]:
+    """Assemble the home dashboard summary payload."""
+    assets = pipeline_result.get("assets", [])
+    enterprise = pipeline_result.get("enterprise_cyber_rating", {})
+    cbom = pipeline_result.get("cbom", {})
+    demo_mode = pipeline_result.get("mode") == "demo"
+
+    total_assets = len(assets)
+    fully_safe = sum(1 for a in assets if a.get("status") == "FULLY_QUANTUM_SAFE")
+    transition = sum(1 for a in assets if a.get("status") == "PQC_TRANSITION")
+
+    if demo_mode:
+        domain_count = 212450
+        ip_count = 48192
+        subdomain_count = 84671
+        cloud_asset_count = 13372
+        ssl_cert_count = 8761
+        software_count = 13211
+        iot_device_count = 3854
+        login_form_count = 1198
+        vulnerable_component_count = 8248
+        total_applications = 13211
+        weak_crypto_count = 5176
+    else:
+        components = cbom.get("components", [])
+        vulnerabilities = cbom.get("vulnerabilities", [])
+        domain_count = total_assets
+        ip_count = total_assets
+        subdomain_count = total_assets
+        cloud_asset_count = 0
+        ssl_cert_count = total_assets
+        software_count = len(components)
+        iot_device_count = 0
+        login_form_count = 0
+        vulnerable_component_count = len(vulnerabilities)
+        total_applications = len(components)
+        weak_crypto_count = sum(
+            1 for a in assets if a.get("status") in {"QUANTUM_VULNERABLE", "CRITICALLY_VULNERABLE"}
+        )
+
+    pqc_adoption_pct = round((fully_safe / total_assets) * 100, 1) if total_assets else 0.0
+    transition_pct = round((transition / total_assets) * 100, 1) if total_assets else 0.0
+
+    return {
+        "asset_discovery_summary": {
+            "domain_count": domain_count,
+            "ip_count": ip_count,
+            "subdomain_count": subdomain_count,
+            "cloud_asset_count": cloud_asset_count,
+        },
+        "cyber_rating_summary": {
+            "enterprise_score": int(enterprise.get("enterprise_score", 0)),
+            "tier": str(enterprise.get("tier", "Unknown")),
+        },
+        "assets_inventory_summary": {
+            "ssl_cert_count": ssl_cert_count,
+            "software_count": software_count,
+            "iot_device_count": iot_device_count,
+            "login_form_count": login_form_count,
+        },
+        "posture_of_pqc": {
+            "pqc_adoption_pct": pqc_adoption_pct,
+            "transition_pct": transition_pct,
+        },
+        "cbom_summary": {
+            "vulnerable_component_count": vulnerable_component_count,
+            "total_applications": total_applications,
+            "weak_crypto_count": weak_crypto_count,
+        },
+        "demo_mode": demo_mode,
+        "data_notice": _data_notice(demo_mode),
+    }
+
+
+def _build_report_section(report_type: str, pipeline_result: dict[str, Any]) -> dict[str, Any]:
+    """Build a report section for the reporting API."""
+    home_summary = _compute_home_summary(pipeline_result)
+    assets_payload = _derive_asset_discovery_payload(pipeline_result)
+
+    if report_type == "executive":
+        return {
+            "home_summary": home_summary,
+            "enterprise_cyber_rating": pipeline_result.get("enterprise_cyber_rating", {}),
+            "heatmap": pipeline_result.get("heatmap", {}),
+        }
+
+    if report_type == "discovery":
+        return {
+            "domains": assets_payload["domains"],
+            "ip_assets": assets_payload["ip"],
+            "network_graph": assets_payload["network_graph"],
+            "summary": home_summary.get("asset_discovery_summary", {}),
+        }
+
+    if report_type == "inventory":
+        return {
+            "ssl_assets": assets_payload["ssl"],
+            "software_assets": assets_payload["software"],
+            "summary": home_summary.get("assets_inventory_summary", {}),
+        }
+
+    if report_type == "cbom":
+        return {
+            "cbom": pipeline_result.get("cbom", {}),
+            "summary": home_summary.get("cbom_summary", {}),
+        }
+
+    if report_type == "posture":
+        return {
+            "posture_of_pqc": home_summary.get("posture_of_pqc", {}),
+            "heatmap": pipeline_result.get("heatmap", {}),
+            "negotiation_policies": pipeline_result.get("negotiation_policies", {}),
+        }
+
+    if report_type == "cyber_rating":
+        return {
+            "cyber_rating": pipeline_result.get("enterprise_cyber_rating", {}),
+            "tier_criteria": TIER_CRITERIA,
+        }
+
+    raise HTTPException(status_code=400, detail=f"Unsupported report_type: {report_type}")
+
+
+def _render_report_html(report_type: str, data: dict[str, Any]) -> str:
+    """Render a minimal HTML wrapper for report payloads."""
+    pretty = json.dumps(data, indent=2, default=str)
+    return (
+        "<html><head><title>Q-ARMOR Report</title></head>"
+        "<body><h1>Q-ARMOR Report</h1>"
+        f"<h2>{report_type.title()}</h2>"
+        f"<pre>{pretty}</pre>"
+        "</body></html>"
+    )
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -80,6 +443,12 @@ async def serve_dashboard():
     if not index_file.exists():
         raise HTTPException(status_code=404, detail="Dashboard not found")
     return HTMLResponse(content=index_file.read_text())
+
+
+@app.get("/dashboard", response_class=HTMLResponse)
+async def serve_dashboard_alias():
+    """Serve dashboard on /dashboard for landing-page CTAs."""
+    return await serve_dashboard()
 
 
 @app.get("/api/health")
@@ -1123,3 +1492,158 @@ async def phase9_attestation():
     if not _latest_phase9:
         raise HTTPException(status_code=404, detail="Run /api/phase9/demo first.")
     return JSONResponse(content=_latest_phase9.get("attestation", {}))
+
+
+# ── New Dashboard/Data APIs ─────────────────────────────────────────────────
+
+@app.get("/api/home/summary")
+async def api_home_summary(mode: str = "demo", domain: str | None = None, refresh: bool = False):
+    """Return aggregate home dashboard summary from the latest pipeline result."""
+    pipeline_result = await _ensure_latest_pipeline_result(mode=mode, domain=domain, force_refresh=refresh)
+    return JSONResponse(content=_compute_home_summary(pipeline_result))
+
+
+@app.get("/api/assets/domains")
+async def api_assets_domains(mode: str = "demo", domain: str | None = None):
+    """Return discovered domain assets for the dashboard."""
+    pipeline_result = await _ensure_latest_pipeline_result(mode=mode, domain=domain)
+    demo_mode = pipeline_result.get("mode") == "demo"
+    assets_payload = _derive_asset_discovery_payload(pipeline_result)
+    return JSONResponse(content={
+        "items": assets_payload["domains"],
+        "demo_mode": demo_mode,
+        "data_notice": _data_notice(demo_mode),
+    })
+
+
+@app.get("/api/assets/ssl")
+async def api_assets_ssl(mode: str = "demo", domain: str | None = None):
+    """Return SSL certificate assets for the dashboard."""
+    pipeline_result = await _ensure_latest_pipeline_result(mode=mode, domain=domain)
+    demo_mode = pipeline_result.get("mode") == "demo"
+    assets_payload = _derive_asset_discovery_payload(pipeline_result)
+    return JSONResponse(content={
+        "items": assets_payload["ssl"],
+        "demo_mode": demo_mode,
+        "data_notice": _data_notice(demo_mode),
+    })
+
+
+@app.get("/api/assets/ip")
+async def api_assets_ip(mode: str = "demo", domain: str | None = None):
+    """Return IP assets for the dashboard."""
+    pipeline_result = await _ensure_latest_pipeline_result(mode=mode, domain=domain)
+    demo_mode = pipeline_result.get("mode") == "demo"
+    assets_payload = _derive_asset_discovery_payload(pipeline_result)
+    return JSONResponse(content={
+        "items": assets_payload["ip"],
+        "demo_mode": demo_mode,
+        "data_notice": _data_notice(demo_mode),
+    })
+
+
+@app.get("/api/assets/software")
+async def api_assets_software(mode: str = "demo", domain: str | None = None):
+    """Return exposed software assets for the dashboard."""
+    pipeline_result = await _ensure_latest_pipeline_result(mode=mode, domain=domain)
+    demo_mode = pipeline_result.get("mode") == "demo"
+    assets_payload = _derive_asset_discovery_payload(pipeline_result)
+    return JSONResponse(content={
+        "items": assets_payload["software"],
+        "demo_mode": demo_mode,
+        "data_notice": _data_notice(demo_mode),
+    })
+
+
+@app.get("/api/assets/network-graph")
+async def api_assets_network_graph(mode: str = "demo", domain: str | None = None):
+    """Return network graph data for the dashboard."""
+    pipeline_result = await _ensure_latest_pipeline_result(mode=mode, domain=domain)
+    demo_mode = pipeline_result.get("mode") == "demo"
+    graph = _derive_asset_discovery_payload(pipeline_result)["network_graph"]
+    graph["demo_mode"] = demo_mode
+    graph["data_notice"] = _data_notice(demo_mode)
+    return JSONResponse(content=graph)
+
+
+@app.get("/api/cyber-rating")
+async def api_cyber_rating(mode: str = "demo", domain: str | None = None):
+    """Return enterprise cyber rating and display metadata."""
+    pipeline_result = await _ensure_latest_pipeline_result(mode=mode, domain=domain)
+    demo_mode = pipeline_result.get("mode") == "demo"
+    rating = dict(pipeline_result.get("enterprise_cyber_rating", {}))
+    rating["tier_criteria"] = TIER_CRITERIA
+    rating["demo_mode"] = demo_mode
+    rating["data_notice"] = _data_notice(demo_mode)
+    return JSONResponse(content=rating)
+
+
+@app.get("/api/pqc/heatmap")
+async def api_pqc_heatmap(mode: str = "demo", domain: str | None = None):
+    """Return PQC migration heatmap data."""
+    pipeline_result = await _ensure_latest_pipeline_result(mode=mode, domain=domain)
+    demo_mode = pipeline_result.get("mode") == "demo"
+    heatmap = dict(pipeline_result.get("heatmap", {}))
+    heatmap["demo_mode"] = demo_mode
+    heatmap["data_notice"] = _data_notice(demo_mode)
+    return JSONResponse(content=heatmap)
+
+
+@app.get("/api/pqc/negotiation")
+async def api_pqc_negotiation_all(mode: str = "demo", domain: str | None = None):
+    """Return all negotiation policy records from the latest pipeline result."""
+    pipeline_result = await _ensure_latest_pipeline_result(mode=mode, domain=domain)
+    demo_mode = pipeline_result.get("mode") == "demo"
+    return JSONResponse(content={
+        "policies": pipeline_result.get("negotiation_policies", {}),
+        "demo_mode": demo_mode,
+        "data_notice": _data_notice(demo_mode),
+    })
+
+
+@app.get("/api/pqc/negotiation/{hostname}")
+async def api_pqc_negotiation_one(hostname: str, mode: str = "demo", domain: str | None = None):
+    """Return a single negotiation policy by hostname."""
+    pipeline_result = await _ensure_latest_pipeline_result(mode=mode, domain=domain)
+    demo_mode = pipeline_result.get("mode") == "demo"
+    policy = pipeline_result.get("negotiation_policies", {}).get(hostname)
+    if not policy:
+        raise HTTPException(status_code=404, detail=f"Negotiation policy not found for {hostname}")
+
+    content = dict(policy)
+    content["demo_mode"] = demo_mode
+    content["data_notice"] = _data_notice(demo_mode)
+    return JSONResponse(content=content)
+
+
+@app.get("/api/reporting/generate")
+async def api_reporting_generate(
+    report_type: str = "executive",
+    format: str = "json",
+    mode: str = "demo",
+    domain: str | None = None,
+    refresh: bool = False,
+):
+    """Generate a report payload from the latest pipeline result."""
+    if format not in {"json", "html"}:
+        raise HTTPException(status_code=400, detail="format must be one of: json, html")
+
+    pipeline_result = await _ensure_latest_pipeline_result(mode=mode, domain=domain, force_refresh=refresh)
+    demo_mode = pipeline_result.get("mode") == "demo"
+    report_data = _build_report_section(report_type, pipeline_result)
+
+    if format == "html":
+        payload_data: dict[str, Any] = {
+            "html": _render_report_html(report_type, report_data),
+            "source": report_data,
+        }
+    else:
+        payload_data = report_data
+
+    return JSONResponse(content={
+        "report_type": report_type,
+        "generated_at": pipeline_result.get("timestamp"),
+        "demo_mode": demo_mode,
+        "data_notice": _data_notice(demo_mode),
+        "data": payload_data,
+    })

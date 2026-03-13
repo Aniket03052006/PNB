@@ -29,6 +29,7 @@ Status thresholds (from worst_case score)
 from __future__ import annotations
 
 import logging
+from typing import Any
 
 from backend.models import (
     ClassifiedAsset,
@@ -335,7 +336,7 @@ CERT_SCORES = {
 CIPHER_STRENGTH_SCORES = {256: 15, 192: 12, 128: 10, 112: 5, 0: 0}
 
 
-def classify(fingerprint: CryptoFingerprint) -> QScore:
+def classify(fingerprint: CryptoFingerprint, negotiation_policy: Any | None = None) -> QScore:
     """Legacy Phase 2 classifier — CryptoFingerprint → QScore (max 100).
 
     Kept for backward compatibility with demo_data, app.py, and Phases 1-6.
@@ -441,6 +442,21 @@ def classify(fingerprint: CryptoFingerprint) -> QScore:
 
     # Total
     score.total = tls_score + kex_score + cert_score + cipher_score
+
+    # Optional negotiation policy boost/penalty (Phase A integration)
+    if negotiation_policy is not None:
+        adjustment = 0
+        try:
+            if isinstance(negotiation_policy, dict):
+                adjustment = int(negotiation_policy.get("negotiation_security_score", 0))
+            else:
+                adjustment = int(getattr(negotiation_policy, "negotiation_security_score", 0))
+        except (TypeError, ValueError):
+            adjustment = 0
+        score.total += adjustment
+
+    # Always clamp final score to valid range
+    score.total = max(0, min(100, int(score.total)))
 
     # Status Classification
     if tls_score == 0 or cert.is_expired:

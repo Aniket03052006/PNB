@@ -557,3 +557,294 @@ def _build_remediation_roadmap(results: list[ScanResult]) -> list[RemediationAct
         ))
 
     return actions
+
+
+def get_demo_domain_assets() -> list[dict[str, str]]:
+    """Return synthetic domain intelligence records for dashboard views."""
+    detection_date = _NOW.date().isoformat()
+    records = [
+        {
+            "domain_name": "proxy.pnb.bank.in",
+            "registration_date": "2019-02-11",
+            "status": "new",
+        },
+        {
+            "domain_name": "postman.pnb.bank.in",
+            "registration_date": "2020-08-22",
+            "status": "confirmed",
+        },
+        {
+            "domain_name": "upload.pnbuniv.net.in",
+            "registration_date": "2021-03-14",
+            "status": "false_positive",
+        },
+        {
+            "domain_name": "www2.pnbrrbkiosk.in",
+            "registration_date": "2018-12-05",
+            "status": "new",
+        },
+        {
+            "domain_name": "www.cos.pnb.bank.in",
+            "registration_date": "2022-07-18",
+            "status": "confirmed",
+        },
+    ]
+
+    return [
+        {
+            "detection_date": detection_date,
+            "domain_name": row["domain_name"],
+            "registration_date": row["registration_date"],
+            "registrar": "National Internet Exchange of India",
+            "company_name": "PNB",
+            "status": row["status"],
+        }
+        for row in records
+    ]
+
+
+def get_demo_ssl_assets() -> list[dict[str, str]]:
+    """Return synthetic certificate-fingerprint asset records."""
+    detection_date = _NOW.date().isoformat()
+    return [
+        {
+            "detection_date": detection_date,
+            "ssl_sha_fingerprint": "5f3a9c8d2e1b4f60718293a4b5c6d7e8f9a0b1c2",
+            "valid_from": "2025-01-10",
+            "common_name": "Generic Cert for WF Ovrd",
+            "company_name": "PNB",
+            "certificate_authority": "Symantec",
+        },
+        {
+            "detection_date": detection_date,
+            "ssl_sha_fingerprint": "0a1b2c3d4e5f67890123456789abcdef01234567",
+            "valid_from": "2025-05-04",
+            "common_name": "Generic Cert for WF Ovrd",
+            "company_name": "PNB",
+            "certificate_authority": "DigiCert",
+        },
+        {
+            "detection_date": detection_date,
+            "ssl_sha_fingerprint": "abcdef1234567890fedcba09876543210fedcba9",
+            "valid_from": "2024-11-30",
+            "common_name": "Generic Cert for WF Ovrd",
+            "company_name": "PNB",
+            "certificate_authority": "Entrust",
+        },
+    ]
+
+
+def get_demo_ip_assets() -> list[dict[str, Any]]:
+    """Return synthetic network-IP intelligence records."""
+    detection_date = _NOW.date().isoformat()
+    rows = [
+        ("103.107.224.11", [443, 8443], "MSFT", "India"),
+        ("103.107.224.29", [443, 4443], "MSFT", "Nashik India"),
+        ("103.107.224.44", [443, 9443], "Quantum-Link-Co", "Chennai India"),
+        ("103.107.224.63", [443], "E2E-Networks-IN", "Leh India"),
+        ("103.107.225.15", [443, 5443], "MSFT", "India"),
+        ("103.107.225.87", [443, 8080], "Quantum-Link-Co", "Nashik India"),
+        ("103.107.226.38", [443, 10443], "E2E-Networks-IN", "Chennai India"),
+        ("103.107.227.52", [443, 7443], "Quantum-Link-Co", "Leh India"),
+    ]
+
+    return [
+        {
+            "detection_date": detection_date,
+            "ip_address": ip,
+            "ports": ports,
+            "subnet": "103.107.224.0/22",
+            "asn": "AS9583",
+            "netname": netname,
+            "location": location,
+            "company": "Punjab National Bank",
+        }
+        for ip, ports, netname, location in rows
+    ]
+
+
+def get_demo_software_assets() -> list[dict[str, Any]]:
+    """Return synthetic exposed software service records."""
+    detection_date = _NOW.date().isoformat()
+    rows = [
+        ("http_server", "2.4.58", 443, "proxy.pnb.bank.in"),
+        ("Apache", "2.4.57", 8443, "postman.pnb.bank.in"),
+        ("IIS", "10.0", 443, "www2.pnbrrbkiosk.in"),
+        ("Microsoft-IIS", "10.0", 9443, "www.cos.pnb.bank.in"),
+        ("OpenResty", "1.27.1.1", 443, "upload.pnbuniv.net.in"),
+        ("nginx", "1.25.5", 7443, "api.pnb.bank.in"),
+    ]
+
+    return [
+        {
+            "detection_date": detection_date,
+            "product": product,
+            "version": version,
+            "type": "WebServer",
+            "port": port,
+            "host": host,
+            "company_name": "PNB",
+        }
+        for product, version, port, host in rows
+    ]
+
+
+def get_demo_network_graph() -> dict[str, list[dict[str, str]]]:
+    """Return a graph model with domain/ip/ssl nodes and relationship edges."""
+    nodes = [
+        # FULLY_QUANTUM_SAFE (3)
+        {
+            "id": "netbanking.bank.com",
+            "label": "netbanking",
+            "type": "domain",
+            "pqc_status": "FULLY_QUANTUM_SAFE",
+            "display_tier": "Elite-PQC",
+            "ip_address": "103.107.224.11",
+        },
+        {
+            "id": "auth.bank.com",
+            "label": "auth",
+            "type": "domain",
+            "pqc_status": "FULLY_QUANTUM_SAFE",
+            "display_tier": "Elite-PQC",
+            "ip_address": "103.107.224.29",
+        },
+        {
+            "id": "ssl-pqc-01",
+            "label": "pqc-cert-01",
+            "type": "ssl",
+            "pqc_status": "FULLY_QUANTUM_SAFE",
+            "display_tier": "Elite-PQC",
+            "ip_address": "103.107.224.11",
+        },
+        # PQC_TRANSITION (3)
+        {
+            "id": "api.bank.com",
+            "label": "api",
+            "type": "domain",
+            "pqc_status": "PQC_TRANSITION",
+            "display_tier": "Standard",
+            "ip_address": "103.107.224.44",
+        },
+        {
+            "id": "mobileapi.bank.com",
+            "label": "mobileapi",
+            "type": "domain",
+            "pqc_status": "PQC_TRANSITION",
+            "display_tier": "Standard",
+            "ip_address": "103.107.225.15",
+        },
+        {
+            "id": "ssl-hybrid-01",
+            "label": "hybrid-cert-01",
+            "type": "ssl",
+            "pqc_status": "PQC_TRANSITION",
+            "display_tier": "Standard",
+            "ip_address": "103.107.224.44",
+        },
+        # QUANTUM_VULNERABLE (3)
+        {
+            "id": "swift.bank.com",
+            "label": "swift",
+            "type": "domain",
+            "pqc_status": "QUANTUM_VULNERABLE",
+            "display_tier": "Legacy",
+            "ip_address": "103.107.225.87",
+        },
+        {
+            "id": "loans.bank.com",
+            "label": "loans",
+            "type": "domain",
+            "pqc_status": "QUANTUM_VULNERABLE",
+            "display_tier": "Legacy",
+            "ip_address": "103.107.226.38",
+        },
+        {
+            "id": "ip-103.107.224.63",
+            "label": "edge-ip-63",
+            "type": "ip",
+            "pqc_status": "QUANTUM_VULNERABLE",
+            "display_tier": "Legacy",
+            "ip_address": "103.107.224.63",
+        },
+        # CRITICALLY_VULNERABLE (3)
+        {
+            "id": "vpn.bank.com",
+            "label": "vpn",
+            "type": "domain",
+            "pqc_status": "CRITICALLY_VULNERABLE",
+            "display_tier": "Critical",
+            "ip_address": "103.107.227.52",
+        },
+        {
+            "id": "legacy.bank.com",
+            "label": "legacy",
+            "type": "domain",
+            "pqc_status": "CRITICALLY_VULNERABLE",
+            "display_tier": "Critical",
+            "ip_address": "103.107.224.29",
+        },
+        {
+            "id": "ssl-legacy-01",
+            "label": "legacy-cert-01",
+            "type": "ssl",
+            "pqc_status": "CRITICALLY_VULNERABLE",
+            "display_tier": "Critical",
+            "ip_address": "103.107.227.52",
+        },
+        # UNKNOWN (3)
+        {
+            "id": "staging.bank.com",
+            "label": "staging",
+            "type": "domain",
+            "pqc_status": "UNKNOWN",
+            "display_tier": "Unclassified",
+            "ip_address": "103.107.225.15",
+        },
+        {
+            "id": "ip-103.107.224.44",
+            "label": "edge-ip-44",
+            "type": "ip",
+            "pqc_status": "UNKNOWN",
+            "display_tier": "Unclassified",
+            "ip_address": "103.107.224.44",
+        },
+        {
+            "id": "ssl-unknown-01",
+            "label": "unknown-cert",
+            "type": "ssl",
+            "pqc_status": "UNKNOWN",
+            "display_tier": "Unclassified",
+            "ip_address": "103.107.225.15",
+        },
+    ]
+
+    edges = [
+        # Subnet proximity / IP linkage
+        {"source": "netbanking.bank.com", "target": "ip-103.107.224.63"},
+        {"source": "auth.bank.com", "target": "ip-103.107.224.63"},
+        {"source": "api.bank.com", "target": "ip-103.107.224.44"},
+        {"source": "mobileapi.bank.com", "target": "ip-103.107.224.44"},
+        {"source": "swift.bank.com", "target": "ip-103.107.224.63"},
+        {"source": "loans.bank.com", "target": "ip-103.107.224.63"},
+        {"source": "vpn.bank.com", "target": "ip-103.107.224.63"},
+        {"source": "legacy.bank.com", "target": "ip-103.107.224.63"},
+        {"source": "staging.bank.com", "target": "ip-103.107.224.44"},
+        # Certificate linkage
+        {"source": "ssl-pqc-01", "target": "netbanking.bank.com"},
+        {"source": "ssl-pqc-01", "target": "auth.bank.com"},
+        {"source": "ssl-hybrid-01", "target": "api.bank.com"},
+        {"source": "ssl-hybrid-01", "target": "mobileapi.bank.com"},
+        {"source": "ssl-legacy-01", "target": "vpn.bank.com"},
+        {"source": "ssl-legacy-01", "target": "legacy.bank.com"},
+        {"source": "ssl-unknown-01", "target": "staging.bank.com"},
+        # Cross-tier operational relationships
+        {"source": "netbanking.bank.com", "target": "api.bank.com"},
+        {"source": "auth.bank.com", "target": "mobileapi.bank.com"},
+        {"source": "swift.bank.com", "target": "loans.bank.com"},
+        {"source": "vpn.bank.com", "target": "legacy.bank.com"},
+        {"source": "api.bank.com", "target": "staging.bank.com"},
+        {"source": "ssl-hybrid-01", "target": "ssl-unknown-01"},
+    ]
+
+    return {"nodes": nodes, "edges": edges}

@@ -96,10 +96,12 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
 
-    group = parser.add_mutually_exclusive_group(required=True)
+    group = parser.add_mutually_exclusive_group(required=False)
     group.add_argument("--target", "-t", type=str, help="Single target hostname or IP.")
     group.add_argument("--list", "-l", type=str, dest="target_list",
                         help="File with one target per line.")
+    group.add_argument("--demo", action="store_true",
+                        help="Run the full backend demo pipeline (negotiation + cyber rating).")
 
     parser.add_argument("--port", "-p", type=int, default=443, help="Port (default 443).")
     parser.add_argument("--format", "-f", choices=["table", "json", "cbom", "assess"],
@@ -156,7 +158,29 @@ LABEL_STYLE = {
 }
 
 
-def _print_table(results: list[ScanResult]) -> None:
+def _format_negotiation_tier(tier: str | None) -> str:
+    if not tier:
+        return "[dim]—[/dim]"
+
+    norm = tier.upper()
+    if norm == "STRONG":
+        return "[bold green]STRONG[/bold green]"
+    if norm == "MEDIUM":
+        return "[bold orange3]MEDIUM[/bold orange3]"
+    if norm == "CLASSICAL":
+        return "[bold cyan]CLASSICAL[/bold cyan]"
+    if norm == "WEAK":
+        return "[bold red]WEAK[/bold red]"
+    if norm == "CRITICAL":
+        return "[bold bright_red]⚠ CRITICAL[/bold bright_red]"
+    return f"[dim]{norm}[/dim]"
+
+
+def _print_table(
+    results: list[ScanResult],
+    negotiation_tiers: dict[str, str] | None = None,
+    enterprise_cyber_rating: dict[str, object] | None = None,
+) -> None:
     table = Table(
         title="[bold cyan]Q-ARMOR Scan Results[/bold cyan]",
         box=box.ROUNDED,
@@ -171,6 +195,7 @@ def _print_table(results: list[ScanResult]) -> None:
     table.add_column("Cert", min_width=10)
     table.add_column("Q-Score", justify="right", min_width=8)
     table.add_column("Status", min_width=22)
+    table.add_column("Negotiation Policy", justify="center", min_width=22)
 
     for r in sorted(results, key=lambda x: x.q_score.total):
         asset = f"{r.asset.hostname}:{r.asset.port}"
@@ -180,6 +205,8 @@ def _print_table(results: list[ScanResult]) -> None:
         score = r.q_score.total
         status = r.q_score.status.value
         style = STATUS_COLORS.get(status, "")
+        tier = (negotiation_tiers or {}).get(r.asset.hostname)
+        tier_badge = _format_negotiation_tier(tier)
 
         table.add_row(
             asset,
@@ -188,10 +215,71 @@ def _print_table(results: list[ScanResult]) -> None:
             cert_algo,
             f"[{style}]{score}/100[/{style}]",
             f"[{style}]{status}[/{style}]",
+            tier_badge,
         )
 
     console.print()
     console.print(table)
+    console.print()
+
+    if enterprise_cyber_rating:
+        score = int(enterprise_cyber_rating.get("enterprise_score", 0))
+        tier = str(enterprise_cyber_rating.get("tier", "Unknown"))
+        console.print(f"[bold]Enterprise Cyber Rating: {score}/1000 — {tier}[/bold]")
+        console.print()
+
+
+def _print_pipeline_table(
+    assets: list[dict],
+    negotiation_policies: dict[str, dict | object],
+    enterprise_cyber_rating: dict[str, object],
+) -> None:
+    table = Table(
+        title="[bold cyan]Q-ARMOR Scan Results[/bold cyan]",
+        box=box.ROUNDED,
+        border_style="bright_black",
+        header_style="bold white",
+        show_lines=False,
+        pad_edge=True,
+    )
+    table.add_column("Asset", style="cyan", min_width=30)
+    table.add_column("TLS", justify="center", min_width=8)
+    table.add_column("Key Exchange", min_width=18)
+    table.add_column("Cert", min_width=10)
+    table.add_column("Q-Score", justify="right", min_width=8)
+    table.add_column("Status", min_width=22)
+    table.add_column("Negotiation Policy", justify="center", min_width=22)
+
+    def _policy_tier(hostname: str) -> str | None:
+        policy = negotiation_policies.get(hostname)
+        if policy is None:
+            return None
+        if isinstance(policy, dict):
+            return str(policy.get("negotiation_tier") or "")
+        return str(getattr(policy, "negotiation_tier", ""))
+
+    for a in sorted(assets, key=lambda x: int(x.get("worst_case_score", 0))):
+        hostname = str(a.get("hostname", "unknown"))
+        port = int(a.get("port", 443))
+        status = str(a.get("status", "UNKNOWN"))
+        style = STATUS_COLORS.get(status, "")
+
+        table.add_row(
+            f"{hostname}:{port}",
+            str(a.get("tls_version", "—")),
+            str(a.get("key_exchange", "—")),
+            str(a.get("cert_algorithm", "—")),
+            f"[{style}]{int(a.get('worst_case_score', 0))}/100[/{style}]",
+            f"[{style}]{status}[/{style}]",
+            _format_negotiation_tier(_policy_tier(hostname)),
+        )
+
+    console.print()
+    console.print(table)
+    console.print()
+    score = int(enterprise_cyber_rating.get("enterprise_score", 0))
+    tier = str(enterprise_cyber_rating.get("tier", "Unknown"))
+    console.print(f"[bold]Enterprise Cyber Rating: {score}/1000 — {tier}[/bold]")
     console.print()
 
 
@@ -429,11 +517,58 @@ def main() -> None:
 
     print(BANNER, file=sys.stderr)
 
+    if args.demo:
+        from backend.pipeline import run_pipeline_sync
+
+        logger.info("Running demo pipeline...")
+        pipeline_result = run_pipeline_sync(mode="demo")
+
+        if args.format == "table":
+            _print_pipeline_table(
+                assets=pipeline_result.assets,
+                negotiation_policies={
+                    host: policy.model_dump(mode="json")
+                    for host, policy in pipeline_result.negotiation_policies.items()
+                },
+                enterprise_cyber_rating=pipeline_result.enterprise_cyber_rating,
+            )
+        elif args.format == "json":
+            output = json.dumps(pipeline_result.model_dump(mode="json"), indent=2)
+            if args.output:
+                Path(args.output).write_text(output, encoding="utf-8")
+                logger.info("Demo pipeline JSON saved to %s", args.output)
+            else:
+                print(output)
+        elif args.format == "cbom":
+            output = json.dumps(pipeline_result.cbom, indent=2)
+            if args.output:
+                Path(args.output).write_text(output, encoding="utf-8")
+                logger.info("Demo CBOM saved to %s", args.output)
+            else:
+                print(output)
+        elif args.format == "assess":
+            _print_pipeline_table(
+                assets=pipeline_result.assets,
+                negotiation_policies={
+                    host: policy.model_dump(mode="json")
+                    for host, policy in pipeline_result.negotiation_policies.items()
+                },
+                enterprise_cyber_rating=pipeline_result.enterprise_cyber_rating,
+            )
+
+        print(
+            f"\n[+] Demo pipeline complete — {len(pipeline_result.assets)} asset(s) processed.",
+            file=sys.stderr,
+        )
+        return
+
     # Resolve targets
     if args.target:
         targets = [args.target.strip()]
-    else:
+    elif args.target_list:
         targets = _load_targets(args.target_list)
+    else:
+        parser.error("one of --target, --list, or --demo is required")
 
     # Discover subdomains if requested
     if args.discover and len(targets) == 1:

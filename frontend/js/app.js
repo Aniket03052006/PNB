@@ -1,11 +1,11 @@
 /**
  * Q-ARMOR Dashboard Controller
- * Phase 1: Scan data + overview
- * Phase 2: PQC Assessment, Remediation, NIST Matrix
- * Phase 6: Tri-Mode Probing, History & Baseline
- * Phase 7: PQC Classification + Agility Assessment + SQLite DB
- * Phase 8: Regression Detection + CycloneDX 1.7 CBOM
- * Phase 9: PQC Labeling + Registry + FIPS Attestation
+ * Discovery and overview
+ * PQC assessment, remediation, and NIST matrix
+ * Tri-mode probing, history, and baseline
+ * PQC classification + agility assessment + SQLite DB
+ * Regression detection + CycloneDX 1.7 CBOM
+ * PQC labeling + registry + FIPS attestation
  */
 
 const API_BASE = '';
@@ -41,12 +41,302 @@ let historyData = null;
 let classifiedData = null;
 let dbScansData = null;
 let phase9Data = null;
+let enterpriseDashboardData = null;
 
 /* ─── API Calls ─── */
 async function apiCall(endpoint, method = 'GET') {
     const resp = await fetch(`${API_BASE}${endpoint}`, { method });
     if (!resp.ok) throw new Error(`API error: ${resp.status}`);
     return resp.json();
+}
+
+function formatCount(value) {
+    const n = Number(value);
+    return Number.isFinite(n) ? n.toLocaleString('en-IN') : '—';
+}
+
+function formatPercent(value) {
+    const n = Number(value);
+    return Number.isFinite(n) ? n.toFixed(1) : '0.0';
+}
+
+function setTextSafe(id, value) {
+    const el = document.getElementById(id);
+    if (el) el.textContent = value;
+}
+
+function renderEnterpriseNotice(demoMode, dataNotice) {
+    const badge = document.getElementById('apiDataNoticeBadge');
+    const hint = document.getElementById('enterpriseModeHint');
+    if (!badge) return;
+    badge.textContent = dataNotice || (demoMode ? 'SIMULATED DATA' : 'LIVE DATA');
+    if (demoMode) {
+        badge.style.background = 'rgba(255, 179, 0, 0.12)';
+        badge.style.color = 'var(--accent-amber)';
+        if (hint) {
+            hint.textContent = 'Demo mode is active. Switch to Live mode and provide a domain to fetch real data.';
+        }
+    } else {
+        badge.style.background = 'rgba(0, 255, 136, 0.12)';
+        badge.style.color = 'var(--accent-green)';
+        if (hint) {
+            hint.textContent = 'Live mode is active. Data is fetched from real discovery and tri-mode probing.';
+        }
+    }
+}
+
+function onEnterpriseModeChange() {
+    const modeSel = document.getElementById('enterpriseModeSelect');
+    const domainInput = document.getElementById('enterpriseDomainInput');
+    if (!modeSel || !domainInput) return;
+
+    const isLive = modeSel.value === 'live';
+    domainInput.style.display = isLive ? '' : 'none';
+
+    if (isLive && !domainInput.value.trim()) {
+        const mainDomain = document.getElementById('domainInput')?.value.trim();
+        if (mainDomain) domainInput.value = mainDomain;
+    }
+}
+
+function getEnterpriseContext(opts = {}) {
+    const notifyOnError = Boolean(opts.notifyOnError);
+    const modeSel = document.getElementById('enterpriseModeSelect');
+    const domainInput = document.getElementById('enterpriseDomainInput');
+    const mode = (modeSel?.value || 'demo').toLowerCase();
+
+    if (mode !== 'live') {
+        return { mode: 'demo', domain: '' };
+    }
+
+    const domain = (domainInput?.value || document.getElementById('domainInput')?.value || '').trim();
+    if (!domain) {
+        if (notifyOnError) showToast('Enter a domain for live enterprise data', 'info');
+        return null;
+    }
+
+    if (domainInput) domainInput.value = domain;
+    return { mode: 'live', domain };
+}
+
+function buildEnterpriseEndpoint(endpoint, context, refresh = false) {
+    const params = new URLSearchParams();
+    params.set('mode', context.mode);
+    if (context.domain) params.set('domain', context.domain);
+    if (refresh) params.set('refresh', 'true');
+    return `${endpoint}?${params.toString()}`;
+}
+
+function renderHomeSummaryV2(home) {
+    const discovery = home.asset_discovery_summary || {};
+    const inventory = home.assets_inventory_summary || {};
+    const posture = home.posture_of_pqc || {};
+    const cbom = home.cbom_summary || {};
+
+    setTextSafe('homeDomainCount', formatCount(discovery.domain_count));
+    setTextSafe('homeIpCount', formatCount(discovery.ip_count));
+    setTextSafe('homeSubdomainCount', formatCount(discovery.subdomain_count));
+    setTextSafe('homeCloudCount', formatCount(discovery.cloud_asset_count));
+
+    setTextSafe('homeSslCount', formatCount(inventory.ssl_cert_count));
+    setTextSafe('homeSoftwareCount', formatCount(inventory.software_count));
+    setTextSafe('homeIotCount', formatCount(inventory.iot_device_count));
+    setTextSafe('homeLoginFormCount', formatCount(inventory.login_form_count));
+
+    setTextSafe('homePqcAdoptionPct', `${formatPercent(posture.pqc_adoption_pct)}%`);
+    setTextSafe('homeTransitionPct', `${formatPercent(posture.transition_pct)}%`);
+
+    setTextSafe('homeVulnComponents', formatCount(cbom.vulnerable_component_count));
+    setTextSafe('homeWeakCrypto', formatCount(cbom.weak_crypto_count));
+}
+
+function renderAssetDiscoveryV2(domains, ssl, ip, software, graph) {
+    const domainItems = domains.items || [];
+    const sslItems = ssl.items || [];
+    const ipItems = ip.items || [];
+    const softwareItems = software.items || [];
+    const nodes = graph.nodes || [];
+    const edges = graph.edges || [];
+
+    setTextSafe('domainsCount', formatCount(domainItems.length));
+    setTextSafe('sslCount', formatCount(sslItems.length));
+    setTextSafe('ipCount', formatCount(ipItems.length));
+    setTextSafe('softwareCount', formatCount(softwareItems.length));
+    setTextSafe('networkNodesCount', formatCount(nodes.length));
+    setTextSafe('networkEdgesCount', formatCount(edges.length));
+
+    const statusCounts = nodes.reduce((acc, node) => {
+        const key = node.pqc_status || 'UNKNOWN';
+        acc[key] = (acc[key] || 0) + 1;
+        return acc;
+    }, {});
+
+    const statusSummary = Object.entries(statusCounts)
+        .sort((a, b) => b[1] - a[1])
+        .map(([status, count]) => `<span><strong>${escHtml(status)}</strong>: ${count}</span>`)
+        .join(' · ');
+
+    const networkStatus = document.getElementById('networkStatusSummary');
+    if (networkStatus) {
+        networkStatus.innerHTML = statusSummary || 'No network status distribution available.';
+    }
+
+    const assetSamples = document.getElementById('assetSamples');
+    if (assetSamples) {
+        const domainSample = domainItems.slice(0, 2).map(d => escHtml(d.domain_name || '—')).join(', ');
+        const sslSample = sslItems.slice(0, 2).map(s => escHtml(s.common_name || s.ssl_sha_fingerprint || '—')).join(', ');
+        const ipSample = ipItems.slice(0, 2).map(x => escHtml(x.ip_address || '—')).join(', ');
+        const swSample = softwareItems.slice(0, 2).map(w => escHtml(`${w.product || '—'} ${w.version || ''}`.trim())).join(', ');
+
+        assetSamples.innerHTML = `
+            <div><strong>Domains:</strong> ${domainSample || '—'}</div>
+            <div><strong>SSL:</strong> ${sslSample || '—'}</div>
+            <div><strong>IP:</strong> ${ipSample || '—'}</div>
+            <div><strong>Software:</strong> ${swSample || '—'}</div>
+        `;
+    }
+}
+
+function renderCyberPqcV2(cyber, heatmap, negotiation) {
+    setTextSafe('cyberEnterpriseScore', formatCount(cyber.enterprise_score));
+    setTextSafe('cyberTier', cyber.tier || '—');
+    setTextSafe('cyberDisplayTier', cyber.display_tier || cyber.tier_label || '—');
+
+    const policies = negotiation.policies || {};
+    const entries = Object.entries(policies);
+    setTextSafe('negotiationCount', formatCount(entries.length));
+
+    const heatmapContainer = document.getElementById('heatmapTableContainer');
+    if (heatmapContainer) {
+        const grid = heatmap.grid || {};
+        const rows = [
+            ['pqc_ready', 'PQC Ready'],
+            ['transition', 'Transition'],
+            ['legacy', 'Legacy'],
+        ];
+        const cols = [
+            ['strong', 'Strong'],
+            ['medium', 'Medium'],
+            ['weak', 'Weak'],
+        ];
+
+        heatmapContainer.innerHTML = rows.map(([rowKey, rowLabel]) => {
+            const cells = cols.map(([colKey, colLabel]) => {
+                const count = grid?.[rowKey]?.[colKey]?.count ?? 0;
+                return `<div class="heatmap-cell"><span>${colLabel}</span><strong>${count}</strong></div>`;
+            }).join('');
+            return `<div class="heatmap-row"><div class="heatmap-row-label">${rowLabel}</div><div class="heatmap-row-cells">${cells}</div></div>`;
+        }).join('');
+    }
+
+    const negotiationContainer = document.getElementById('negotiationTableContainer');
+    if (negotiationContainer) {
+        if (!entries.length) {
+            negotiationContainer.textContent = 'No negotiation policies available.';
+        } else {
+            const top = [...entries]
+                .sort((a, b) => (a[1].negotiation_security_score || 0) - (b[1].negotiation_security_score || 0))
+                .slice(0, 5)
+                .map(([host, policy]) => {
+                    const tier = policy.negotiation_tier || 'UNKNOWN';
+                    const score = policy.negotiation_security_score ?? 0;
+                    return `<div><strong>${escHtml(host)}</strong> · ${escHtml(tier)} · score ${score}</div>`;
+                })
+                .join('');
+            negotiationContainer.innerHTML = top;
+        }
+    }
+}
+
+async function loadEnterpriseDashboardData(opts = {}) {
+    const notifyOnError = Boolean(opts.notifyOnError);
+    const forceRefresh = Boolean(opts.forceRefresh);
+    const context = getEnterpriseContext({ notifyOnError });
+    if (!context) return;
+
+    try {
+        const home = await apiCall(buildEnterpriseEndpoint('/api/home/summary', context, forceRefresh));
+
+        const [
+            domains,
+            ssl,
+            ip,
+            software,
+            graph,
+            cyber,
+            heatmap,
+            negotiation,
+        ] = await Promise.all([
+            apiCall(buildEnterpriseEndpoint('/api/assets/domains', context)),
+            apiCall(buildEnterpriseEndpoint('/api/assets/ssl', context)),
+            apiCall(buildEnterpriseEndpoint('/api/assets/ip', context)),
+            apiCall(buildEnterpriseEndpoint('/api/assets/software', context)),
+            apiCall(buildEnterpriseEndpoint('/api/assets/network-graph', context)),
+            apiCall(buildEnterpriseEndpoint('/api/cyber-rating', context)),
+            apiCall(buildEnterpriseEndpoint('/api/pqc/heatmap', context)),
+            apiCall(buildEnterpriseEndpoint('/api/pqc/negotiation', context)),
+        ]);
+
+        enterpriseDashboardData = { home, domains, ssl, ip, software, graph, cyber, heatmap, negotiation };
+        renderEnterpriseNotice(home.demo_mode, home.data_notice);
+        renderHomeSummaryV2(home);
+        renderAssetDiscoveryV2(domains, ssl, ip, software, graph);
+        renderCyberPqcV2(cyber, heatmap, negotiation);
+    } catch (e) {
+        console.warn('Enterprise data API fetch failed:', e);
+        if (notifyOnError) showToast('Failed to refresh enterprise APIs: ' + e.message, 'error');
+    }
+}
+
+async function refreshNewDashboardApis() {
+    showLoading('Refreshing enterprise data APIs...');
+    try {
+        await loadEnterpriseDashboardData({ notifyOnError: true, forceRefresh: true });
+        showToast('Enterprise dashboard APIs refreshed', 'success');
+    } finally {
+        hideLoading();
+    }
+}
+
+async function generateApiReport() {
+    const reportType = document.getElementById('reportTypeSelect')?.value || 'executive';
+    const reportFormat = document.getElementById('reportFormatSelect')?.value || 'json';
+    const preview = document.getElementById('reportPreview');
+    const badge = document.getElementById('reportMetaBadge');
+    const context = getEnterpriseContext({ notifyOnError: true });
+    if (!context) return;
+
+    showLoading(`Generating ${reportType} report (${reportFormat})...`);
+    try {
+        const params = new URLSearchParams({
+            report_type: reportType,
+            format: reportFormat,
+            mode: context.mode,
+        });
+        if (context.domain) params.set('domain', context.domain);
+        const endpoint = `/api/reporting/generate?${params.toString()}`;
+        const payload = await apiCall(endpoint);
+
+        if (badge) {
+            badge.textContent = `${payload.report_type} • ${payload.data_notice || 'DATA'} • ${payload.generated_at || 'now'}`;
+        }
+
+        if (preview) {
+            if (reportFormat === 'html') {
+                preview.textContent = payload.data?.html || '<empty html payload>';
+            } else {
+                preview.textContent = JSON.stringify(payload.data, null, 2);
+            }
+        }
+
+        showToast('Report generated successfully', 'success');
+    } catch (e) {
+        if (preview) preview.textContent = 'Report generation failed.';
+        if (badge) badge.textContent = 'Report generation failed';
+        showToast('Report generation failed: ' + e.message, 'error');
+    } finally {
+        hideLoading();
+    }
 }
 
 function showLoading(msg = 'Scanning cryptographic surface...') {
@@ -86,6 +376,9 @@ async function runDemoScan() {
 
         // Auto-fetch Phase 6 tri-mode demo data
         fetchTrimodeDemoData();
+
+        // Refresh new API-backed enterprise dashboard
+        await loadEnterpriseDashboardData();
     } catch (e) {
         showToast('Scan failed: ' + e.message, 'error');
     } finally {
@@ -97,12 +390,17 @@ async function runDemoScan() {
 async function scanDomain() {
     const domain = document.getElementById('domainInput').value.trim();
     if (!domain) { showToast('Please enter a domain', 'info'); return; }
+    const enterpriseDomainInput = document.getElementById('enterpriseDomainInput');
+    if (enterpriseDomainInput && !enterpriseDomainInput.value.trim()) {
+        enterpriseDomainInput.value = domain;
+    }
     showLoading(`Discovering assets for ${domain}...`);
     try {
         scanData = await apiCall(`/api/scan/domain/${encodeURIComponent(domain)}`, 'POST');
         renderDashboard(scanData);
         document.getElementById('btnExportCBOM').disabled = false;
         fetchPhase2Assessment();
+        await loadEnterpriseDashboardData();
     } catch (e) {
         showToast('Scan failed: ' + e.message, 'error');
     } finally {
@@ -130,6 +428,7 @@ async function scanSingleHost() {
         };
         renderDashboard(scanData);
         fetchPhase2Assessment();
+        await loadEnterpriseDashboardData();
     } catch (e) {
         showToast('Probe failed: ' + e.message, 'error');
     } finally {
@@ -146,16 +445,16 @@ async function exportCBOM() {
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = 'qarmor-cbom-phase3.json';
+        a.download = 'qarmor-cbom.json';
         a.click();
         URL.revokeObjectURL(url);
-        showToast('Phase 3 CBOM exported successfully', 'success');
+        showToast('CBOM exported successfully', 'success');
     } catch (e) {
         showToast('Export failed: ' + e.message, 'error');
     }
 }
 
-/* ─── CDXA Export (Phase 5) ─── */
+/* ─── CDXA Export ─── */
 async function exportCDXA() {
     try {
         const resp = await fetch(`${API_BASE}/api/attestation/download`);
@@ -173,7 +472,7 @@ async function exportCDXA() {
     }
 }
 
-/* ─── Phase 5: Fetch Attestation + Alerts ─── */
+/* ─── Fetch Attestation + Alerts ─── */
 async function fetchPhase5Data() {
     try {
         const [attestation, alerts] = await Promise.all([
@@ -185,7 +484,7 @@ async function fetchPhase5Data() {
         const cdxaBtn = document.getElementById('btnExportCDXA');
         if (cdxaBtn) cdxaBtn.disabled = false;
     } catch (e) {
-        console.warn('Phase 5 data fetch failed:', e);
+        console.warn('Attestation and alerts fetch failed:', e);
     }
 }
 
@@ -269,7 +568,7 @@ function renderAlerts(data) {
     }).join('');
 }
 
-/* ─── Phase 2: Fetch Assessment + Remediation ─── */
+/* ─── Fetch Assessment + Remediation ─── */
 async function fetchPhase2Assessment() {
     try {
         const [assess, remediation] = await Promise.all([
@@ -281,7 +580,7 @@ async function fetchPhase2Assessment() {
         renderPhase2Assessment(assess);
         renderPhase2Remediation(remediation);
     } catch (e) {
-        console.warn('Phase 2 assessment fetch failed:', e);
+        console.warn('Assessment fetch failed:', e);
     }
 }
 
@@ -467,13 +766,13 @@ function renderLabels(labels) {
 }
 
 
-/* ─── Phase 4: Certification Labels ─── */
+/* ─── Certification Labels ─── */
 async function fetchPhase4Labels() {
     try {
         const data = await apiCall('/api/labels/phase4');
         renderCertLabels(data);
     } catch (e) {
-        console.warn('Phase 4 labels fetch failed:', e);
+        console.warn('Certification labels fetch failed:', e);
     }
 }
 
@@ -826,9 +1125,22 @@ function renderStrategicRoadmap(phases) {
     }
 
     const phaseClass = { P1_CRITICAL: 'P1', P2_HIGH: 'P2', P3_MEDIUM: 'P3', P4_LOW: 'P4' };
+    const roadmapTitleByPriority = {
+        P1_CRITICAL: 'Critical Actions (0-30 days)',
+        P2_HIGH: 'High-Priority Actions (30-90 days)',
+        P3_MEDIUM: 'Planned Actions (90-180 days)',
+        P4_LOW: 'Optimization Actions (180-365 days)',
+    };
 
     container.innerHTML = phases.map(phase => {
         const pCls = phaseClass[phase.priority] || 'P4';
+        const headingRaw = String(phase.phase || '').trim();
+        const headingClean = headingRaw
+            .replace(/^\s*phase\s*\d+\s*[:\-]?\s*/i, '')
+            .replace(/\bphase\b/ig, '')
+            .replace(/\s{2,}/g, ' ')
+            .trim();
+        const heading = headingClean || roadmapTitleByPriority[phase.priority] || 'Roadmap Actions';
         const actionsHtml = (phase.actions || []).map(action => `
             <div class="roadmap-action">
                 <div class="roadmap-action-title">${action.title || ''}</div>
@@ -844,7 +1156,7 @@ function renderStrategicRoadmap(phases) {
         `).join('');
 
         return `<div class="roadmap-phase roadmap-phase--${pCls}">
-            <div class="roadmap-phase-header">${phase.phase}</div>
+            <div class="roadmap-phase-header">${heading}</div>
             ${actionsHtml}
         </div>`;
     }).join('');
@@ -1334,11 +1646,11 @@ function renderBaseline(data) {
 
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   Phase 7: PQC Classification + Agility Assessment + SQLite DB
+    PQC Classification + Agility Assessment + SQLite DB
    ═══════════════════════════════════════════════════════════════════════════ */
 
 async function runPhase7Demo() {
-    showLoading('Running Phase 7 tri-mode classification on 21 demo assets...');
+    showLoading('Running tri-mode classification on 21 demo assets...');
     try {
         const data = await apiCall('/api/classify/demo');
         classifiedData = data;
@@ -1346,7 +1658,7 @@ async function runPhase7Demo() {
         loadDbScans();
         showToast(`Classified ${data.total_assets} assets (scan #${data.scan_id})`, 'success');
     } catch (e) {
-        showToast('Phase 7 classify failed: ' + e.message, 'error');
+        showToast('Classification failed: ' + e.message, 'error');
     } finally {
         hideLoading();
     }
@@ -1355,7 +1667,7 @@ async function runPhase7Demo() {
 async function runPhase7Live() {
     const domain = (document.getElementById('p7DomainInput')?.value || '').trim();
     if (!domain) { showToast('Enter a domain to classify', 'error'); return; }
-    showLoading(`Running Phase 7 live classification on ${domain}... (this may take 15-30s)`);
+    showLoading(`Running live classification on ${domain}... (this may take 15-30s)`);
     try {
         const data = await apiCall(`/api/classify/live/${encodeURIComponent(domain)}`, 'POST');
         classifiedData = data;
@@ -1363,7 +1675,7 @@ async function runPhase7Live() {
         loadDbScans();
         showToast(`Classified ${data.total_assets} live assets for ${domain} (scan #${data.scan_id})`, 'success');
     } catch (e) {
-        showToast('Phase 7 live classify failed: ' + e.message, 'error');
+        showToast('Live classification failed: ' + e.message, 'error');
     } finally {
         hideLoading();
     }
@@ -1615,19 +1927,19 @@ function renderScanComparison(delta, idA, idB) {
 
 
 /* ═══════════════════════════════════════════════════════════════════════════
- * Phase 8+9: Full Pipeline — Regression + Labels + CBOM v2 + Attestation
+ * Full Pipeline — Regression + Labels + CBOM v2 + Attestation
  * ═══════════════════════════════════════════════════════════════════════════ */
 
 async function runPhase9Demo() {
-    showLoading('Running Phase 8+9 pipeline: classify → regress → label → register → CBOM v2 → attest...');
+    showLoading('Running regression and certification pipeline: classify → regress → label → register → CBOM v2 → attest...');
     try {
         phase9Data = await apiCall('/api/phase9/demo');
         renderPhase9(phase9Data);
         document.getElementById('p9Empty').style.display = 'none';
         document.getElementById('p9Content').style.display = 'block';
-        showToast(`Phase 8+9 pipeline complete — ${phase9Data.classification?.total_assets || 0} assets processed`, 'success');
+        showToast(`Pipeline complete — ${phase9Data.classification?.total_assets || 0} assets processed`, 'success');
     } catch (e) {
-        showToast('Phase 9 pipeline failed: ' + e.message, 'error');
+        showToast('Pipeline failed: ' + e.message, 'error');
     } finally {
         hideLoading();
     }
@@ -1636,7 +1948,7 @@ async function runPhase9Demo() {
 async function runPhase9Live() {
     const domain = (document.getElementById('p9DomainInput')?.value || '').trim();
     if (!domain) { showToast('Enter a domain to run the pipeline on', 'error'); return; }
-    showLoading(`Running Phase 8+9 live pipeline on ${domain}... (this may take 30-60s)`);
+    showLoading(`Running live pipeline on ${domain}... (this may take 30-60s)`);
     try {
         phase9Data = await apiCall(`/api/phase9/live/${encodeURIComponent(domain)}`, 'POST');
         renderPhase9(phase9Data);
@@ -1644,9 +1956,9 @@ async function runPhase9Live() {
         document.getElementById('p9Content').style.display = 'block';
         const banner = document.getElementById('p9DemoBanner');
         if (banner) banner.style.display = 'none';
-        showToast(`Phase 8+9 live pipeline complete — ${phase9Data.classification?.total_assets || 0} assets from ${domain}`, 'success');
+        showToast(`Live pipeline complete — ${phase9Data.classification?.total_assets || 0} assets from ${domain}`, 'success');
     } catch (e) {
-        showToast('Phase 9 live pipeline failed: ' + e.message, 'error');
+        showToast('Live pipeline failed: ' + e.message, 'error');
     } finally {
         hideLoading();
     }
@@ -1840,3 +2152,8 @@ async function downloadPhase9CDXA() {
         showToast('CDXA v2 downloaded', 'success');
     } catch (e) { showToast('Download failed: ' + e.message, 'error'); }
 }
+
+document.addEventListener('DOMContentLoaded', () => {
+    onEnterpriseModeChange();
+    loadEnterpriseDashboardData();
+});
