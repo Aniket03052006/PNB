@@ -49,6 +49,7 @@
             <button class="tab-btn" data-tab="trimode" onclick="switchTab('trimode')"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12a10 10 0 1 1 10 10"></path><line x1="12" y1="2" x2="12" y2="22"></line><line x1="2" y1="12" x2="22" y2="12"></line></svg> Tri-Mode</button>
             <button class="tab-btn" data-tab="history" onclick="switchTab('history')"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg> History</button>
             <button class="tab-btn" data-tab="phase7" onclick="switchTab('phase7')"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"></path><path d="M2 17l10 5 10-5"></path><path d="M2 12l10 5 10-5"></path></svg> Phase 7</button>
+            <button class="tab-btn" data-tab="phase9" onclick="switchTab('phase9')"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><polyline points="9 12 11 14 15 10"/></svg> Phase 8+9</button>
         </div>
 
         <!-- ═══════════════ TAB: OVERVIEW (Phase 1) ═══════════════ -->
@@ -451,11 +452,15 @@
 
         <!-- ═══════════════ TAB: HISTORY (Phase 6) ═══════════════ -->
         <div class="tab-content" id="tab-history">
-            <div id="historyEmpty" class="empty-state" style="padding: 80px 20px;">
+            <div id="historyEmpty" class="empty-state" style="padding: 60px 20px;">
                 <div class="empty-state-icon"><svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg></div>
-                <div class="empty-state-title">Historical trend data</div>
-                <div class="empty-state-desc">Click "Load History" to display the 4-week quantum safety trend</div>
-                <button class="btn btn-primary" onclick="loadHistory()" style="margin-top: 16px;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg> Load History</button>
+                <div class="empty-state-title">Scan History</div>
+                <div class="empty-state-desc">View real scan history from the database, or load demo trend data</div>
+                <div style="display:flex;gap:8px;align-items:center;margin-top:16px;flex-wrap:wrap;justify-content:center;">
+                    <button class="btn btn-primary" onclick="loadLiveHistory()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect><line x1="8" y1="21" x2="16" y2="21"></line><line x1="12" y1="17" x2="12" y2="21"></line></svg> Load DB History</button>
+                    <span style="color:var(--text-dim);font-size:0.8rem;">or</span>
+                    <button class="btn" onclick="loadHistory()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg> Load Demo History</button>
+                </div>
             </div>
             <div id="historyContent" style="display:none;">
                 <div class="panel">
@@ -481,11 +486,16 @@
 
         <!-- ═══════════════ TAB: PHASE 7 — PQC Classification + Agility + DB ═══════════════ -->
         <div class="tab-content" id="tab-phase7">
-            <div id="p7Empty" class="empty-state" style="padding: 80px 20px;">
+            <div id="p7Empty" class="empty-state" style="padding: 60px 20px;">
                 <div class="empty-state-icon"><svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 2L2 7l10 5 10-5-10-5z"></path><path d="M2 17l10 5 10-5"></path><path d="M2 12l10 5 10-5"></path></svg></div>
                 <div class="empty-state-title">Phase 7: PQC Classification + Agility</div>
-                <div class="empty-state-desc">Click below to run tri-mode classification with 5-dimension scoring (TLS + KEX + Cert + Cipher + Agility = 100)</div>
-                <button class="btn btn-primary" onclick="runPhase7Demo()" style="margin-top: 16px;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg> Run Phase 7 Demo Classification</button>
+                <div class="empty-state-desc">Enter a domain to classify live assets, or run demo mode with simulated data</div>
+                <div style="display:flex;gap:8px;align-items:center;margin-top:16px;flex-wrap:wrap;justify-content:center;">
+                    <input type="text" class="scan-input" id="p7DomainInput" placeholder="Enter domain (e.g. example.com)" style="max-width:280px;" />
+                    <button class="btn btn-primary" onclick="runPhase7Live()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg> Classify Live Domain</button>
+                    <span style="color:var(--text-dim);font-size:0.8rem;">or</span>
+                    <button class="btn" onclick="runPhase7Demo()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg> Run Demo</button>
+                </div>
             </div>
             <div id="p7Content" style="display:none;">
 
@@ -553,10 +563,105 @@
             </div>
         </div><!-- /tab-phase7 -->
 
+        <!-- ═══════════════ TAB: PHASE 8+9 — Regression + CBOM v2 + Labels v2 + Registry + Attestation v2 ═══════════════ -->
+        <div class="tab-content" id="tab-phase9">
+            <div id="p9Empty" class="empty-state" style="padding: 60px 20px;">
+                <div class="empty-state-icon"><svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><polyline points="9 12 11 14 15 10"/></svg></div>
+                <div class="empty-state-title">Phase 8+9: Regression + CBOM + Labels + Registry + Attestation</div>
+                <div class="empty-state-desc">Enter a domain for live pipeline analysis, or run demo mode with simulated data</div>
+                <div style="display:flex;gap:8px;align-items:center;margin-top:16px;flex-wrap:wrap;justify-content:center;">
+                    <input type="text" class="scan-input" id="p9DomainInput" placeholder="Enter domain (e.g. example.com)" style="max-width:280px;" />
+                    <button class="btn btn-primary" onclick="runPhase9Live()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg> Run Live Pipeline</button>
+                    <span style="color:var(--text-dim);font-size:0.8rem;">or</span>
+                    <button class="btn" onclick="runPhase9Demo()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg> Run Demo</button>
+                </div>
+            </div>
+            <div id="p9Content" style="display:none;">
+
+                <!-- Phase 9 Pipeline KPI -->
+                <div class="stats-grid" id="p9Stats">
+                    <div class="stat-card stat-card--total">
+                        <div class="stat-value" id="p9Total">—</div>
+                        <div class="stat-label">Classified Assets</div>
+                        <div class="stat-pct" id="p9QSScore">Q-Safety: —</div>
+                    </div>
+                    <div class="stat-card stat-card--safe">
+                        <div class="stat-value" id="p9Tier1">—</div>
+                        <div class="stat-label">Tier 1: Fully Quantum Safe</div>
+                        <div class="stat-pct" id="p9Tier1Pct">—</div>
+                    </div>
+                    <div class="stat-card stat-card--transition">
+                        <div class="stat-value" id="p9Tier2">—</div>
+                        <div class="stat-label">Tier 2: PQC Ready</div>
+                        <div class="stat-pct" id="p9Tier2Pct">—</div>
+                    </div>
+                    <div class="stat-card stat-card--critical">
+                        <div class="stat-value" id="p9Tier3">—</div>
+                        <div class="stat-label">Tier 3: Non-Compliant</div>
+                        <div class="stat-pct" id="p9Tier3Pct">—</div>
+                    </div>
+                    <div class="stat-card stat-card--vulnerable">
+                        <div class="stat-value" id="p9Regressions">—</div>
+                        <div class="stat-label">Regressions Detected</div>
+                    </div>
+                    <div class="stat-card" style="border-color: #a855f7;">
+                        <div class="stat-value" id="p9Compliance" style="color: #a855f7;">—</div>
+                        <div class="stat-label">FIPS Compliance</div>
+                    </div>
+                </div>
+
+                <!-- Regression Report -->
+                <div class="panel" style="margin-bottom: 16px;">
+                    <div class="panel-header">
+                        <div class="panel-title"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> Phase 8: Regression Report</div>
+                        <div class="panel-badge" id="p9RegrBadge" style="background: rgba(255, 170, 0, 0.12); color: #ffaa00;">0 findings</div>
+                    </div>
+                    <div id="p9RegressionContainer" style="overflow-x:auto;"></div>
+                </div>
+
+                <!-- Phase 9 Labels v2 -->
+                <div class="panel" style="margin-bottom: 16px;">
+                    <div class="panel-header">
+                        <div class="panel-title"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg> Phase 9: PQC Certification Labels</div>
+                        <div class="panel-badge" id="p9LabelBadge" style="background: rgba(0, 255, 136, 0.12); color: var(--accent-green);">0 labels</div>
+                    </div>
+                    <div id="p9LabelExecSummary" style="font-size:0.82rem;color:var(--text-secondary);margin-bottom:12px;padding:8px 12px;background:rgba(0,0,0,0.2);border-radius:8px;"></div>
+                    <div id="p9LabelsContainer" style="overflow-x:auto;"></div>
+                </div>
+
+                <!-- Registry Info -->
+                <div class="panel" style="margin-bottom: 16px;">
+                    <div class="panel-header">
+                        <div class="panel-title"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg> Label Registry</div>
+                        <div class="panel-badge" id="p9RegistryBadge" style="background: rgba(0, 212, 255, 0.12); color: var(--accent-cyan);">—</div>
+                    </div>
+                    <div id="p9RegistryContainer" style="font-size:0.82rem;color:var(--text-secondary);"></div>
+                </div>
+
+                <!-- Attestation v2 -->
+                <div class="panel" style="margin-bottom: 16px;">
+                    <div class="panel-header">
+                        <div class="panel-title"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg> Phase 9: FIPS Compliance Attestation (CDXA v2)</div>
+                        <div class="panel-badge" id="p9AttestBadge" style="background: rgba(168, 85, 247, 0.12); color: #a855f7;">—</div>
+                    </div>
+                    <div id="p9AttestContainer" style="overflow-x:auto;"></div>
+                    <div style="margin-top:10px;display:flex;gap:10px;">
+                        <button class="btn" onclick="downloadPhase9CBOM()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Download CBOM v2</button>
+                        <button class="btn" onclick="downloadPhase9CDXA()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Download CDXA v2</button>
+                    </div>
+                </div>
+
+                <!-- Demo banner -->
+                <div id="p9DemoBanner" class="demo-banner" style="margin-top:16px;">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> <strong>SIMULATED DATA</strong> — Regression detection, labels, CBOM v2, registry and attestation all run on demo fingerprints.
+                </div>
+            </div>
+        </div><!-- /tab-phase9 -->
+
         <!-- Footer -->
         <footer class="footer">
             <div class="footer-text">
-                Q-ARMOR v7.0.0 — Discover. Probe. Classify. Assess. Remediate. Label. Attest. Persist. Future-proof.
+                Q-ARMOR v9.0.0 — Discover. Probe. Classify. Assess. Remediate. Label. Attest. Regress. Certify. Future-proof.
                 <br>
                 <span style="color: var(--accent-green); font-size: 0.75rem;">
                     ✓ Phase 1: Discovery &amp; Protocol Analysis
@@ -572,9 +677,13 @@
                     ✓ Phase 6: Tri-Mode Probing &amp; Asset Discovery
                     &nbsp;|&nbsp;
                     ✓ Phase 7: PQC Classification + Agility + SQLite DB
+                    &nbsp;|&nbsp;
+                    ✓ Phase 8: Regression Detection + CycloneDX 1.7 CBOM
+                    &nbsp;|&nbsp;
+                    ✓ Phase 9: PQC Labeling + Registry + FIPS Attestation
                 </span>
                 <br>
-                Built on <a href="#">NIST FIPS 203/204/205</a> &middot; <a href="#">CycloneDX 1.6 CBOM</a> &middot; <a href="#">PQCC Whitepaper</a>
+                Built on <a href="#">NIST FIPS 203/204/205</a> &middot; <a href="#">CycloneDX 1.7 CBOM</a> &middot; <a href="#">PQCC Whitepaper</a>
                 &middot; <a href="#">PNB Cybersecurity Hackathon 2025-26</a>
             </div>
         </footer>

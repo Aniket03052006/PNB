@@ -14,6 +14,23 @@ node_modules/
 .planning/
 result.json
 cbom.json
+.agent/
 
 # Phase 5: Signing keys
 .keys/
+
+# Database
+data/scanner.db
+
+# IDE
+.vscode/
+.idea/
+
+# Testing
+.pytest_cache/
+htmlcov/
+.coverage
+
+# Vercel
+.vercel/
+

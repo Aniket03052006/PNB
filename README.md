@@ -1,6 +1,6 @@
 <div align="center">
 
-# Q-ARMOR v7.0.0
+# Q-ARMOR v9.0.0
 
 ### Quantum-Aware Mapping & Observation for Risk Remediation
 
@@ -9,7 +9,7 @@
 [![Python 3.10+](https://img.shields.io/badge/Python-3.10+-blue.svg)](https://python.org)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.115-009688.svg)](https://fastapi.tiangolo.com)
 [![NIST FIPS 203/204/205](https://img.shields.io/badge/NIST-FIPS%20203%2F204%2F205-critical.svg)](https://csrc.nist.gov)
-[![CycloneDX 1.6](https://img.shields.io/badge/CycloneDX-1.6%20CBOM-orange.svg)](https://cyclonedx.org)
+[![CycloneDX 1.7](https://img.shields.io/badge/CycloneDX-1.7%20CBOM-orange.svg)](https://cyclonedx.org)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 </div>
@@ -70,6 +70,8 @@ Q-ARMOR covers the full lifecycle of **PQC compliance assessment**:
 | **Phase 5** | Compliance-as-Code Attestation & Automation | `attestor.py`, `notifier.py` |
 | **Phase 6** | Tri-Mode Probing & Asset Discovery Foundation | `discoverer.py`, `prober.py`, `demo_data.py` |
 | **Phase 7** | PQC Classification + Agility Assessment + SQLite DB | `classifier.py`, `agility_assessor.py`, `database.py`, `nist_matrix.py` |
+| **Phase 8** | Regression Detection + CycloneDX 1.7 CBOM | `regression_detector.py`, `cbom_generator.py` |
+| **Phase 9** | PQC Labeling + Label Registry + FIPS Attestation | `labeler.py`, `label_registry.py`, `attestor.py` |
 
 **In Scope:**
 - TLS handshake analysis (via Python `ssl` + `openssl s_client`)
@@ -107,7 +109,7 @@ Q-ARMOR covers the full lifecycle of **PQC compliance assessment**:
 
 Q-ARMOR operates as a **standalone security assessment platform** with persistent storage, consisting of:
 
-1. **Backend Server** — A FastAPI application providing 35+ RESTful API endpoints with SQLite persistence
+1. **Backend Server** — A FastAPI application providing 45+ RESTful API endpoints with SQLite persistence
 2. **Web Dashboard** — A single-page application (SPA) served by the backend
 3. **CLI Scanner** — A standalone command-line tool for batch scanning
 
@@ -128,10 +130,13 @@ Q-ARMOR operates as a **standalone security assessment platform** with persisten
     │   └────┬─────┘    └────┬─────┘    └──────────────┘    └──────────────┘    │
     │        │               │                                                   │
     │   ┌────┴───────────────┴──────────────────────────────────────────┐       │
-    │   │                    Scanner Engine                              │       │
+    │   │                    Scanner Engine (v9.0.0)                     │       │
     │   │  Discoverer → Prober → Classifier → Assessor → Remediator    │       │
     │   │                ↓          ↓            ↓           ↓           │       │
     │   │            CBOM Gen    Labeler     Attestor     Notifier      │       │
+    │   │                ↓          ↓            ↓                       │       │
+    │   │         Regression   Registry     CDXA v2                     │       │
+    │   │         Detector     (append)     (FIPS)                      │       │
     │   └──────────────────────────────────────────────────────────────┘       │
     │                                                                            │
     │   ┌──────────────────────┐    ┌──────────────┐    ┌──────────────────┐    │
@@ -161,6 +166,11 @@ Q-ARMOR operates as a **standalone security assessment platform** with persisten
 | F14 | **Phase 7 Classification** | 5-dimension Q-Score (TLS 20 + KEX 30 + Cert 20 + Cipher 15 + Agility 15 = 100) with best/typical/worst tri-mode scoring |
 | F15 | **Agility Assessment** | 5-indicator crypto-agility scoring: CDN, software currency, ACME CA, protocol flexibility, SAN diversity |
 | F16 | **SQLite Persistence** | WAL-mode SQLite database with 4 tables: scans, asset_scores, labels, alerts — full CRUD + delta comparison |
+| F17 | **Regression Detection** | Cross-scan comparison detecting new assets, score regressions (≥5 drop), and missed PQC upgrades |
+| F18 | **CycloneDX 1.7 CBOM** | Enhanced CBOM with pqcAssessment extension, dependency graph, and regression-based vulnerabilities |
+| F19 | **Phase 9 PQC Labeling** | Three-tier certification labels (Tier 1/2/3) from ClassifiedAsset with gap analysis and fix timelines |
+| F20 | **Label Registry** | Append-only label log with auto-revoke on algorithm regression or certificate expiry |
+| F21 | **FIPS Attestation v2** | CDXA v2 from LabelSummary + CBOM with per-standard FIPS 203/204/205 compliance claims |
 
 ### 2.3 User Classes and Characteristics
 
@@ -1065,9 +1075,9 @@ graph LR
 PNB/
 ├── backend/
 │   ├── __init__.py                 # Package marker
-│   ├── app.py                      # FastAPI application (35+ endpoints, v7.0.0)
-│   ├── demo_data.py                # 21 simulated bank assets
-│   ├── models.py                   # 14 Pydantic data schemas (incl. ClassifiedAsset)
+│   ├── app.py                      # FastAPI application (45+ endpoints, v9.0.0)
+│   ├── demo_data.py                # 21 simulated bank assets + baseline
+│   ├── models.py                   # 18 Pydantic schemas (incl. RegressionReport, PQCLabelV9, LabelSummary)
 │   └── scanner/
 │       ├── __init__.py
 │       ├── discoverer.py           # Phase 1: DNS + CT log asset discovery
@@ -1076,17 +1086,19 @@ PNB/
 │       ├── nist_matrix.py          # Phase 2+7: NIST algorithm reference + ALGORITHM_STATUS dict
 │       ├── assessment.py           # Phase 2: 4-dimension PQC assessment engine
 │       ├── remediation.py          # Phase 2: P1-P4 remediation generator
-│       ├── cbom_generator.py       # Phase 3: CycloneDX 1.6 CBOM output
+│       ├── cbom_generator.py       # Phase 3+8: CycloneDX 1.6/1.7 CBOM with pqcAssessment ext
 │       ├── label_issuer.py         # Phase 1: PQC-Ready label issuance
-│       ├── labeler.py              # Phase 4: 3-tier certification labeling engine
-│       ├── attestor.py             # Phase 5: CDXA attestation + Ed25519 signing
+│       ├── labeler.py              # Phase 4+9: 3-tier certification labeling (ClassifiedAsset-based)
+│       ├── attestor.py             # Phase 5+9: CDXA v2 + Ed25519 signing + FIPS compliance claims
 │       ├── notifier.py             # Phase 5: Slack/Teams webhook alerts
 │       ├── agility_assessor.py     # Phase 7: 5-indicator crypto-agility scoring
-│       └── database.py             # Phase 7: SQLite persistence (4 tables, WAL mode)
+│       ├── database.py             # Phase 7: SQLite persistence (4 tables, WAL mode)
+│       ├── regression_detector.py  # Phase 8: Cross-scan regression detection (3 categories)
+│       └── label_registry.py       # Phase 9: Append-only label registry + auto-revoke + FastAPI router
 ├── data/
 │   └── scanner.db                  # Auto-created SQLite database (Phase 7)
 ├── frontend/
-│   ├── index.html                  # Dashboard SPA (7 tabs, Phase 1-7)
+│   ├── index.html                  # Dashboard SPA (8 tabs, Phase 1-9)
 │   ├── css/
 │   │   └── styles.css              # Dark-themed responsive styles
 │   └── js/
@@ -1240,6 +1252,62 @@ All endpoints return JSON. Base URL: `http://localhost:8000`
 | `POST` | `/api/db/labels/{label_id}/revoke` | Revoke a PQC label |
 | `GET` | `/api/db/alerts` | Retrieve alerts (query params: `scan_id`, `severity`, `limit`) |
 
+### Phase 8+9: Regression + Labels v2 + CBOM v2 + Registry + Attestation v2
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/api/phase9/demo` | Run full Phase 8+9 demo pipeline (classify → regress → label → register → CBOM v2 → attest) |
+| `GET` | `/api/phase9/regression` | Get latest regression report |
+| `GET` | `/api/phase9/labels` | Get Phase 9 label summary |
+| `GET` | `/api/phase9/cbom` | Get CycloneDX 1.7 CBOM |
+| `GET` | `/api/phase9/cbom/download` | Download CBOM v2 as JSON file |
+| `GET` | `/api/phase9/attestation` | Get signed CDXA v2 attestation |
+| `GET` | `/api/registry/verify/{label_id}` | Verify a label by ID (VALID/REVOKED/EXPIRED/NOT_FOUND) |
+| `GET` | `/api/registry/list` | List all labels with optional filters (`include_revoked`, `tier`, `hostname`) |
+| `POST` | `/api/registry/revoke` | Revoke a label (body: `{"label_id": "...", "reason": "..."}`) |
+| `GET` | `/api/attestation/v2/generate` | Generate fresh CDXA v2 from latest scan |
+| `GET` | `/api/attestation/v2/download` | Download CDXA v2 as JSON file |
+| `GET` | `/api/attestation/v2/verify` | Verify CDXA v2 signature |
+
+#### Phase 8+9 Pipeline Flow
+
+```
+ Phase 7 ClassifiedAssets     Baseline (previous scan)
+         │                              │
+         └──────────────┬──────────────┘
+                       │
+              ┌───────┴───────┐
+              │  Phase 8:       │
+              │  Regression     │ ───▶ RegressionReport
+              │  Detector       │      (new assets, score drops, missed upgrades)
+              └───────┬───────┘
+                      │
+         ┌──────────┼──────────┐
+         │            │            │
+         ▼            ▼            ▼
+  ┌─────────┐  ┌─────────┐  ┌───────────┐
+  │ Phase 9: │  │ Phase 8: │  │  Phase 9:  │
+  │ Labeler  │  │ CBOM v2  │  │  Registry  │
+  │ (3-tier) │  │ CDX 1.7  │  │  (append)  │
+  └────┬────┘  └────┬────┘  └─────┬─────┘
+       │            │              │
+       └──────┬─────┘      auto-revoke
+              │                     │
+     ┌───────┴────────┐          │
+     │  Phase 9:        │          │
+     │  Attestor v2     │ ◀────────┘
+     │  (FIPS claims +  │
+     │   Ed25519 sign)  │
+     └───────┬────────┘
+             │
+             ▼
+     Signed CDXA v2 Document
+     • FIPS 203/204/205 claims
+     • Ed25519 digital signature
+     • SHA-256 content hash
+     • 90-day validity window
+```
+
 #### Phase 7 Scoring Breakdown
 
 ```
@@ -1365,7 +1433,7 @@ python -m pytest tests/ -v
 | **NIST FIPS 203** | ML-KEM key encapsulation classification |
 | **NIST FIPS 204** | ML-DSA digital signature classification |
 | **NIST FIPS 205** | SLH-DSA hash-based signature classification |
-| **CycloneDX 1.6** | CBOM and CDXA document format |
+| **CycloneDX 1.6/1.7** | CBOM (1.7 with pqcAssessment ext) and CDXA document format |
 | **RFC 8446** | TLS 1.3 protocol foundation |
 | **RFC 8996** | TLS 1.0/1.1 deprecation |
 | **CNSA 2.0** | NSA PQC migration guidance |
@@ -1374,7 +1442,7 @@ python -m pytest tests/ -v
 
 <div align="center">
 
-**Q-ARMOR v7.0.0** — Scan. Classify. Assess. Remediate. Label. Attest. Persist. Future-proof.
+**Q-ARMOR v9.0.0** — Scan. Classify. Assess. Remediate. Label. Regress. Certify. Attest. Future-proof.
 
 Built for the **PNB Cybersecurity Hackathon 2025-26**
 

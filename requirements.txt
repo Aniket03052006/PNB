@@ -15,3 +15,7 @@ rich>=13.0.0                  # Beautiful terminal tables and formatting
 
 # ── Phase 5: Enterprise Automation ───────────────────────────────────
 requests>=2.31.0              # Webhook notifications (Slack/Teams)
+
+# ── Production Deployment ────────────────────────────────────────────
+gunicorn>=22.0.0              # Production WSGI/ASGI server (optional)
+

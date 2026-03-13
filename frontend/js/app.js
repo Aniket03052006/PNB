@@ -4,6 +4,8 @@
  * Phase 2: PQC Assessment, Remediation, NIST Matrix
  * Phase 6: Tri-Mode Probing, History & Baseline
  * Phase 7: PQC Classification + Agility Assessment + SQLite DB
+ * Phase 8: Regression Detection + CycloneDX 1.7 CBOM
+ * Phase 9: PQC Labeling + Registry + FIPS Attestation
  */
 
 const API_BASE = '';
@@ -38,6 +40,7 @@ let trimodeData = null;
 let historyData = null;
 let classifiedData = null;
 let dbScansData = null;
+let phase9Data = null;
 
 /* ─── API Calls ─── */
 async function apiCall(endpoint, method = 'GET') {
@@ -1131,6 +1134,116 @@ async function loadHistory() {
     }
 }
 
+async function loadLiveHistory() {
+    showLoading('Loading scan history from database...');
+    try {
+        const scans = await apiCall('/api/db/scans?limit=50');
+        if (!scans || !scans.length) {
+            showToast('No scans in database yet — run a live scan first', 'info');
+            hideLoading();
+            return;
+        }
+
+        // Build weekly-style trend data from DB scans
+        const weeks = scans.slice(0, 10).reverse().map((s, i) => ({
+            week: i + 1,
+            scan_date: s.scan_date,
+            total_assets: s.total_assets || 0,
+            quantum_safety_score: Math.round(100 - (s.avg_score || 50)),
+            fully_quantum_safe: s.fully_safe || 0,
+            pqc_transition: s.pqc_trans || 0,
+            quantum_vulnerable: s.q_vuln || 0,
+            critically_vulnerable: s.crit_vuln || 0,
+            unknown: s.unknown || 0,
+        }));
+
+        const histData = { mode: 'live (DB)', weeks };
+        historyData = histData;
+        renderHistory(histData);
+
+        // Show the latest scan results as baseline comparison
+        const latest = scans[0];
+        const previous = scans.length >= 2 ? scans[1] : null;
+        renderLiveBaseline(latest, previous);
+
+        document.getElementById('historyEmpty').style.display = 'none';
+        document.getElementById('historyContent').style.display = '';
+        showToast(`Loaded ${scans.length} scans from database`, 'success');
+    } catch (e) {
+        showToast('Failed to load DB history: ' + e.message, 'error');
+    } finally {
+        hideLoading();
+    }
+}
+
+function renderLiveBaseline(latest, previous) {
+    const container = document.getElementById('baselineContent');
+    if (!container) return;
+
+    if (!latest) {
+        container.innerHTML = '<div class="empty-state"><div class="empty-state-desc">No scan data available</div></div>';
+        return;
+    }
+
+    const latestDomain = latest.domain || 'unknown';
+    const prevDomain = previous ? (previous.domain || 'unknown') : '—';
+    const delta = previous ? {
+        total: (latest.total_assets || 0) - (previous.total_assets || 0),
+        avg: ((latest.avg_score || 0) - (previous.avg_score || 0)).toFixed(1),
+        safe: (latest.fully_safe || 0) - (previous.fully_safe || 0),
+        trans: (latest.pqc_trans || 0) - (previous.pqc_trans || 0),
+        vuln: (latest.q_vuln || 0) - (previous.q_vuln || 0),
+        crit: (latest.crit_vuln || 0) - (previous.crit_vuln || 0),
+    } : null;
+
+    function diffBadge(val) {
+        if (!val || val == 0) return '<span style="color:var(--text-dim);">0</span>';
+        return val > 0
+            ? `<span style="color:var(--accent-green);font-weight:600;">+${val}</span>`
+            : `<span style="color:#ff4757;font-weight:600;">${val}</span>`;
+    }
+
+    container.innerHTML = `
+        <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:16px;">
+            <div class="stat-card stat-card--total" style="padding:12px;">
+                <div class="stat-value" style="font-size:1.4rem;">${latest.total_assets || 0}</div>
+                <div class="stat-label">Latest Assets</div>
+            </div>
+            <div class="stat-card stat-card--safe" style="padding:12px;">
+                <div class="stat-value" style="font-size:1.4rem;">${latest.fully_safe || 0}</div>
+                <div class="stat-label">Quantum Safe</div>
+            </div>
+            <div class="stat-card stat-card--transition" style="padding:12px;">
+                <div class="stat-value" style="font-size:1.4rem;">${latest.pqc_trans || 0}</div>
+                <div class="stat-label">Transition</div>
+            </div>
+            <div class="stat-card stat-card--vulnerable" style="padding:12px;">
+                <div class="stat-value" style="font-size:1.4rem;">${latest.q_vuln || 0}</div>
+                <div class="stat-label">Vulnerable</div>
+            </div>
+            <div class="stat-card stat-card--critical" style="padding:12px;">
+                <div class="stat-value" style="font-size:1.4rem;">${latest.crit_vuln || 0}</div>
+                <div class="stat-label">Critical</div>
+            </div>
+        </div>
+        ${delta ? `
+        <table class="asset-table" style="margin-bottom:12px;"><thead><tr>
+            <th>Metric</th><th>Latest (#${latest.id})</th><th>Previous (#${previous.id})</th><th>Delta</th>
+        </tr></thead><tbody>
+            <tr><td>Domain</td><td>${escHtml(latestDomain)}</td><td>${escHtml(prevDomain)}</td><td>—</td></tr>
+            <tr><td>Total Assets</td><td>${latest.total_assets || 0}</td><td>${previous.total_assets || 0}</td><td>${diffBadge(delta.total)}</td></tr>
+            <tr><td>Avg Score</td><td>${latest.avg_score || 0}</td><td>${previous.avg_score || 0}</td><td>${diffBadge(delta.avg)}</td></tr>
+            <tr><td style="color:var(--status-safe)">Fully Safe</td><td>${latest.fully_safe || 0}</td><td>${previous.fully_safe || 0}</td><td>${diffBadge(delta.safe)}</td></tr>
+            <tr><td style="color:var(--status-transition)">PQC Transition</td><td>${latest.pqc_trans || 0}</td><td>${previous.pqc_trans || 0}</td><td>${diffBadge(delta.trans)}</td></tr>
+            <tr><td style="color:var(--status-vulnerable)">Vulnerable</td><td>${latest.q_vuln || 0}</td><td>${previous.q_vuln || 0}</td><td>${diffBadge(delta.vuln)}</td></tr>
+            <tr><td style="color:var(--status-critical)">Critical</td><td>${latest.crit_vuln || 0}</td><td>${previous.crit_vuln || 0}</td><td>${diffBadge(delta.crit)}</td></tr>
+        </tbody></table>` : '<p style="color:var(--text-dim);font-size:0.82rem;">Only one scan in database — run another scan for comparison.</p>'}
+        <p style="font-size:0.82rem;color:var(--text-secondary);">
+            Latest scan: <strong>${escHtml(latestDomain)}</strong> (${latest.mode || 'live'}) on ${latest.scan_date ? new Date(latest.scan_date).toLocaleString() : '—'}
+        </p>
+    `;
+}
+
 function renderHistory(data) {
     if (!data || !data.weeks) return;
     const modeEl = document.getElementById('historyMode');
@@ -1234,6 +1347,23 @@ async function runPhase7Demo() {
         showToast(`Classified ${data.total_assets} assets (scan #${data.scan_id})`, 'success');
     } catch (e) {
         showToast('Phase 7 classify failed: ' + e.message, 'error');
+    } finally {
+        hideLoading();
+    }
+}
+
+async function runPhase7Live() {
+    const domain = (document.getElementById('p7DomainInput')?.value || '').trim();
+    if (!domain) { showToast('Enter a domain to classify', 'error'); return; }
+    showLoading(`Running Phase 7 live classification on ${domain}... (this may take 15-30s)`);
+    try {
+        const data = await apiCall(`/api/classify/live/${encodeURIComponent(domain)}`, 'POST');
+        classifiedData = data;
+        renderPhase7(data);
+        loadDbScans();
+        showToast(`Classified ${data.total_assets} live assets for ${domain} (scan #${data.scan_id})`, 'success');
+    } catch (e) {
+        showToast('Phase 7 live classify failed: ' + e.message, 'error');
     } finally {
         hideLoading();
     }
@@ -1481,4 +1611,232 @@ function renderScanComparison(delta, idA, idB) {
             <tr><td style="color:var(--status-critical)">Critical</td><td>${a.crit_vuln || 0}</td><td>${b.crit_vuln || 0}</td><td>${diffBadge(d.crit_vuln || 0)}</td></tr>
         </tbody></table>
     `;
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * Phase 8+9: Full Pipeline — Regression + Labels + CBOM v2 + Attestation
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+async function runPhase9Demo() {
+    showLoading('Running Phase 8+9 pipeline: classify → regress → label → register → CBOM v2 → attest...');
+    try {
+        phase9Data = await apiCall('/api/phase9/demo');
+        renderPhase9(phase9Data);
+        document.getElementById('p9Empty').style.display = 'none';
+        document.getElementById('p9Content').style.display = 'block';
+        showToast(`Phase 8+9 pipeline complete — ${phase9Data.classification?.total_assets || 0} assets processed`, 'success');
+    } catch (e) {
+        showToast('Phase 9 pipeline failed: ' + e.message, 'error');
+    } finally {
+        hideLoading();
+    }
+}
+
+async function runPhase9Live() {
+    const domain = (document.getElementById('p9DomainInput')?.value || '').trim();
+    if (!domain) { showToast('Enter a domain to run the pipeline on', 'error'); return; }
+    showLoading(`Running Phase 8+9 live pipeline on ${domain}... (this may take 30-60s)`);
+    try {
+        phase9Data = await apiCall(`/api/phase9/live/${encodeURIComponent(domain)}`, 'POST');
+        renderPhase9(phase9Data);
+        document.getElementById('p9Empty').style.display = 'none';
+        document.getElementById('p9Content').style.display = 'block';
+        const banner = document.getElementById('p9DemoBanner');
+        if (banner) banner.style.display = 'none';
+        showToast(`Phase 8+9 live pipeline complete — ${phase9Data.classification?.total_assets || 0} assets from ${domain}`, 'success');
+    } catch (e) {
+        showToast('Phase 9 live pipeline failed: ' + e.message, 'error');
+    } finally {
+        hideLoading();
+    }
+}
+
+function renderPhase9(data) {
+    const labels = data.labels || {};
+    const regr = data.regression || {};
+    const attest = data.attestation_summary || {};
+    const registry = data.registry || {};
+    const attestFull = data.attestation || {};
+
+    // KPI cards
+    document.getElementById('p9Total').textContent = labels.total_assets || 0;
+    document.getElementById('p9QSScore').textContent = `Q-Safety: ${labels.quantum_safety_score || 0}/100`;
+    document.getElementById('p9Tier1').textContent = labels.tier_1_count || 0;
+    document.getElementById('p9Tier1Pct').textContent = `${(labels.tier_1_pct || 0).toFixed(1)}%`;
+    document.getElementById('p9Tier2').textContent = labels.tier_2_count || 0;
+    document.getElementById('p9Tier2Pct').textContent = `${(labels.tier_2_pct || 0).toFixed(1)}%`;
+    document.getElementById('p9Tier3').textContent = labels.tier_3_count || 0;
+    document.getElementById('p9Tier3Pct').textContent = `${(labels.tier_3_pct || 0).toFixed(1)}%`;
+    document.getElementById('p9Regressions').textContent = regr.total_findings || 0;
+
+    const overallComp = attest.overallCompliance || 'UNKNOWN';
+    document.getElementById('p9Compliance').textContent = overallComp;
+    document.getElementById('p9Compliance').style.color =
+        overallComp === 'COMPLIANT' ? 'var(--accent-green)' :
+        overallComp === 'PARTIALLY_COMPLIANT' ? '#ffaa00' : '#ff4757';
+
+    // Regression table
+    renderRegressionTable(regr);
+
+    // Labels table
+    renderPhase9Labels(labels);
+
+    // Registry
+    renderRegistry(registry);
+
+    // Attestation
+    renderPhase9Attestation(attestFull, attest);
+}
+
+function renderRegressionTable(regr) {
+    const container = document.getElementById('p9RegressionContainer');
+    const all = [
+        ...(regr.new_assets || []).map(r => ({ ...r, _cat: 'New Asset' })),
+        ...(regr.score_regressions || []).map(r => ({ ...r, _cat: 'Score Regression' })),
+        ...(regr.missed_upgrades || []).map(r => ({ ...r, _cat: 'Missed Upgrade' })),
+    ];
+    document.getElementById('p9RegrBadge').textContent = `${all.length} findings`;
+
+    if (!all.length) {
+        container.innerHTML = '<div style="padding:16px;color:var(--text-dim);text-align:center;">No regressions detected — all clear!</div>';
+        return;
+    }
+
+    let html = `<table class="asset-table"><thead><tr>
+        <th>Host</th><th>Port</th><th>Category</th><th>Urgency</th><th>Description</th><th>Action</th>
+    </tr></thead><tbody>`;
+    for (const r of all) {
+        const urgColor = r.urgency === 'HIGH' ? '#ff4757' : r.urgency === 'MEDIUM' ? '#ffaa00' : 'var(--text-dim)';
+        html += `<tr>
+            <td>${r.hostname || ''}</td>
+            <td>${r.port || 443}</td>
+            <td><span style="background:rgba(0,212,255,0.12);color:var(--accent-cyan);padding:2px 8px;border-radius:4px;font-size:0.72rem;">${r._cat}</span></td>
+            <td><span style="color:${urgColor};font-weight:600;">${r.urgency || ''}</span></td>
+            <td style="max-width:300px;">${r.description || ''}</td>
+            <td style="font-size:0.75rem;color:var(--text-secondary);">${r.recommended_action || ''}</td>
+        </tr>`;
+    }
+    html += '</tbody></table>';
+    container.innerHTML = html;
+}
+
+function renderPhase9Labels(labels) {
+    const container = document.getElementById('p9LabelsContainer');
+    const execSummary = document.getElementById('p9LabelExecSummary');
+    const items = labels.labels || [];
+    document.getElementById('p9LabelBadge').textContent = `${items.length} labels`;
+    execSummary.textContent = labels.executive_summary || '';
+
+    if (!items.length) {
+        container.innerHTML = '<div style="padding:16px;color:var(--text-dim);text-align:center;">No labels issued</div>';
+        return;
+    }
+
+    let html = `<table class="asset-table"><thead><tr>
+        <th>Label ID</th><th>Host</th><th>Port</th><th>Tier</th><th>Certification</th><th>Badge</th><th>Standards</th><th>Gap</th><th>Fix</th>
+    </tr></thead><tbody>`;
+    for (const l of items) {
+        const tierColor = l.tier === 1 ? 'var(--accent-green)' : l.tier === 2 ? 'var(--accent-cyan)' : '#ff4757';
+        const tierName = l.tier === 1 ? 'Tier 1' : l.tier === 2 ? 'Tier 2' : 'Tier 3';
+        html += `<tr>
+            <td style="font-family:monospace;font-size:0.72rem;">${l.label_id || ''}</td>
+            <td>${l.hostname || ''}</td>
+            <td>${l.port || 443}</td>
+            <td><span style="color:${tierColor};font-weight:700;">${tierName}</span></td>
+            <td>${l.certification_title || ''}</td>
+            <td><span style="display:inline-block;padding:2px 8px;border-radius:4px;background:${l.badge_color || '#333'};color:#fff;font-size:0.72rem;">${l.badge_icon || ''}</span></td>
+            <td style="font-size:0.72rem;">${(l.nist_standards || []).join(', ')}</td>
+            <td style="color:#ffaa00;font-size:0.75rem;">${l.primary_gap || '—'}</td>
+            <td>${l.fix_in_days ? l.fix_in_days + 'd' : '—'}</td>
+        </tr>`;
+    }
+    html += '</tbody></table>';
+    container.innerHTML = html;
+}
+
+function renderRegistry(registry) {
+    const container = document.getElementById('p9RegistryContainer');
+    const badge = document.getElementById('p9RegistryBadge');
+    const persisted = registry.labels_persisted || 0;
+    const revocations = Array.isArray(registry.auto_revocations) ? registry.auto_revocations.length : (registry.auto_revocations || 0);
+
+    badge.textContent = `${persisted} persisted`;
+    container.innerHTML = `
+        <div style="display:flex;gap:24px;padding:8px 0;">
+            <div><strong style="color:var(--accent-green);">${persisted}</strong> labels persisted to append-only registry</div>
+            <div><strong style="color:${revocations > 0 ? '#ff4757' : 'var(--text-dim)'};">${revocations}</strong> auto-revocations triggered</div>
+        </div>
+        <div style="font-size:0.75rem;color:var(--text-dim);margin-top:4px;">
+            Registry endpoints: <code>/api/registry/verify/{id}</code> · <code>/api/registry/list</code> · <code>POST /api/registry/revoke</code>
+        </div>
+    `;
+}
+
+function renderPhase9Attestation(attestFull, summary) {
+    const container = document.getElementById('p9AttestContainer');
+    const badge = document.getElementById('p9AttestBadge');
+
+    const overallComp = summary.overallCompliance || 'UNKNOWN';
+    badge.textContent = overallComp;
+    badge.style.background = overallComp === 'COMPLIANT' ? 'rgba(0,255,136,0.12)' :
+        overallComp === 'PARTIALLY_COMPLIANT' ? 'rgba(255,170,0,0.12)' : 'rgba(255,71,87,0.12)';
+    badge.style.color = overallComp === 'COMPLIANT' ? 'var(--accent-green)' :
+        overallComp === 'PARTIALLY_COMPLIANT' ? '#ffaa00' : '#ff4757';
+
+    const decls = attestFull?.attestation?.declarations || {};
+    const claims = decls.claims || [];
+
+    let claimsHtml = '';
+    for (const c of claims) {
+        const statusColor = c.complianceStatus === 'COMPLIANT' ? 'var(--accent-green)' :
+            c.complianceStatus === 'PARTIALLY_COMPLIANT' ? '#ffaa00' :
+            c.complianceStatus === 'NOT_APPLICABLE' ? 'var(--text-dim)' : '#ff4757';
+        claimsHtml += `<tr>
+            <td style="font-weight:600;">${c.id || ''}</td>
+            <td style="max-width:240px;">${c.title || ''}</td>
+            <td><span style="color:${statusColor};font-weight:700;">${c.complianceStatus || ''}</span></td>
+            <td>${c.coverage || ''}</td>
+            <td style="font-size:0.75rem;color:var(--text-secondary);">${c.evidence || ''}</td>
+        </tr>`;
+    }
+
+    container.innerHTML = `
+        <div style="display:flex;gap:24px;margin-bottom:12px;font-size:0.82rem;">
+            <div><strong>Serial:</strong> <code style="font-size:0.72rem;">${summary.serialNumber || ''}</code></div>
+            <div><strong>Signed:</strong> <span style="color:${summary.signed ? 'var(--accent-green)' : '#ff4757'};">${summary.signed ? 'Ed25519 ✓' : 'No'}</span></div>
+            <div><strong>Valid Until:</strong> ${summary.validUntil ? new Date(summary.validUntil).toLocaleDateString() : '—'}</div>
+            <div><strong>Q-Safety:</strong> <span style="color:var(--accent-cyan);font-weight:700;">${summary.quantumSafetyScore || 0}/100</span></div>
+            <div><strong>Mode:</strong> <span style="color:#ffaa00;">${summary.dataMode || 'live'}</span></div>
+        </div>
+        <table class="asset-table"><thead><tr>
+            <th>FIPS Standard</th><th>Title</th><th>Status</th><th>Coverage</th><th>Evidence</th>
+        </tr></thead><tbody>${claimsHtml}</tbody></table>
+    `;
+}
+
+async function downloadPhase9CBOM() {
+    try {
+        const resp = await fetch(`${API_BASE}/api/phase9/cbom/download`);
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        const blob = await resp.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url; a.download = 'qarmor-cbom-v2.json'; a.click();
+        URL.revokeObjectURL(url);
+        showToast('CBOM v2 downloaded', 'success');
+    } catch (e) { showToast('Download failed: ' + e.message, 'error'); }
+}
+
+async function downloadPhase9CDXA() {
+    try {
+        const resp = await fetch(`${API_BASE}/api/attestation/v2/download`);
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        const blob = await resp.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url; a.download = 'qarmor-attestation-cdxa-v2.json'; a.click();
+        URL.revokeObjectURL(url);
+        showToast('CDXA v2 downloaded', 'success');
+    } catch (e) { showToast('Download failed: ' + e.message, 'error'); }
 }

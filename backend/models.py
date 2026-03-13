@@ -181,7 +181,8 @@ class RemediationAction(BaseModel):
     specific_actions: list[str] = Field(default_factory=list)
 
 
-class PQCLabel(BaseModel):
+class PQCLabelLegacy(BaseModel):
+    """Legacy PQC label (Phase 4/5 compat)."""
     label_id: str
     asset: str
     issued_at: str
@@ -189,6 +190,72 @@ class PQCLabel(BaseModel):
     algorithms: list[str]
     standards: list[str]
     status: str = "ACTIVE"
+
+
+# Alias so old references still work
+PQCLabel = PQCLabelLegacy
+
+
+# ── Phase 8+9 Models ────────────────────────────────────────────────────────
+
+class RegressionEntry(BaseModel):
+    """A single regression finding between two consecutive scans."""
+    hostname: str
+    port: int = 443
+    urgency: str = "MEDIUM"                     # HIGH | MEDIUM | LOW
+    category: str = ""                          # new_asset | score_regression | missed_upgrade
+    description: str = ""
+    previous_value: str | None = None
+    current_value: str | None = None
+    recommended_action: str = ""
+
+
+class RegressionReport(BaseModel):
+    """Phase 8 regression detection output — three distinct finding lists."""
+    scan_id: int | None = None
+    previous_scan_id: int | None = None
+    detected_at: str = Field(
+        default_factory=lambda: datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+    )
+    new_assets: list[RegressionEntry] = Field(default_factory=list)
+    score_regressions: list[RegressionEntry] = Field(default_factory=list)
+    missed_upgrades: list[RegressionEntry] = Field(default_factory=list)
+    total_findings: int = 0
+    data_mode: str = "live"                     # "live" | "demo"
+
+
+class PQCLabelV9(BaseModel):
+    """Phase 9 PQC certification label with full metadata."""
+    label_id: str                               # LABEL-<UUID8>
+    hostname: str
+    port: int = 443
+    tier: int = 3                               # 1 | 2 | 3
+    certification_title: str = ""               # e.g. "FULLY_QUANTUM_SAFE"
+    badge_color: str = "#D50000"                # Tier1=#00C853, Tier2=#FF6D00, Tier3=#D50000
+    badge_icon: str = "❌"                       # ✅ | 🔶 | ❌
+    nist_standards: list[str] = Field(default_factory=list)
+    algorithms_in_use: list[str] = Field(default_factory=list)
+    issued_at: str = ""
+    valid_until: str = ""
+    verification_url: str = ""
+    is_simulated: bool = False
+    primary_gap: str | None = None              # Non-compliant only
+    fix_in_days: int | None = None              # Non-compliant only
+
+
+class LabelSummary(BaseModel):
+    """Phase 9 aggregate label summary across all classified assets."""
+    labels: list[PQCLabelV9] = Field(default_factory=list)
+    total_assets: int = 0
+    tier_1_count: int = 0
+    tier_2_count: int = 0
+    tier_3_count: int = 0
+    tier_1_pct: float = 0.0
+    tier_2_pct: float = 0.0
+    tier_3_pct: float = 0.0
+    quantum_safety_score: int = 0               # 0-100 aggregate
+    executive_summary: str = ""
+    data_mode: str = "live"                     # "live" | "demo"
 
 
 class ScanSummary(BaseModel):

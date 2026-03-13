@@ -1,0 +1,6 @@
+{
+  "name": "q-armor-frontend",
+  "version": "9.0.0",
+  "description": "Q-ARMOR — Quantum Cryptographic Scanner Dashboard",
+  "private": true
+}

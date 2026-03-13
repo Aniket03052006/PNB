@@ -1,7 +1,8 @@
-"""Q-ARMOR — FastAPI Application."""
+"""Q-ARMOR — FastAPI Application (v9.0.0)."""
 
 from __future__ import annotations
 import json
+import os
 from pathlib import Path
 from fastapi import FastAPI, HTTPException
 from fastapi.staticfiles import StaticFiles
@@ -9,7 +10,7 @@ from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 import logging
 
-from backend.models import ScanSummary, PQCStatus, TriModeFingerprint
+from backend.models import ScanSummary, PQCStatus, TriModeFingerprint, ClassifiedAsset
 from backend.demo_data import (
     generate_demo_results,
     DEMO_TRIMODE_FINGERPRINTS,
@@ -17,14 +18,22 @@ from backend.demo_data import (
     get_historical_scan_summaries,
     _trimode_to_crypto,
 )
-from backend.scanner.cbom_generator import generate_cbom
+from backend.scanner.cbom_generator import generate_cbom, generate_cbom_v2
 from backend.scanner.classifier import classify, classify_trimode
 from backend.scanner.prober import probe_tls, probe_trimode, probe_batch
 from backend.scanner.discoverer import discover_assets
 from backend.scanner.assessment import analyze_endpoint, analyze_batch
 from backend.scanner.remediation import generate_remediation, generate_batch_remediation
-from backend.scanner.attestor import generate_attestation, verify_attestation, get_attestation_summary
+from backend.scanner.attestor import (
+    generate_attestation, verify_attestation, get_attestation_summary,
+    generate_attestation_v2, attestation_router, set_latest_attestation_context,
+)
 from backend.scanner.notifier import detect_alerts, send_alerts, get_alert_summary
+from backend.scanner.regression_detector import detect_regressions, detect_regressions_demo
+from backend.scanner.labeler import label_classified_assets
+from backend.scanner.label_registry import (
+    registry_router, append_all_labels, auto_revoke_on_scan,
+)
 from backend.scanner import database as db
 
 logger = logging.getLogger("qarmor.app")
@@ -32,15 +41,26 @@ logger = logging.getLogger("qarmor.app")
 app = FastAPI(
     title="Q-ARMOR",
     description="Quantum-Aware Mapping & Observation for Risk Remediation",
-    version="7.0.0",
+    version="9.0.0",
 )
+
+# CORS — allow Vercel frontend in production, wildcard in dev
+_frontend_url = os.environ.get("FRONTEND_URL", "")
+_allowed_origins = [_frontend_url] if _frontend_url else ["*"]
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=_allowed_origins,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Ensure data directory exists for SQLite
+Path("data").mkdir(exist_ok=True)
+
+# Mount Phase 8+9 sub-routers
+app.include_router(registry_router)
+app.include_router(attestation_router)
 
 # Serve frontend static files
 FRONTEND_DIR = Path(__file__).parent.parent / "frontend"
@@ -49,6 +69,8 @@ app.mount("/static", StaticFiles(directory=str(FRONTEND_DIR)), name="static")
 # In-memory cache for latest scan
 _latest_scan: ScanSummary | None = None
 _latest_trimode: list[TriModeFingerprint] = []
+_latest_classified: list[ClassifiedAsset] = []
+_latest_phase9: dict = {}
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -63,7 +85,7 @@ async def serve_dashboard():
 @app.get("/api/health")
 async def health_check():
     """Health check endpoint."""
-    return {"status": "operational", "service": "Q-ARMOR", "version": "7.0.0"}
+    return {"status": "operational", "service": "Q-ARMOR", "version": "9.0.0"}
 
 
 @app.get("/api/scan/demo")
@@ -864,3 +886,240 @@ async def db_revoke_label(label_id: str):
 async def db_get_alerts(scan_id: int | None = None, severity: str | None = None, limit: int = 50):
     """Retrieve alerts with optional filters."""
     return JSONResponse(content=db.get_alerts(scan_id=scan_id, severity=severity, limit=limit))
+
+
+# ── Phase 8+9: Full Pipeline (Regression + Labels + CBOM v2 + Attestation) ──
+
+@app.get("/api/phase9/demo")
+async def phase9_demo_pipeline():
+    """Run the complete Phase 8+9 demo pipeline.
+
+    Pipeline steps:
+      1. Classify all 21 demo assets (Phase 7 tri-mode classifier)
+      2. Classify baseline assets (degraded one-week-ago snapshot)
+      3. Detect regressions between current and baseline (Phase 8)
+      4. Label classified assets with 3-tier PQC certification (Phase 9)
+      5. Persist labels to append-only registry
+      6. Auto-revoke stale labels if regressions detected
+      7. Generate CycloneDX 1.7 CBOM with vulnerabilities from regressions
+      8. Generate signed CDXA attestation with FIPS compliance claims
+      9. Return the full pipeline result
+    """
+    global _latest_classified, _latest_phase9
+
+    # Step 1: Classify current assets
+    current_assets = [classify_trimode(fp) for fp in DEMO_TRIMODE_FINGERPRINTS]
+    _latest_classified = current_assets
+
+    # Step 2: Classify baseline (degraded) assets
+    baseline_fps = get_demo_baseline_fingerprints()
+    baseline_assets = [classify_trimode(fp) for fp in baseline_fps]
+
+    # Step 3: Regression detection
+    regression = detect_regressions_demo(current_assets, baseline_assets)
+
+    # Step 4: Phase 9 labeling
+    label_summary = label_classified_assets(
+        current_assets,
+        is_demo=True,
+        base_url="/api/registry/verify",
+    )
+
+    # Step 5: Persist labels to registry
+    append_all_labels(label_summary)
+
+    # Step 6: Auto-revoke stale labels
+    revocations = auto_revoke_on_scan(current_assets, baseline_assets)
+
+    # Step 7: CycloneDX 1.7 CBOM
+    cbom = generate_cbom_v2(current_assets, regression, data_mode="demo")
+
+    # Step 8: Signed CDXA attestation
+    set_latest_attestation_context(label_summary, cbom)
+    cdxa = generate_attestation_v2(label_summary, cbom)
+
+    # Build full result
+    _latest_phase9 = {
+        "pipeline": "Phase 8+9 Demo",
+        "version": "9.0.0",
+        "steps_completed": 8,
+        "classification": {
+            "total_assets": len(current_assets),
+            "assets": [a.model_dump(mode="json") for a in current_assets],
+        },
+        "regression": regression.model_dump(mode="json"),
+        "labels": label_summary.model_dump(mode="json"),
+        "registry": {
+            "labels_persisted": len(label_summary.labels),
+            "auto_revocations": revocations,
+        },
+        "cbom": cbom,
+        "attestation": cdxa,
+        "attestation_summary": get_attestation_summary(cdxa),
+    }
+
+    return JSONResponse(content=_latest_phase9)
+
+
+@app.post("/api/phase9/live/{domain}")
+async def phase9_live_pipeline(domain: str):
+    """Run the complete Phase 8+9 pipeline on a LIVE domain.
+
+    Pipeline:
+      1. Discover real assets (DNS + CT logs)
+      2. Tri-mode probe all discovered assets
+      3. Classify each with Phase 7 tri-mode classifier
+      4. Detect regressions vs previous DB scan
+      5. Label with 3-tier PQC certification
+      6. Persist labels + auto-revoke stale
+      7. Generate CycloneDX 1.7 CBOM
+      8. Generate signed CDXA attestation
+    """
+    global _latest_classified, _latest_phase9
+    import asyncio
+
+    try:
+        # Step 1: Discover assets
+        try:
+            assets = await asyncio.wait_for(
+                discover_assets(domain, include_ct=True, include_port_scan=False),
+                timeout=20.0,
+            )
+        except asyncio.TimeoutError:
+            assets = await asyncio.wait_for(
+                discover_assets(domain, include_ct=False, include_port_scan=False),
+                timeout=10.0,
+            )
+        if not assets:
+            raise HTTPException(status_code=404, detail=f"No assets discovered for {domain}")
+
+        # Step 2: Tri-mode probe
+        fingerprints = await probe_batch(assets[:20], concurrency=20, demo=False)
+
+        # Step 3: Classify each
+        current_assets = []
+        for fp in fingerprints:
+            ca = classify_trimode(fp)
+            current_assets.append(ca)
+
+        _latest_classified = current_assets
+
+        # Save scan to DB for future regression baseline
+        counts = {s.value: 0 for s in PQCStatus}
+        total_worst = 0
+        for ca in current_assets:
+            d = ca.model_dump(mode="json")
+            counts[d["status"]] = counts.get(d["status"], 0) + 1
+            total_worst += d["worst_case_score"]
+        avg = round(total_worst / len(current_assets), 1) if current_assets else 0
+
+        classified_dicts = [ca.model_dump(mode="json") for ca in current_assets]
+        scan_id = db.save_scan(
+            mode="live",
+            domain=domain,
+            total_assets=len(current_assets),
+            avg_score=avg,
+            fully_safe=counts.get("FULLY_QUANTUM_SAFE", 0),
+            pqc_trans=counts.get("PQC_TRANSITION", 0),
+            q_vuln=counts.get("QUANTUM_VULNERABLE", 0),
+            crit_vuln=counts.get("CRITICALLY_VULNERABLE", 0),
+            unknown=counts.get("UNKNOWN", 0),
+            results_json=json.dumps(classified_dicts),
+            classified_assets=classified_dicts,
+        )
+
+        # Step 4: Regression detection (live — uses DB for baseline)
+        previous_scan = db.load_previous_scan()
+        regression = detect_regressions(classified_dicts, scan_id, previous_scan, data_mode="live")
+
+        # Step 5: Phase 9 labeling
+        label_summary = label_classified_assets(
+            current_assets,
+            is_demo=False,
+            base_url="/api/registry/verify",
+        )
+
+        # Step 6: Persist labels + auto-revoke
+        append_all_labels(label_summary)
+        revocations = auto_revoke_on_scan(current_assets, [])
+
+        # Step 7: CycloneDX 1.7 CBOM
+        cbom = generate_cbom_v2(current_assets, regression, data_mode="live")
+
+        # Step 8: Signed CDXA attestation
+        set_latest_attestation_context(label_summary, cbom)
+        cdxa = generate_attestation_v2(label_summary, cbom)
+
+        # Build full result
+        _latest_phase9 = {
+            "pipeline": "Phase 8+9 Live",
+            "version": "9.0.0",
+            "mode": "live",
+            "domain": domain,
+            "scan_id": scan_id,
+            "steps_completed": 8,
+            "classification": {
+                "total_assets": len(current_assets),
+                "assets": classified_dicts,
+            },
+            "regression": regression.model_dump(mode="json"),
+            "labels": label_summary.model_dump(mode="json"),
+            "registry": {
+                "labels_persisted": len(label_summary.labels),
+                "auto_revocations": revocations,
+            },
+            "cbom": cbom,
+            "attestation": cdxa,
+            "attestation_summary": get_attestation_summary(cdxa),
+        }
+
+        return JSONResponse(content=_latest_phase9)
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception("Phase 9 live pipeline failed for %s", domain)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/phase9/regression")
+async def phase9_regression():
+    """Return the latest Phase 8 regression report."""
+    if not _latest_phase9:
+        raise HTTPException(status_code=404, detail="Run /api/phase9/demo first.")
+    return JSONResponse(content=_latest_phase9.get("regression", {}))
+
+
+@app.get("/api/phase9/labels")
+async def phase9_labels():
+    """Return the latest Phase 9 label summary."""
+    if not _latest_phase9:
+        raise HTTPException(status_code=404, detail="Run /api/phase9/demo first.")
+    return JSONResponse(content=_latest_phase9.get("labels", {}))
+
+
+@app.get("/api/phase9/cbom")
+async def phase9_cbom():
+    """Return the latest CycloneDX 1.7 CBOM."""
+    if not _latest_phase9:
+        raise HTTPException(status_code=404, detail="Run /api/phase9/demo first.")
+    return JSONResponse(content=_latest_phase9.get("cbom", {}))
+
+
+@app.get("/api/phase9/cbom/download")
+async def phase9_cbom_download():
+    """Download the CycloneDX 1.7 CBOM."""
+    if not _latest_phase9:
+        raise HTTPException(status_code=404, detail="Run /api/phase9/demo first.")
+    return JSONResponse(
+        content=_latest_phase9.get("cbom", {}),
+        headers={"Content-Disposition": "attachment; filename=qarmor-cbom-v2.json"},
+    )
+
+
+@app.get("/api/phase9/attestation")
+async def phase9_attestation():
+    """Return the latest signed CDXA attestation."""
+    if not _latest_phase9:
+        raise HTTPException(status_code=404, detail="Run /api/phase9/demo first.")
+    return JSONResponse(content=_latest_phase9.get("attestation", {}))
