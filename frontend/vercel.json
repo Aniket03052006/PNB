@@ -1,6 +1,6 @@
 {
   "rewrites": [
-    { "source": "/api/:path*", "destination": "https://YOUR_BACKEND_URL/api/:path*" }
+    { "source": "/api/:path*", "destination": "https://pnb-production.up.railway.app/api/:path*" }
   ],
   "headers": [
     {
