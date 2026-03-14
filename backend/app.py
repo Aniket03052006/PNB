@@ -1044,8 +1044,22 @@ async def assess_endpoint(hostname: str, port: int = 443):
 
 
 @app.get("/api/assess/remediation")
-async def get_remediation_plan():
+async def get_remediation_plan(mode: str | None = None, domain: str | None = None, refresh: bool = False):
     """Get the full Phase 2 remediation plan for the latest scan."""
+    if mode is not None or domain or refresh:
+        requested_mode = _normalize_pipeline_mode(mode)
+        requested_domain = ""
+        if requested_mode == "live":
+            requested_domain = _normalize_hostname_input(domain or (_latest_pipeline_context.get("domain") or ""), allow_port=False)[0]
+        pipeline_result = await _ensure_latest_pipeline_result(
+            mode=requested_mode,
+            domain=requested_domain or None,
+            force_refresh=refresh,
+        )
+        batch = _build_pipeline_assessment_batch(list(pipeline_result.get("assets", [])))
+        rems = generate_batch_remediation(batch)
+        return JSONResponse(content=rems)
+
     if not _latest_scan:
         raise HTTPException(status_code=404, detail="No scan data. Run /api/scan/demo first.")
     batch = analyze_batch(_latest_scan)

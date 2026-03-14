@@ -651,8 +651,8 @@ function renderAlerts(data) {
 async function fetchPhase2Assessment() {
     try {
         const [assess, remediation] = await Promise.all([
-            apiCall('/api/assess'),
-            apiCall('/api/assess/remediation'),
+            apiCall(buildContextEndpoint('/api/assess')),
+            apiCall(buildContextEndpoint('/api/assess/remediation')),
         ]);
         assessmentData = assess;
         remediationData = remediation;
@@ -2505,7 +2505,7 @@ function prepareOverviewVisualizations(forceRefresh = false) {
 }
 
 async function fetchLatestScan(forceRefresh = false) {
-    const endpoint = '/api/scan/latest';
+    const endpoint = buildContextEndpoint('/api/scan/latest', forceRefresh);
     if (!forceRefresh && latestScanPayload && latestScanKey === endpoint) return latestScanPayload;
     latestScanPayload = await apiCall(endpoint);
     latestScanKey = endpoint;
@@ -3691,8 +3691,8 @@ fetchPhase2Assessment = async function fetchPhase2AssessmentInteractive() {
     }
     try {
         const [assessResult, remediationResult, negotiationResult] = await Promise.allSettled([
-            apiCall('/api/assess'),
-            apiCall('/api/assess/remediation'),
+            apiCall(buildContextEndpoint('/api/assess')),
+            apiCall(buildContextEndpoint('/api/assess/remediation')),
             apiCall(buildContextEndpoint('/api/pqc/negotiation')),
         ]);
         if (assessResult.status !== 'fulfilled') {
