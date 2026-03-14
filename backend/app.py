@@ -527,7 +527,9 @@ def _build_legacy_scan_summary_from_fingerprints(fingerprints: list[TriModeFinge
 
     for fp in fingerprints:
         crypto = _trimode_to_crypto(fp)
-        q_score = classify(crypto)
+        classified_asset = classify_trimode(fp)
+        q_score = classified_asset.worst_case_q.model_copy(deep=True)
+        q_score.status = classified_asset.status
         asset = DiscoveredAsset(
             hostname=fp.hostname,
             ip=fp.ip,
