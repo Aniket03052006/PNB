@@ -2505,7 +2505,7 @@ function prepareOverviewVisualizations(forceRefresh = false) {
 }
 
 async function fetchLatestScan(forceRefresh = false) {
-    const endpoint = buildContextEndpoint('/api/scan/latest', forceRefresh);
+    const endpoint = '/api/scan/latest';
     if (!forceRefresh && latestScanPayload && latestScanKey === endpoint) return latestScanPayload;
     latestScanPayload = await apiCall(endpoint);
     latestScanKey = endpoint;
@@ -3691,7 +3691,7 @@ fetchPhase2Assessment = async function fetchPhase2AssessmentInteractive() {
     }
     try {
         const [assessResult, remediationResult, negotiationResult] = await Promise.allSettled([
-            apiCall(buildContextEndpoint('/api/assess')),
+            apiCall('/api/assess'),
             apiCall('/api/assess/remediation'),
             apiCall(buildContextEndpoint('/api/pqc/negotiation')),
         ]);

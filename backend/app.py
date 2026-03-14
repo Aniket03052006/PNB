@@ -214,7 +214,9 @@ def _parse_scan_results(scan: dict[str, Any] | None) -> list[dict[str, Any]]:
 def _status_counts_from_assets(assets: list[dict[str, Any]]) -> dict[str, int]:
     counts = {status.value: 0 for status in PQCStatus}
     for asset in assets:
-        status = str(asset.get("status") or asset.get("pqc_status") or "UNKNOWN")
+        q_score = asset.get("q_score")
+        q_status = q_score.get("status") if isinstance(q_score, dict) else None
+        status = str(asset.get("status") or asset.get("pqc_status") or q_status or "UNKNOWN")
         counts[status] = counts.get(status, 0) + 1
     return counts
 
@@ -224,10 +226,12 @@ def _average_asset_score(assets: list[dict[str, Any]]) -> float:
         return 0.0
     total = 0.0
     for asset in assets:
+        q_score = asset.get("q_score")
+        q_total = q_score.get("total", 0) if isinstance(q_score, dict) else q_score
         total += float(
             asset.get("worst_case_score")
             or asset.get("worst_score")
-            or asset.get("q_score", 0)
+            or q_total
             or 0
         )
     return round(total / len(assets), 1)
@@ -1628,6 +1632,23 @@ async def api_scan_latest(mode: str | None = None, domain: str | None = None, re
             mode=pipeline_result.get("mode", requested_mode),
             domain=requested_domain or "",
         ))
+
+    if _latest_scan:
+        summary = json.loads(_latest_scan.model_dump_json())
+        assets = summary.get("results", []) if isinstance(summary.get("results"), list) else []
+        payload = _latest_scan_payload_from_assets(
+            assets,
+            scan_id=summary.get("scan_id"),
+            mode=summary.get("mode", "live"),
+            domain=summary.get("domain", ""),
+        )
+        return JSONResponse(content={
+            **summary,
+            **payload,
+            "results": assets,
+            "assets": assets,
+            "asset_scores": assets,
+        })
 
     latest_scan = db.load_latest_scan()
     if latest_scan:

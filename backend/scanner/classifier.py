@@ -266,6 +266,12 @@ def _determine_probe_status(
     if has_tls13 and has_pqc_kex:
         return PQCStatus.PQC_TRANSITION
 
+    # Slightly lenient transition posture: modern TLS 1.3 with forward secrecy
+    # and a reasonable score is treated as transitional readiness.
+    has_forward_secrecy = probe_q.key_exchange_score >= 12
+    if has_tls13 and has_forward_secrecy and probe_q.total >= 55:
+        return PQCStatus.PQC_TRANSITION
+
     if probe_q.total < 30 or _is_legacy_tls_version(tls_version):
         return PQCStatus.CRITICALLY_VULNERABLE
 
@@ -292,6 +298,7 @@ def _determine_asset_status(
     has_tls13_path = any(_is_tls13_version(probe.tls_version) for probe in probes)
     has_pqc_path = any(_is_pqc_kex_name(probe.key_exchange or probe.key_exchange_group) for probe in probes)
     has_pqc_sig = _is_pqc_sig_name(cert_sig, cert_pk)
+    has_forward_secrecy_path = any(q.key_exchange_score >= 12 for q in (best_q, typical_q, worst_q))
     all_legacy = all(
         not (probe.tls_version or probe.cipher_suite or probe.cipher_bits)
         or _is_legacy_tls_version(probe.tls_version)
@@ -304,6 +311,11 @@ def _determine_asset_status(
     # Any ML-KEM / hybrid-capable TLS 1.3 path should be treated as transition posture
     # even if a classical cert or downgrade path still drags the worst-case score down.
     if has_tls13_path and has_pqc_path:
+        return PQCStatus.PQC_TRANSITION
+
+    # Lenient transition path for assets that are modernized (TLS 1.3 + forward secrecy)
+    # but not yet exposing explicit PQC KEX identifiers in all probe paths.
+    if has_tls13_path and has_forward_secrecy_path and max(best_q.total, typical_q.total) >= 55:
         return PQCStatus.PQC_TRANSITION
 
     if worst_q.total < 30 or all_legacy:
