@@ -937,6 +937,24 @@ Also available:
 - Landing page: `http://localhost:8000/static/landing.html`
 - Dashboard alias: `http://localhost:8000/dashboard`
 
+### Deployment (Vercel + Railway)
+
+Frontend (Vercel):
+
+- Deploy the `frontend/` directory as a Vercel project.
+- `frontend/vercel.json` rewrites `/api/*` requests to Railway.
+- Keep `Cache-Control` headers from `frontend/vercel.json` to avoid stale dashboard/API state.
+
+Backend (Railway):
+
+- Deploy from repo root (Railway uses `Procfile`: `uvicorn backend.app:app --host 0.0.0.0 --port ${PORT:-8000}`).
+- Runtime is pinned in `runtime.txt` (`python-3.12.3`).
+- Set environment variables:
+    - `FRONTEND_URLS`: comma-separated Vercel origins (for CORS), example: `https://your-app.vercel.app,https://your-app-git-main.vercel.app`
+    - `QARMOR_LIVE_SCAN_LIMIT`: recommended `20` for production
+    - Optional: `QARMOR_LOCAL_FULL_SCAN=1`, `QARMOR_LOCAL_API_CRAWL=1` for deeper scans
+    - Optional: `QARMOR_GZIP_MIN_SIZE=512` (response compression threshold)
+
 ### Run the CLI Scanner
 
 ```bash

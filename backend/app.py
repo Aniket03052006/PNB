@@ -13,6 +13,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.middleware.gzip import GZipMiddleware
 import logging
 
 from backend.models import ScanSummary, PQCStatus, TriModeFingerprint, ClassifiedAsset
@@ -28,12 +29,13 @@ from backend.demo_data import (
     get_demo_network_graph,
     _trimode_to_crypto,
 )
-from backend.cyber_rating import TIER_CRITERIA
+from backend.cyber_rating import TIER_CRITERIA, compute_enterprise_cyber_rating
 from backend.pipeline import run_pipeline
 from backend.scanner.cbom_generator import generate_cbom, generate_cbom_v2
 from backend.scanner.classifier import classify, classify_trimode
 from backend.scanner.prober import probe_tls, probe_trimode, probe_batch
 from backend.scanner.discoverer import discover_assets
+from backend.scanner.negotiation_policy import compute_heatmap
 from backend.scanner.assessment import (
     KX_HYBRID,
     KX_PQC_SAFE,
@@ -70,13 +72,28 @@ app = FastAPI(
     version="9.0.0",
 )
 
-# CORS — allow Vercel frontend in production, wildcard in dev
-_frontend_url = os.environ.get("FRONTEND_URL", "")
-_allowed_origins = [_frontend_url] if _frontend_url else ["*"]
+def _parse_frontend_origins() -> list[str]:
+    """Parse deployment frontend origins from env.
+
+    Supports:
+    - FRONTEND_URLS="https://app.vercel.app,https://preview.vercel.app"
+    - FRONTEND_URL="https://app.vercel.app"
+    """
+    raw_urls = os.environ.get("FRONTEND_URLS", "").strip()
+    if not raw_urls:
+        single = os.environ.get("FRONTEND_URL", "").strip()
+        raw_urls = single
+    origins = [item.strip().rstrip("/") for item in raw_urls.split(",") if item.strip()]
+    # Preserve order while removing duplicates.
+    return list(dict.fromkeys(origins))
+
+
+_frontend_origins = _parse_frontend_origins()
+_allowed_origins = _frontend_origins if _frontend_origins else ["*"]
 _local_full_scan_default = "0"
 LOCAL_FULL_SCAN = os.environ.get("QARMOR_LOCAL_FULL_SCAN", _local_full_scan_default) == "1"
 LOCAL_API_CRAWL = os.environ.get("QARMOR_LOCAL_API_CRAWL", "0") == "1"
-_live_scan_limit_default = "0" if not _frontend_url else "20"
+_live_scan_limit_default = "0" if not _frontend_origins else "20"
 LIVE_SCAN_LIMIT = int(os.environ.get("QARMOR_LIVE_SCAN_LIMIT", _live_scan_limit_default))
 
 app.add_middleware(
@@ -84,6 +101,11 @@ app.add_middleware(
     allow_origins=_allowed_origins,
     allow_methods=["*"],
     allow_headers=["*"],
+)
+
+app.add_middleware(
+    GZipMiddleware,
+    minimum_size=int(os.environ.get("QARMOR_GZIP_MIN_SIZE", "512")),
 )
 
 # Ensure data directory exists for SQLite
@@ -196,19 +218,52 @@ def _company_from_hostname(hostname: str) -> str:
     return "LIVE"
 
 
+def _normalize_asset(asset: dict[str, Any]) -> dict[str, Any]:
+    """Flatten live-scan nested format {asset:{hostname}, q_score:{total,status}}
+    into the same flat shape that the pipeline produces, so all consumers are consistent."""
+    if not isinstance(asset, dict):
+        return asset
+    # Already flat (pipeline format) — has hostname at top level
+    if "hostname" in asset:
+        return asset
+    # Nested live-scan format
+    inner = asset.get("asset") or {}
+    q = asset.get("q_score") or {}
+    q_total = q.get("total", 0) if isinstance(q, dict) else (q or 0)
+    q_status = q.get("status", "UNKNOWN") if isinstance(q, dict) else "UNKNOWN"
+    flat = {**asset}
+    flat["hostname"] = inner.get("hostname") or inner.get("ip") or ""
+    flat["ip"] = inner.get("ip") or ""
+    flat["port"] = inner.get("port") or 443
+    flat["asset_type"] = inner.get("asset_type") or ""
+    flat["worst_case_score"] = q_total
+    flat["worst_score"] = q_total
+    flat["status"] = q_status
+    flat["pqc_status"] = q_status
+    flat["q_score"] = q
+    tls = (asset.get("fingerprint") or {}).get("tls") or {}
+    flat.setdefault("tls_version", tls.get("version") or "")
+    flat.setdefault("cipher_suite", tls.get("cipher_suite") or "")
+    flat.setdefault("cipher_bits", tls.get("cipher_bits") or 0)
+    flat.setdefault("key_exchange", tls.get("key_exchange") or "")
+    return flat
+
+
 def _parse_scan_results(scan: dict[str, Any] | None) -> list[dict[str, Any]]:
     if not scan:
         return []
     raw = scan.get("results_json", "[]")
     if isinstance(raw, list):
-        return raw
+        return [_normalize_asset(a) for a in raw]
     if not isinstance(raw, str):
         return []
     try:
         parsed = json.loads(raw)
     except json.JSONDecodeError:
         return []
-    return parsed if isinstance(parsed, list) else []
+    if not isinstance(parsed, list):
+        return []
+    return [_normalize_asset(a) for a in parsed]
 
 
 def _status_counts_from_assets(assets: list[dict[str, Any]]) -> dict[str, int]:
@@ -508,6 +563,93 @@ def _build_legacy_scan_summary_from_fingerprints(fingerprints: list[TriModeFinge
     )
 
 
+def _pipeline_assets_from_scan_summary(scan_summary: ScanSummary) -> list[dict[str, Any]]:
+    """Build pipeline-like asset records from legacy scan summary results."""
+    summary = json.loads(scan_summary.model_dump_json())
+    assets: list[dict[str, Any]] = []
+
+    for item in summary.get("results", []):
+        asset = item.get("asset") or {}
+        fingerprint = item.get("fingerprint") or {}
+        tls = fingerprint.get("tls") or {}
+        certificate = fingerprint.get("certificate") or {}
+        q_score = item.get("q_score") or {}
+
+        total_score = int(q_score.get("total") or 0)
+        status = str(q_score.get("status") or "UNKNOWN")
+
+        assets.append({
+            "hostname": str(asset.get("hostname") or ""),
+            "ip": str(asset.get("ip") or ""),
+            "port": int(asset.get("port") or 443),
+            "asset_type": str(asset.get("asset_type") or "web"),
+            "status": status,
+            "best_case_score": total_score,
+            "typical_score": total_score,
+            "worst_case_score": total_score,
+            "key_exchange": str(tls.get("key_exchange") or ""),
+            "tls_version": str(tls.get("version") or ""),
+            "cipher_suite": str(tls.get("cipher_suite") or ""),
+            "cipher_bits": int(tls.get("cipher_bits") or 0),
+            "cert_algorithm": str(certificate.get("signature_algorithm") or "Unknown"),
+            "negotiation_tier": "UNKNOWN",
+            "negotiation_security_score": 0,
+        })
+
+    return assets
+
+
+def _cache_pipeline_from_scan_summary(scan_summary: ScanSummary, *, mode: str, domain: str) -> None:
+    """Keep pipeline cache aligned with legacy scan endpoints for UI consistency."""
+    global _latest_pipeline_result, _latest_pipeline_context
+
+    assets = _pipeline_assets_from_scan_summary(scan_summary)
+    tier_by_status = {
+        "FULLY_QUANTUM_SAFE": "STRONG",
+        "PQC_TRANSITION": "MEDIUM",
+        "QUANTUM_VULNERABLE": "WEAK",
+        "CRITICALLY_VULNERABLE": "CRITICAL",
+        "UNKNOWN": "WEAK",
+    }
+
+    heatmap = compute_heatmap([
+        {
+            "hostname": str(asset.get("hostname") or ""),
+            "pqc_status": str(asset.get("status") or "UNKNOWN"),
+            "negotiation_tier": tier_by_status.get(str(asset.get("status") or "UNKNOWN"), "WEAK"),
+        }
+        for asset in assets
+    ])
+
+    enterprise_cyber_rating = compute_enterprise_cyber_rating([
+        {
+            "hostname": str(asset.get("hostname") or ""),
+            "q_score": int(asset.get("worst_case_score") or 0),
+            "pqc_status": str(asset.get("status") or "UNKNOWN"),
+        }
+        for asset in assets
+    ])
+
+    _latest_pipeline_result = {
+        "scan_id": None,
+        "timestamp": scan_summary.scan_timestamp,
+        "mode": mode,
+        "assets": assets,
+        "negotiation_policies": {},
+        "heatmap": heatmap,
+        "enterprise_cyber_rating": enterprise_cyber_rating,
+        "cbom": {},
+        "labels": {},
+        "alerts": [],
+        "regression_summary": {},
+        "attestation": {},
+    }
+    _latest_pipeline_context = {
+        "mode": mode,
+        "domain": domain or None,
+    }
+
+
 def _pipeline_detection_date(pipeline_result: dict[str, Any]) -> str:
     ts = str(pipeline_result.get("timestamp", ""))
     if ts:
@@ -677,7 +819,17 @@ async def _ensure_latest_pipeline_result(
         and _latest_pipeline_result
         and _latest_pipeline_context.get("mode") == requested_mode
         and _latest_pipeline_context.get("domain") == requested_domain
+        and _latest_pipeline_result.get("cbom")  # skip shallow cache-from-scan stubs
     ):
+        return _latest_pipeline_result
+
+    if (
+        requested_mode == "live"
+        and not force_refresh
+        and _latest_scan
+        and _latest_scan.total_assets > 0
+    ):
+        _cache_pipeline_from_scan_summary(_latest_scan, mode="live", domain=requested_domain or "")
         return _latest_pipeline_result
 
     pipeline_kwargs: dict[str, Any] = {"mode": requested_mode, "domain": requested_domain}
@@ -859,6 +1011,7 @@ async def run_demo_scan():
     """Run a demo scan with simulated bank assets."""
     global _latest_scan
     _latest_scan = generate_demo_results()
+    _cache_pipeline_from_scan_summary(_latest_scan, mode="demo", domain="")
     return _latest_scan.model_dump(mode="json")
 
 
@@ -917,6 +1070,7 @@ async def scan_domain(domain: str):
         )
         _latest_trimode = fingerprints
         _latest_scan = _build_legacy_scan_summary_from_fingerprints(fingerprints)
+        _cache_pipeline_from_scan_summary(_latest_scan, mode="live", domain=domain)
         return _latest_scan.model_dump(mode="json")
 
     except HTTPException:
@@ -1019,6 +1173,8 @@ async def get_assessment(mode: str | None = None, domain: str | None = None, ref
         return JSONResponse(content=_build_pipeline_assessment_batch(list(pipeline_result.get("assets", []))))
 
     if not _latest_scan:
+        if _latest_pipeline_result:
+            return JSONResponse(content=_build_pipeline_assessment_batch(list(_latest_pipeline_result.get("assets", []))))
         raise HTTPException(status_code=404, detail="No scan data. Run /api/scan/demo first.")
     batch = analyze_batch(_latest_scan)
     return JSONResponse(content=batch)
@@ -1061,6 +1217,10 @@ async def get_remediation_plan(mode: str | None = None, domain: str | None = Non
         return JSONResponse(content=rems)
 
     if not _latest_scan:
+        if _latest_pipeline_result:
+            batch = _build_pipeline_assessment_batch(list(_latest_pipeline_result.get("assets", [])))
+            rems = generate_batch_remediation(batch)
+            return JSONResponse(content=rems)
         raise HTTPException(status_code=404, detail="No scan data. Run /api/scan/demo first.")
     batch = analyze_batch(_latest_scan)
     rems = generate_batch_remediation(batch)
@@ -1649,7 +1809,8 @@ async def api_scan_latest(mode: str | None = None, domain: str | None = None, re
 
     if _latest_scan:
         summary = json.loads(_latest_scan.model_dump_json())
-        assets = summary.get("results", []) if isinstance(summary.get("results"), list) else []
+        raw_results = summary.get("results", []) if isinstance(summary.get("results"), list) else []
+        assets = [_normalize_asset(a) for a in raw_results]
         payload = _latest_scan_payload_from_assets(
             assets,
             scan_id=summary.get("scan_id"),
@@ -1677,7 +1838,7 @@ async def api_scan_latest(mode: str | None = None, domain: str | None = None, re
         return JSONResponse(content={**latest_scan, **payload})
 
     if _latest_pipeline_result:
-        assets = list(_latest_pipeline_result.get("assets", []))
+        assets = [_normalize_asset(a) for a in _latest_pipeline_result.get("assets", [])]
         return JSONResponse(content=_latest_scan_payload_from_assets(
             assets,
             scan_id=_latest_pipeline_result.get("scan_id"),

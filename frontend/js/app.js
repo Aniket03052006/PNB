@@ -8,7 +8,13 @@
  * PQC labeling + registry + FIPS attestation
  */
 
-const API_BASE = '';
+const API_BASE = (() => {
+    const configured =
+        typeof window !== 'undefined' && typeof window.__QARMOR_API_BASE__ === 'string'
+            ? window.__QARMOR_API_BASE__.trim()
+            : '';
+    return configured.endsWith('/') ? configured.slice(0, -1) : configured;
+})();
 
 /* ─── Toast Notification ─── */
 function showToast(message, type = 'error') {
@@ -424,6 +430,8 @@ async function runDemoScan() {
     try {
         selectEnterpriseMode('demo');
         scanData = await apiCall('/api/scan/demo');
+        latestScanPayload = scanData;
+        latestScanKey = '/api/scan/latest';
         renderDashboard(scanData);
         document.getElementById('btnExportCBOM').disabled = false;
         const cdxaBtn = document.getElementById('btnExportCDXA');
@@ -460,6 +468,8 @@ async function scanDomain() {
     showLoading(`Discovering assets for ${domain}...`);
     try {
         scanData = await apiCall(`/api/scan/domain/${encodeURIComponent(domain)}`, 'POST');
+        latestScanPayload = scanData;
+        latestScanKey = '/api/scan/latest';
         renderDashboard(scanData);
         document.getElementById('btnExportCBOM').disabled = false;
         fetchPhase2Assessment();
@@ -472,7 +482,7 @@ async function scanDomain() {
             console.warn('Tri-mode refresh failed:', trimodeError);
         }
         await loadEnterpriseDashboardData();
-        await syncOverviewWithLatestScan(true);
+        await syncOverviewWithLatestScan(false);
     } catch (e) {
         showToast('Scan failed: ' + e.message, 'error');
     } finally {
@@ -505,6 +515,8 @@ async function scanSingleHost() {
             remediation_roadmap: [],
             labels: [],
         };
+        latestScanPayload = scanData;
+        latestScanKey = '/api/scan/latest';
         renderDashboard(scanData);
         fetchPhase2Assessment();
         await loadEnterpriseDashboardData();
@@ -651,8 +663,8 @@ function renderAlerts(data) {
 async function fetchPhase2Assessment() {
     try {
         const [assess, remediation] = await Promise.all([
-            apiCall(buildContextEndpoint('/api/assess')),
-            apiCall(buildContextEndpoint('/api/assess/remediation')),
+            apiCall('/api/assess'),
+            apiCall('/api/assess/remediation'),
         ]);
         assessmentData = assess;
         remediationData = remediation;
@@ -2405,7 +2417,7 @@ function tierColor(tier) {
 }
 
 function vizTierLabel(asset) {
-    const raw = asset?.display_tier || asset?.pqc_status || asset?.status || asset || '';
+    const raw = asset?.display_tier || asset?.pqc_status || asset?.status || asset?.q_score?.status || '';
     const value = String(raw || '');
     const knownLabels = {
         FULLY_QUANTUM_SAFE: 'Fully Quantum Safe',
@@ -2419,11 +2431,12 @@ function vizTierLabel(asset) {
 }
 
 function vizAssetScore(asset) {
+    const q = asset?.q_score;
+    const qNum = (q !== null && q !== undefined && typeof q === 'object') ? q?.total : q;
     return Number(
         asset?.worst_case_score
         ?? asset?.worst_score
-        ?? asset?.q_score
-        ?? asset?.q_score?.total
+        ?? qNum
         ?? 0
     ) || 0;
 }
@@ -2505,16 +2518,27 @@ function prepareOverviewVisualizations(forceRefresh = false) {
 }
 
 async function fetchLatestScan(forceRefresh = false) {
-    const endpoint = buildContextEndpoint('/api/scan/latest', forceRefresh);
+    const endpoint = '/api/scan/latest';
     if (!forceRefresh && latestScanPayload && latestScanKey === endpoint) return latestScanPayload;
     latestScanPayload = await apiCall(endpoint);
     latestScanKey = endpoint;
     return latestScanPayload;
 }
 
+function hasRenderableCbom(payload) {
+    if (!payload || typeof payload !== 'object') return false;
+    const components = Array.isArray(payload.components) ? payload.components : [];
+    const totalAssets = Number(payload?.pqcSummary?.totalAssets ?? 0) || 0;
+    return components.length > 0 || totalAssets > 0;
+}
+
 async function fetchCbomLatest(forceRefresh = false) {
-    if (!forceRefresh && latestCbomPayload) return latestCbomPayload;
+    if (!forceRefresh && latestCbomPayload && hasRenderableCbom(latestCbomPayload)) return latestCbomPayload;
     latestCbomPayload = await apiCall(buildContextEndpoint('/api/cbom/latest', forceRefresh));
+    if (!forceRefresh && !hasRenderableCbom(latestCbomPayload)) {
+        // Recover from stale/empty cache snapshots by forcing a fresh backend pipeline read.
+        latestCbomPayload = await apiCall(buildContextEndpoint('/api/cbom/latest', true));
+    }
     return latestCbomPayload;
 }
 
@@ -2944,7 +2968,7 @@ function renderGaugesFrame(assets, progress) {
                 <path d="${arc}" fill="none" stroke="${color}" stroke-width="7" stroke-linecap="round"></path>
                 <text x="56" y="52" text-anchor="middle" font-size="18" font-weight="600" fill="${color}">${score}</text>
             </svg>
-            <div class="gauge-name">${escHtml((asset.hostname || asset.name || '').replace('.bank.com', '').replace('.pnb.bank.in', ''))}</div>
+            <div class="gauge-name">${escHtml((asset.hostname || asset.asset?.hostname || asset.name || '').replace('.bank.com', '').replace('.pnb.bank.in', ''))}</div>
             <span class="gauge-tier" style="background:${tierShade};color:${tierColor(tier)}">${escHtml(tier || 'Unknown')}</span>
         </div>`;
     }).join('');
@@ -3048,7 +3072,7 @@ function renderCyberRatingSection(payload) {
     if (assetList) {
         assetList.innerHTML = assets.map((asset) => `
             <div class="cyber-asset-row">
-                <div style="font-size:0.75rem;flex:1;color:var(--text-secondary)">${escHtml((asset.hostname || '').replace('.pnb.bank.in', '').replace('.bank.com', ''))}</div>
+                <div style="font-size:0.75rem;flex:1;color:var(--text-secondary)">${escHtml((asset.hostname || asset.asset?.hostname || '').replace('.pnb.bank.in', '').replace('.bank.com', ''))}</div>
                 <div style="width:4rem;height:0.375rem;background:rgba(55,65,81,0.35);border-radius:0.25rem;overflow:hidden">
                     <div style="height:100%;width:${vizAssetScore(asset)}%;background:${scoreColor(vizAssetScore(asset))};border-radius:0.25rem"></div>
                 </div>
@@ -3691,8 +3715,8 @@ fetchPhase2Assessment = async function fetchPhase2AssessmentInteractive() {
     }
     try {
         const [assessResult, remediationResult, negotiationResult] = await Promise.allSettled([
-            apiCall(buildContextEndpoint('/api/assess')),
-            apiCall(buildContextEndpoint('/api/assess/remediation')),
+            apiCall('/api/assess'),
+            apiCall('/api/assess/remediation'),
             apiCall(buildContextEndpoint('/api/pqc/negotiation')),
         ]);
         if (assessResult.status !== 'fulfilled') {
@@ -3732,7 +3756,7 @@ switchTab = function switchTabInteractive(tabName) {
         }
     }
 
-    if (tabName === 'phase9' && !vizInit.cbom) {
+    if (tabName === 'phase9') {
         vizInit.cbom = true;
         initCBOM();
     }
@@ -3777,25 +3801,28 @@ runPhase9Live = async function runPhase9LiveInteractive() {
 
 runDemoScan = async function runDemoScanInteractive() {
     await originalRunDemoScan();
+    latestCbomPayload = null;
     if (isTabActive('overview') || vizInit.network || vizInit.heatmap || vizInit.cyber || vizInit.gauges) {
-        await loadEnterpriseDashboardData({ notifyOnError: false, forceRefresh: true });
-        await syncOverviewWithLatestScan(true);
+        await loadEnterpriseDashboardData({ notifyOnError: false, forceRefresh: false });
+        await syncOverviewWithLatestScan(false);
     }
 };
 
 scanDomain = async function scanDomainInteractive() {
     await originalScanDomain();
+    latestCbomPayload = null;
     if (isTabActive('overview') || vizInit.network || vizInit.heatmap || vizInit.cyber || vizInit.gauges) {
-        await loadEnterpriseDashboardData({ notifyOnError: false, forceRefresh: true });
-        await syncOverviewWithLatestScan(true);
+        await loadEnterpriseDashboardData({ notifyOnError: false, forceRefresh: false });
+        await syncOverviewWithLatestScan(false);
     }
 };
 
 scanSingleHost = async function scanSingleHostInteractive() {
     await originalScanSingleHost();
+    latestCbomPayload = null;
     if (isTabActive('overview') || vizInit.network || vizInit.heatmap || vizInit.cyber || vizInit.gauges) {
-        await loadEnterpriseDashboardData({ notifyOnError: false, forceRefresh: true });
-        await syncOverviewWithLatestScan(true);
+        await loadEnterpriseDashboardData({ notifyOnError: false, forceRefresh: false });
+        await syncOverviewWithLatestScan(false);
     }
 };
 
