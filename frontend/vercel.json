@@ -1,7 +1,7 @@
 {
   "rewrites": [
     { "source": "/dashboard", "destination": "/dashboard.html" },
-    { "source": "/api/:path*", "destination": "https://pnb-production.up.railway.app/api/:path*" }
+    { "source": "/api/:path*", "destination": "https://web-production-07fb4.up.railway.app/api/:path*" }
   ],
   "headers": [
     {

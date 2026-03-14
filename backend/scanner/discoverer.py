@@ -96,22 +96,39 @@ async def enumerate_subdomains_dns(domain: str) -> list[str]:
 
 
 async def query_ct_logs(domain: str) -> list[str]:
-    """Query Certificate Transparency logs via crt.sh."""
+    """Query Certificate Transparency logs via crt.sh and Hackertarget."""
     subdomains: set[str] = set()
-    url = f"https://crt.sh/?q=%.{domain}&output=json"
-    try:
-        async with httpx.AsyncClient(timeout=15.0) as client:
-            resp = await client.get(url)
-            if resp.status_code == 200:
-                entries = resp.json()
-                for entry in entries:
-                    name = entry.get("name_value", "")
-                    for line in name.split("\n"):
-                        clean = line.strip().lstrip("*.")
-                        if clean.endswith(domain) and " " not in clean:
-                            subdomains.add(clean)
-    except Exception as exc:
-        logger.debug("CT log query failed: %s", exc)
+
+    async def _fetch_crt():
+        url = f"https://crt.sh/?q=%.{domain}&output=json"
+        try:
+            async with httpx.AsyncClient(timeout=8.0) as client:
+                resp = await client.get(url)
+                if resp.status_code == 200:
+                    for entry in resp.json():
+                        name = entry.get("name_value", "")
+                        for line in name.split("\n"):
+                            clean = line.strip().lstrip("*.")
+                            if clean.endswith(domain) and " " not in clean:
+                                subdomains.add(clean)
+        except Exception as exc:
+            logger.debug("CT log query failed: %s", exc)
+
+    async def _fetch_hackertarget():
+        url = f"https://api.hackertarget.com/hostsearch/?q={domain}"
+        try:
+            async with httpx.AsyncClient(timeout=8.0) as client:
+                resp = await client.get(url)
+                if resp.status_code == 200:
+                    for line in resp.text.split("\n"):
+                        if "," in line:
+                            sub = line.split(",")[0].strip().lstrip("*.")
+                            if sub.endswith(domain):
+                                subdomains.add(sub)
+        except Exception as exc:
+            logger.debug("Hackertarget query failed: %s", exc)
+
+    await asyncio.gather(_fetch_crt(), _fetch_hackertarget())
     return sorted(subdomains)
 
 
@@ -222,18 +239,18 @@ async def discover_assets(
         all_hosts.update(ct_results)
         logger.info("CT logs found %d subdomains", len(ct_results))
 
-    # Step 3: Resolve + port scan
-    assets: list[DiscoveredAsset] = []
-    for host in sorted(all_hosts):
+    # Step 3: Resolve + port scan concurrently
+    async def process_host(host: str) -> list[DiscoveredAsset]:
         ip = await _resolve(host)
         if ip is None:
-            continue
-
+            return []
+        
+        host_assets = []
         if include_port_scan:
             open_ports = await scan_ports(ip, SCAN_PORTS)
             for port in open_ports:
                 atype = classify_asset_type(host, port)
-                assets.append(DiscoveredAsset(
+                host_assets.append(DiscoveredAsset(
                     hostname=host, ip=ip, port=port,
                     asset_type=atype, discovery_method="dns+ct+portscan",
                 ))
@@ -245,11 +262,16 @@ async def discover_assets(
                         logger.info("API endpoints on %s:%d — %s", host, port, api_paths)
         else:
             # Default: assume 443
-            assets.append(DiscoveredAsset(
+            host_assets.append(DiscoveredAsset(
                 hostname=host, ip=ip, port=443,
                 asset_type=classify_asset_type(host, 443),
                 discovery_method="dns+ct",
             ))
+        return host_assets
+
+    tasks = [process_host(h) for h in sorted(all_hosts)]
+    results = await asyncio.gather(*tasks)
+    assets = [a for sublist in results for a in sublist]
 
     logger.info("Discovery complete: %d assets across %d hosts", len(assets), len(all_hosts))
     return assets
