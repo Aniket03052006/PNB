@@ -118,6 +118,8 @@ async def _collect_fingerprints(
     domain: str | None,
     assets: list[DiscoveredAsset] | None,
     limit: int,
+    include_port_scan: bool = False,
+    include_api_crawl: bool = False,
 ) -> list[TriModeFingerprint]:
     if mode == "demo":
         return list(DEMO_TRIMODE_FINGERPRINTS)
@@ -125,12 +127,19 @@ async def _collect_fingerprints(
     if assets is None:
         if not domain:
             raise ValueError("domain is required for live mode when assets are not provided")
-        assets = await discover_assets(domain, demo=False, include_ct=True, include_port_scan=False)
+        assets = await discover_assets(
+            domain,
+            demo=False,
+            include_ct=True,
+            include_port_scan=include_port_scan,
+            include_api_crawl=include_api_crawl,
+        )
 
     if not assets:
         return []
 
-    return await probe_batch(assets[:limit], concurrency=20, demo=False)
+    selected_assets = assets if limit <= 0 else assets[:limit]
+    return await probe_batch(selected_assets, concurrency=20, demo=False)
 
 
 async def run_pipeline(
@@ -139,12 +148,21 @@ async def run_pipeline(
     domain: str | None = None,
     assets: list[DiscoveredAsset] | None = None,
     limit: int = 20,
+    include_port_scan: bool = False,
+    include_api_crawl: bool = False,
 ) -> PipelineResult:
     """Execute the complete scanner pipeline in the required order."""
     database.init_db()
 
     # 1. Get fingerprints
-    fingerprints = await _collect_fingerprints(mode=mode, domain=domain, assets=assets, limit=limit)
+    fingerprints = await _collect_fingerprints(
+        mode=mode,
+        domain=domain,
+        assets=assets,
+        limit=limit,
+        include_port_scan=include_port_scan,
+        include_api_crawl=include_api_crawl,
+    )
 
     negotiation_policies: dict[str, NegotiationPolicy] = {}
     classified_assets: list[ClassifiedAsset] = []
@@ -164,6 +182,8 @@ async def run_pipeline(
         enriched = classified.model_dump(mode="json")
         enriched["ip"] = fp.ip or ""
         enriched["tls_version"] = fp.probe_b.tls_version or fp.probe_a.tls_version or ""
+        enriched["cipher_suite"] = fp.probe_b.cipher_suite or fp.probe_a.cipher_suite or fp.probe_c.cipher_suite or ""
+        enriched["cipher_bits"] = fp.probe_b.cipher_bits or fp.probe_a.cipher_bits or fp.probe_c.cipher_bits or 0
         enriched["key_exchange"] = fp.probe_a.key_exchange or ""
         enriched["cert_algorithm"] = fp.certificate.signature_algorithm or fp.probe_a.signature_algorithm or ""
         enriched["negotiation_tier"] = policy.negotiation_tier
@@ -256,6 +276,17 @@ def run_pipeline_sync(
     domain: str | None = None,
     assets: list[DiscoveredAsset] | None = None,
     limit: int = 20,
+    include_port_scan: bool = False,
+    include_api_crawl: bool = False,
 ) -> PipelineResult:
     """Synchronous wrapper around the async pipeline entrypoint."""
-    return asyncio.run(run_pipeline(mode=mode, domain=domain, assets=assets, limit=limit))
+    return asyncio.run(
+        run_pipeline(
+            mode=mode,
+            domain=domain,
+            assets=assets,
+            limit=limit,
+            include_port_scan=include_port_scan,
+            include_api_crawl=include_api_crawl,
+        )
+    )

@@ -1,5 +1,6 @@
 {
   "rewrites": [
+    { "source": "/dashboard", "destination": "/dashboard.html" },
     { "source": "/api/:path*", "destination": "https://pnb-production.up.railway.app/api/:path*" }
   ],
   "headers": [

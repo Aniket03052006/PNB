@@ -46,8 +46,58 @@ let enterpriseDashboardData = null;
 /* ─── API Calls ─── */
 async function apiCall(endpoint, method = 'GET') {
     const resp = await fetch(`${API_BASE}${endpoint}`, { method });
-    if (!resp.ok) throw new Error(`API error: ${resp.status}`);
+    if (!resp.ok) {
+        let detail = '';
+        try {
+            const data = await resp.json();
+            detail = data?.detail || data?.message || '';
+        } catch {
+            try {
+                detail = await resp.text();
+            } catch {
+                detail = '';
+            }
+        }
+        throw new Error(detail || `API error: ${resp.status}`);
+    }
     return resp.json();
+}
+
+function normalizeScanTarget(rawValue, opts = {}) {
+    const allowPort = Boolean(opts.allowPort);
+    const fallbackPort = Number.isFinite(opts.fallbackPort) ? opts.fallbackPort : 443;
+    const raw = String(rawValue || '').trim();
+    if (!raw) return null;
+
+    const candidate = /^[a-z][a-z0-9+.-]*:\/\//i.test(raw) ? raw : `https://${raw}`;
+
+    try {
+        const parsed = new URL(candidate);
+        const hostname = (parsed.hostname || '').trim().replace(/\.$/, '');
+        if (!hostname) return null;
+        const normalized = { hostname };
+        if (allowPort) {
+            normalized.port = parsed.port ? Number(parsed.port) : fallbackPort;
+        }
+        return normalized;
+    } catch {
+        const stripped = raw
+            .replace(/^[a-z][a-z0-9+.-]*:\/\//i, '')
+            .replace(/[/?#].*$/, '')
+            .replace(/\.$/, '');
+        if (!stripped) return null;
+
+        if (allowPort) {
+            const match = stripped.match(/^\[?([^\]]+)\]?(?::(\d+))?$/);
+            if (!match) return null;
+            return {
+                hostname: match[1],
+                port: match[2] ? Number(match[2]) : fallbackPort,
+            };
+        }
+
+        return { hostname: stripped.replace(/:\d+$/, '') };
+    }
 }
 
 function formatCount(value) {
@@ -58,6 +108,14 @@ function formatCount(value) {
 function formatPercent(value) {
     const n = Number(value);
     return Number.isFinite(n) ? n.toFixed(1) : '0.0';
+}
+
+function selectEnterpriseMode(mode, domain = '') {
+    const modeSel = document.getElementById('enterpriseModeSelect');
+    const domainInput = document.getElementById('enterpriseDomainInput');
+    if (modeSel) modeSel.value = mode;
+    if (domainInput && domain) domainInput.value = domain;
+    onEnterpriseModeChange();
 }
 
 function setTextSafe(id, value) {
@@ -364,6 +422,7 @@ function switchTab(tabName) {
 async function runDemoScan() {
     showLoading('Running demo scan on simulated bank assets...');
     try {
+        selectEnterpriseMode('demo');
         scanData = await apiCall('/api/scan/demo');
         renderDashboard(scanData);
         document.getElementById('btnExportCBOM').disabled = false;
@@ -388,8 +447,12 @@ async function runDemoScan() {
 
 /* ─── Domain Scan ─── */
 async function scanDomain() {
-    const domain = document.getElementById('domainInput').value.trim();
-    if (!domain) { showToast('Please enter a domain', 'info'); return; }
+    const domainInput = document.getElementById('domainInput');
+    const normalized = normalizeScanTarget(domainInput?.value);
+    if (!normalized?.hostname) { showToast('Please enter a valid domain', 'info'); return; }
+    const domain = normalized.hostname;
+    if (domainInput) domainInput.value = domain;
+    selectEnterpriseMode('live', domain);
     const enterpriseDomainInput = document.getElementById('enterpriseDomainInput');
     if (enterpriseDomainInput && !enterpriseDomainInput.value.trim()) {
         enterpriseDomainInput.value = domain;
@@ -400,7 +463,16 @@ async function scanDomain() {
         renderDashboard(scanData);
         document.getElementById('btnExportCBOM').disabled = false;
         fetchPhase2Assessment();
+        try {
+            trimodeData = await apiCall('/api/scan/trimode/fingerprints');
+            trimodeData.mode = 'live';
+            trimodeData.total_assets = trimodeData.total || trimodeData.fingerprints?.length || 0;
+            renderTrimode(trimodeData);
+        } catch (trimodeError) {
+            console.warn('Tri-mode refresh failed:', trimodeError);
+        }
         await loadEnterpriseDashboardData();
+        await syncOverviewWithLatestScan(true);
     } catch (e) {
         showToast('Scan failed: ' + e.message, 'error');
     } finally {
@@ -410,11 +482,18 @@ async function scanDomain() {
 
 /* ─── Single Host Scan ─── */
 async function scanSingleHost() {
-    const host = document.getElementById('singleHostInput').value.trim();
-    if (!host) { showToast('Please enter a hostname', 'info'); return; }
-    showLoading(`Probing ${host}...`);
+    const hostInput = document.getElementById('singleHostInput');
+    const normalized = normalizeScanTarget(hostInput?.value, { allowPort: true, fallbackPort: 443 });
+    if (!normalized?.hostname) { showToast('Please enter a valid hostname', 'info'); return; }
+    const host = normalized.hostname;
+    const port = normalized.port || 443;
+    if (hostInput) {
+        hostInput.value = port === 443 ? host : `${host}:${port}`;
+    }
+    selectEnterpriseMode('live', host);
+    showLoading(`Probing ${host}${port === 443 ? '' : `:${port}`}...`);
     try {
-        const result = await apiCall(`/api/scan/single/${encodeURIComponent(host)}`);
+        const result = await apiCall(`/api/scan/single/${encodeURIComponent(host)}?port=${port}`);
         scanData = {
             total_assets: 1,
             fully_quantum_safe: result.q_score.status === 'FULLY_QUANTUM_SAFE' ? 1 : 0,
@@ -633,6 +712,47 @@ function animateNumber(id, target) {
     }, 30);
 }
 
+function inventoryScore(entry) {
+    return Number(entry?.q_score?.total ?? entry?.worst_case_score ?? entry?.worst_score ?? entry?.q_score ?? 0) || 0;
+}
+
+function inventoryStatus(entry) {
+    return entry?.q_score?.status || entry?.status || entry?.pqc_status || 'UNKNOWN';
+}
+
+function normalizeInventoryEntry(entry) {
+    if (entry?.asset) {
+        const asset = entry.asset || {};
+        const fingerprint = entry.fingerprint || {};
+        const tls = fingerprint.tls || {};
+        const cert = fingerprint.certificate || {};
+        const score = entry.q_score || {};
+        return {
+            hostname: asset.hostname || '?',
+            port: asset.port || 443,
+            assetType: asset.asset_type || 'web',
+            tlsVersion: tls.version || '—',
+            cipherSuite: tls.cipher_suite || tls.cipher_algorithm || '—',
+            keyExchange: tls.key_exchange || '—',
+            certificate: cert.signature_algorithm || cert.public_key_type || '—',
+            score: score.total || 0,
+            status: score.status || 'UNKNOWN',
+        };
+    }
+
+    return {
+        hostname: entry?.hostname || '?',
+        port: entry?.port || 443,
+        assetType: entry?.asset_type || 'web',
+        tlsVersion: entry?.tls_version || '—',
+        cipherSuite: entry?.cipher_suite || entry?.cipher || '—',
+        keyExchange: entry?.key_exchange || '—',
+        certificate: entry?.cert_algorithm || entry?.certificate_algorithm || '—',
+        score: inventoryScore(entry),
+        status: inventoryStatus(entry),
+    };
+}
+
 function renderAssetTable(results) {
     const container = document.getElementById('assetTableContainer');
     document.getElementById('assetCount').textContent = `${results.length} assets`;
@@ -642,33 +762,28 @@ function renderAssetTable(results) {
         return;
     }
 
-    const sorted = [...results].sort((a, b) => (a.q_score?.total || 0) - (b.q_score?.total || 0));
+    const sorted = [...results].map(normalizeInventoryEntry).sort((a, b) => a.score - b.score);
 
     let html = `<table class="asset-table"><thead><tr>
-        <th>Asset</th><th>Type</th><th>TLS</th><th>Key Exchange</th><th>Cert Algorithm</th><th>Q-Score</th><th>Status</th>
+        <th>Asset</th><th>Type</th><th>TLS</th><th>Cipher Suite</th><th>Key Exchange</th><th>Certificate</th><th>Q-Score</th><th>Status</th>
     </tr></thead><tbody>`;
 
-    for (const r of sorted) {
-        const asset = r.asset || {};
-        const fp = r.fingerprint || {};
-        const tls = fp.tls || {};
-        const cert = fp.certificate || {};
-        const q = r.q_score || {};
-
-        const statusClass = getStatusClass(q.status);
-        const statusLabel = getStatusLabel(q.status);
-        const scoreColor = getScoreColor(q.total || 0);
+    for (const row of sorted) {
+        const statusClass = getStatusClass(row.status);
+        const statusLabel = getStatusLabel(row.status);
+        const scoreColor = getScoreColor(row.score || 0);
 
         html += `<tr>
-            <td><span class="asset-hostname">${asset.hostname || '?'}:${asset.port || 443}</span></td>
-            <td><span class="asset-type">${asset.asset_type || 'web'}</span></td>
-            <td>${tls.version || '—'}</td>
-            <td>${tls.key_exchange || '—'}</td>
-            <td style="font-size:0.75rem">${cert.signature_algorithm || cert.public_key_type || '—'}</td>
+            <td><span class="asset-hostname">${row.hostname}:${row.port}</span></td>
+            <td><span class="asset-type">${row.assetType}</span></td>
+            <td>${row.tlsVersion}</td>
+            <td style="font-size:0.75rem">${row.cipherSuite}</td>
+            <td>${row.keyExchange}</td>
+            <td style="font-size:0.75rem">${row.certificate}</td>
             <td>
                 <div class="qscore-bar-container">
-                    <div class="qscore-bar"><div class="qscore-bar-fill" style="width:${q.total || 0}%;background:${scoreColor}"></div></div>
-                    <span class="qscore-value" style="color:${scoreColor}">${q.total || 0}</span>
+                    <div class="qscore-bar"><div class="qscore-bar-fill" style="width:${row.score || 0}%;background:${scoreColor}"></div></div>
+                    <span class="qscore-value" style="color:${scoreColor}">${row.score || 0}</span>
                 </div>
             </td>
             <td><span class="status-badge status-badge--${statusClass}">${statusLabel}</span></td>
@@ -684,6 +799,50 @@ function renderAssetTable(results) {
             el.style.width = '0'; requestAnimationFrame(() => { el.style.width = w; });
         });
     });
+}
+
+async function syncOverviewWithLatestScan(forceRefresh = false) {
+    try {
+        const payload = await fetchLatestScan(forceRefresh);
+        const assets = payload.assets || payload.asset_scores || [];
+        if (!assets.length) return;
+
+        const counts = {
+            FULLY_QUANTUM_SAFE: 0,
+            PQC_TRANSITION: 0,
+            QUANTUM_VULNERABLE: 0,
+            CRITICALLY_VULNERABLE: 0,
+            UNKNOWN: 0,
+        };
+
+        assets.forEach((entry) => {
+            const status = inventoryStatus(entry);
+            counts[status] = (counts[status] || 0) + 1;
+        });
+
+        const averageScore = assets.reduce((sum, entry) => sum + inventoryScore(entry), 0) / Math.max(assets.length, 1);
+        renderStats({
+            total_assets: assets.length,
+            fully_quantum_safe: counts.FULLY_QUANTUM_SAFE,
+            pqc_transition: counts.PQC_TRANSITION,
+            quantum_vulnerable: counts.QUANTUM_VULNERABLE,
+            critically_vulnerable: counts.CRITICALLY_VULNERABLE,
+            unknown: counts.UNKNOWN,
+            average_q_score: averageScore,
+        });
+        renderAssetTable(assets);
+        renderQScoreRing(averageScore);
+        renderDistBars({
+            total_assets: assets.length,
+            fully_quantum_safe: counts.FULLY_QUANTUM_SAFE,
+            pqc_transition: counts.PQC_TRANSITION,
+            quantum_vulnerable: counts.QUANTUM_VULNERABLE,
+            critically_vulnerable: counts.CRITICALLY_VULNERABLE,
+            unknown: counts.UNKNOWN,
+        });
+    } catch (error) {
+        console.warn('Latest scan sync failed:', error);
+    }
 }
 
 function renderQScoreRing(score) {
@@ -863,18 +1022,50 @@ function renderPhase2Assessment(data) {
 }
 
 /* ─── Canvas Donut Chart ─── */
+const donutCharts = {};
+let donutResizeBound = false;
+
+function fitDonutCanvas(canvas) {
+    const dpr = window.devicePixelRatio || 1;
+    const rect = canvas.getBoundingClientRect();
+    const width = Math.max(1, Math.round(rect.width || canvas.clientWidth || parseInt(canvas.getAttribute('width') || '280', 10)));
+    const height = Math.max(1, Math.round(rect.height || canvas.clientHeight || parseInt(canvas.getAttribute('height') || `${width}`, 10)));
+
+    if (canvas.width !== Math.round(width * dpr) || canvas.height !== Math.round(height * dpr)) {
+        canvas.width = Math.round(width * dpr);
+        canvas.height = Math.round(height * dpr);
+    }
+
+    canvas.style.width = `${width}px`;
+    canvas.style.height = `${height}px`;
+
+    const ctx = canvas.getContext('2d');
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    return { ctx, width, height };
+}
+
+function redrawDonutCharts() {
+    Object.entries(donutCharts).forEach(([canvasId, chart]) => {
+        drawDonutChart(canvasId, chart.legendId, chart.segments);
+    });
+}
+
 function drawDonutChart(canvasId, legendId, segments) {
     const canvas = document.getElementById(canvasId);
     if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    const w = canvas.width;
-    const h = canvas.height;
-    const cx = w / 2;
-    const cy = h / 2;
-    const outerR = Math.min(cx, cy) - 10;
+    donutCharts[canvasId] = { legendId, segments };
+    if (!donutResizeBound) {
+        window.addEventListener('resize', redrawDonutCharts);
+        donutResizeBound = true;
+    }
+
+    const { ctx, width, height } = fitDonutCanvas(canvas);
+    const cx = width / 2;
+    const cy = height / 2;
+    const outerR = Math.max(24, (Math.min(width, height) / 2) - 16);
     const innerR = outerR * 0.58;
 
-    ctx.clearRect(0, 0, w, h);
+    ctx.clearRect(0, 0, width, height);
 
     const total = segments.reduce((s, seg) => s + seg.value, 0);
     if (total === 0) {
@@ -884,35 +1075,33 @@ function drawDonutChart(canvasId, legendId, segments) {
         ctx.fillStyle = 'rgba(55, 65, 81, 0.3)';
         ctx.fill();
         ctx.fillStyle = '#6b7280';
-        ctx.font = '600 14px Inter, sans-serif';
+        ctx.font = '600 0.875rem Inter, sans-serif';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         ctx.fillText('No data', cx, cy);
-        return;
-    }
+    } else {
+        let angle = -Math.PI / 2;
+        for (const seg of segments) {
+            if (seg.value === 0) continue;
+            const sliceAngle = (seg.value / total) * Math.PI * 2;
+            ctx.beginPath();
+            ctx.arc(cx, cy, outerR, angle, angle + sliceAngle);
+            ctx.arc(cx, cy, innerR, angle + sliceAngle, angle, true);
+            ctx.closePath();
+            ctx.fillStyle = seg.color;
+            ctx.fill();
+            angle += sliceAngle;
+        }
 
-    let angle = -Math.PI / 2;
-    for (const seg of segments) {
-        if (seg.value === 0) continue;
-        const sliceAngle = (seg.value / total) * Math.PI * 2;
-        ctx.beginPath();
-        ctx.arc(cx, cy, outerR, angle, angle + sliceAngle);
-        ctx.arc(cx, cy, innerR, angle + sliceAngle, angle, true);
-        ctx.closePath();
-        ctx.fillStyle = seg.color;
-        ctx.fill();
-        angle += sliceAngle;
+        ctx.fillStyle = '#f0f4f8';
+        ctx.font = '800 1.75rem "JetBrains Mono", monospace';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(total, cx, cy - 6);
+        ctx.fillStyle = '#6b7280';
+        ctx.font = '500 0.625rem Inter, sans-serif';
+        ctx.fillText('TOTAL', cx, cy + 14);
     }
-
-    // Center total
-    ctx.fillStyle = '#f0f4f8';
-    ctx.font = '800 28px "JetBrains Mono", monospace';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(total, cx, cy - 6);
-    ctx.fillStyle = '#6b7280';
-    ctx.font = '500 10px Inter, sans-serif';
-    ctx.fillText('TOTAL', cx, cy + 14);
 
     // Legend
     const legend = document.getElementById(legendId);
@@ -2156,4 +2345,1461 @@ async function downloadPhase9CDXA() {
 document.addEventListener('DOMContentLoaded', () => {
     onEnterpriseModeChange();
     loadEnterpriseDashboardData();
+});
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Interactive Visualizations
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+const chartInstances = {};
+
+function destroyChart(id) {
+    if (chartInstances[id]) {
+        chartInstances[id].destroy();
+        delete chartInstances[id];
+    }
+}
+
+function sizeCanvasToParent(id, fallbackHeight = 200) {
+    const canvas = document.getElementById(id);
+    if (!canvas) return null;
+    const parent = canvas.parentElement;
+    const width = Math.max(240, Math.round(parent?.clientWidth || canvas.offsetWidth || 240));
+    const height = Math.max(160, Math.round(parent?.clientHeight || fallbackHeight));
+    canvas.width = width;
+    canvas.height = height;
+    return canvas;
+}
+
+function makeChart(id, config) {
+    destroyChart(id);
+    if (typeof Chart === 'undefined') return null;
+    const canvas = sizeCanvasToParent(id, config?.options?.indexAxis === 'y' ? 300 : 200);
+    if (!canvas) return null;
+    chartInstances[id] = new Chart(canvas, config);
+    return chartInstances[id];
+}
+
+const VIZ_COLORS = {
+    elite: '#2e7d32',
+    standard: '#f57f17',
+    legacy: '#e64a19',
+    critical: '#b71c1c',
+    unknown: '#616161',
+    blue: '#1976d2',
+    purple: '#6a1b9a',
+    amber: '#ff8f00',
+};
+
+function scoreColor(s) {
+    return s >= 70 ? VIZ_COLORS.elite : s >= 40 ? '#e65100' : VIZ_COLORS.critical;
+}
+
+function tierColor(tier) {
+    const t = (tier || '').toLowerCase();
+    if (t.includes('elite') || t.includes('fully')) return VIZ_COLORS.elite;
+    if (t.includes('standard') || t.includes('transition')) return VIZ_COLORS.standard;
+    if (t.includes('critical')) return VIZ_COLORS.critical;
+    if (t.includes('legacy') || t.includes('vulnerable')) return VIZ_COLORS.legacy;
+    return VIZ_COLORS.unknown;
+}
+
+function vizTierLabel(asset) {
+    const raw = asset?.display_tier || asset?.pqc_status || asset?.status || asset || '';
+    const value = String(raw || '');
+    const knownLabels = {
+        FULLY_QUANTUM_SAFE: 'Fully Quantum Safe',
+        PQC_TRANSITION: 'PQC Transition',
+        QUANTUM_VULNERABLE: 'Quantum Vulnerable',
+        CRITICALLY_VULNERABLE: 'Critically Vulnerable',
+        UNKNOWN: 'Unknown',
+    };
+    if (knownLabels[value]) return knownLabels[value];
+    return value.replace(/_/g, ' ');
+}
+
+function vizAssetScore(asset) {
+    return Number(
+        asset?.worst_case_score
+        ?? asset?.worst_score
+        ?? asset?.q_score
+        ?? asset?.q_score?.total
+        ?? 0
+    ) || 0;
+}
+
+const vizInit = {
+    network: false,
+    heatmap: false,
+    gauges: false,
+    cbom: false,
+    cyber: false,
+    timeline: false,
+};
+
+let latestScanPayload = null;
+let latestScanKey = '';
+let latestCbomPayload = null;
+let latestHistoryPayload = null;
+let assessmentNegotiationPolicies = {};
+
+function getActiveEnterpriseContext() {
+    return getEnterpriseContext({ notifyOnError: false }) || { mode: 'demo', domain: '' };
+}
+
+function buildContextEndpoint(path, forceRefresh = false) {
+    return buildEnterpriseEndpoint(path, getActiveEnterpriseContext(), forceRefresh);
+}
+
+function isTabActive(tabName) {
+    return document.getElementById(`tab-${tabName}`)?.classList.contains('tab-content--active');
+}
+
+function bannerHtml(payload) {
+    if (!payload?.demo_mode) return '';
+    return `<div class="viz-banner">${escHtml(payload.data_notice || 'SIMULATED DATA')}</div>`;
+}
+
+function renderVizLoading(mountId, title, copy) {
+    const mount = document.getElementById(mountId);
+    if (!mount) return;
+    mount.innerHTML = `
+        <div class="viz-state">
+            <div class="viz-state-content">
+                <div class="viz-spinner"></div>
+                <div class="viz-state-title">${escHtml(title)}</div>
+                <div class="viz-state-copy">${escHtml(copy)}</div>
+            </div>
+        </div>
+    `;
+}
+
+function renderVizError(mountId, title, message, retryFn) {
+    const mount = document.getElementById(mountId);
+    if (!mount) return;
+    mount.innerHTML = `
+        <div class="viz-state">
+            <div class="viz-state-content">
+                <div class="viz-state-title">${escHtml(title)}</div>
+                <div class="viz-state-copy">${escHtml(message)}</div>
+                <button class="viz-retry" type="button" onclick="${retryFn}">Retry</button>
+            </div>
+        </div>
+    `;
+}
+
+function ensureOverviewVizLoading() {
+    renderVizLoading('networkVizMount', 'Loading network graph', 'Mapping nodes, edges, and PQC tiers...');
+    renderVizLoading('cyberVizMount', 'Loading cyber rating', 'Scoring enterprise posture and tiering assets...');
+    renderVizLoading('heatmapVizMount', 'Loading PQC posture', 'Building heatmap and gauge summaries...');
+    renderVizLoading('certVizMount', 'Loading certificate expiry', 'Fetching SSL inventory and expiry windows...');
+}
+
+function prepareOverviewVisualizations(forceRefresh = false) {
+    if (!enterpriseDashboardData) return;
+    renderNetworkGraphSection(enterpriseDashboardData.graph || {});
+    renderHeatmapSection(enterpriseDashboardData.heatmap || {});
+    renderCyberRatingSection(enterpriseDashboardData.cyber || {});
+    initCertChart(enterpriseDashboardData.ssl?.items || [], enterpriseDashboardData.ssl || {});
+    initGauges(forceRefresh);
+}
+
+async function fetchLatestScan(forceRefresh = false) {
+    const endpoint = buildContextEndpoint('/api/scan/latest', forceRefresh);
+    if (!forceRefresh && latestScanPayload && latestScanKey === endpoint) return latestScanPayload;
+    latestScanPayload = await apiCall(endpoint);
+    latestScanKey = endpoint;
+    return latestScanPayload;
+}
+
+async function fetchCbomLatest(forceRefresh = false) {
+    if (!forceRefresh && latestCbomPayload) return latestCbomPayload;
+    latestCbomPayload = await apiCall(buildContextEndpoint('/api/cbom/latest', forceRefresh));
+    return latestCbomPayload;
+}
+
+async function fetchHistoryLatest(forceRefresh = false) {
+    if (!forceRefresh && latestHistoryPayload) return latestHistoryPayload;
+    latestHistoryPayload = await apiCall('/api/history');
+    return latestHistoryPayload;
+}
+
+function primeOverviewVisuals() {
+    vizInit.network = true;
+    vizInit.heatmap = true;
+    vizInit.gauges = true;
+    vizInit.cyber = true;
+    ensureOverviewVizLoading();
+    if (enterpriseDashboardData) {
+        prepareOverviewVisualizations();
+    }
+}
+
+const NET = {
+    nodes: [],
+    edges: [],
+    filter: 'all',
+    view: 'graph',
+    drag: null,
+    canvas: null,
+    ctx: null,
+    width: 0,
+    height: 0,
+    byId: new Map(),
+    resizeBound: false,
+};
+
+function initNetworkGraph() {
+    primeOverviewVisuals();
+}
+
+function graphFilter(filter, btn) {
+    NET.filter = filter;
+    document.querySelectorAll('.graph-filter-btn').forEach((node) => node.classList.remove('active'));
+    if (btn) btn.classList.add('active');
+    drawNet();
+    renderNetworkTable();
+}
+
+function toggleGraphView() {
+    NET.view = NET.view === 'graph' ? 'table' : 'graph';
+    const graphWrap = document.getElementById('networkCanvasWrap');
+    const tableWrap = document.getElementById('networkTableWrap');
+    const button = document.getElementById('graphViewToggleBtn');
+    if (graphWrap) graphWrap.style.display = NET.view === 'graph' ? 'block' : 'none';
+    if (tableWrap) tableWrap.style.display = NET.view === 'table' ? 'block' : 'none';
+    if (button) button.textContent = NET.view === 'graph' ? 'Switch to Table' : 'Switch to Graph';
+}
+
+function nodeVisible(node) {
+    if (NET.filter === 'all') return true;
+    const tier = (node.pqc_status || node.display_tier || '').toLowerCase();
+    if (NET.filter === 'elite') return tier.includes('elite') || tier.includes('fully');
+    if (NET.filter === 'standard') return tier.includes('standard') || tier.includes('transition');
+    if (NET.filter === 'vulnerable') return tier.includes('vulnerable') || tier.includes('critical') || tier.includes('legacy');
+    return true;
+}
+
+function resizeNetCanvas() {
+    if (!NET.canvas) return;
+    const rect = NET.canvas.getBoundingClientRect();
+    NET.width = NET.canvas.width = Math.max(320, Math.round(rect.width || NET.canvas.offsetWidth || 320));
+    NET.height = NET.canvas.height = 420;
+    drawNet();
+}
+
+function netSimStep() {
+    const repulsion = 3200;
+    const spring = 0.05;
+    const rest = 130;
+    const damp = 0.86;
+
+    for (let index = 0; index < NET.nodes.length; index += 1) {
+        for (let otherIndex = index + 1; otherIndex < NET.nodes.length; otherIndex += 1) {
+            const a = NET.nodes[index];
+            const b = NET.nodes[otherIndex];
+            const dx = a.x - b.x;
+            const dy = a.y - b.y;
+            const distance = Math.max(Math.hypot(dx, dy), 1);
+            const force = repulsion / distance / distance;
+            a.vx += dx / distance * force;
+            a.vy += dy / distance * force;
+            b.vx -= dx / distance * force;
+            b.vy -= dy / distance * force;
+        }
+    }
+
+    NET.edges.forEach((edge) => {
+        const a = NET.byId.get(edge.source);
+        const b = NET.byId.get(edge.target);
+        if (!a || !b) return;
+        const dx = b.x - a.x;
+        const dy = b.y - a.y;
+        const distance = Math.max(Math.hypot(dx, dy), 1);
+        const force = (distance - rest) * spring;
+        a.vx += dx / distance * force;
+        a.vy += dy / distance * force;
+        b.vx -= dx / distance * force;
+        b.vy -= dy / distance * force;
+    });
+
+    NET.nodes.forEach((node) => {
+        node.vx *= damp;
+        node.vy *= damp;
+        node.x = Math.max(36, Math.min(NET.width - 36, node.x + node.vx));
+        node.y = Math.max(36, Math.min(NET.height - 36, node.y + node.vy));
+    });
+}
+
+function drawNet() {
+    if (!NET.ctx) return;
+    const ctx = NET.ctx;
+    ctx.clearRect(0, 0, NET.width, NET.height);
+
+    NET.edges.forEach((edge) => {
+        const a = NET.byId.get(edge.source);
+        const b = NET.byId.get(edge.target);
+        if (!a || !b) return;
+        const aVisible = nodeVisible(a);
+        const bVisible = nodeVisible(b);
+        ctx.beginPath();
+        ctx.moveTo(a.x, a.y);
+        ctx.lineTo(b.x, b.y);
+        ctx.strokeStyle = aVisible && bVisible ? 'rgba(120,120,120,0.3)' : 'rgba(120,120,120,0.05)';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+    });
+
+    NET.nodes.forEach((node) => {
+        const visible = nodeVisible(node);
+        ctx.globalAlpha = visible ? 1 : 0.12;
+        ctx.beginPath();
+        ctx.arc(node.x, node.y, 22, 0, Math.PI * 2);
+        ctx.fillStyle = `${tierColor(node.pqc_status || node.display_tier)}22`;
+        ctx.fill();
+
+        ctx.beginPath();
+        ctx.arc(node.x, node.y, 16, 0, Math.PI * 2);
+        ctx.fillStyle = tierColor(node.pqc_status || node.display_tier);
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(255,255,255,0.72)';
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+
+        ctx.fillStyle = 'rgba(156,163,175,0.9)';
+        ctx.font = '600 10px Inter, sans-serif';
+        ctx.textAlign = 'center';
+        const shortLabel = (node.label || node.id || '').split('.')[0];
+        ctx.fillText(shortLabel, node.x, node.y + 30);
+        ctx.globalAlpha = 1;
+    });
+}
+
+function netPos(event) {
+    const rect = NET.canvas.getBoundingClientRect();
+    return { x: event.clientX - rect.left, y: event.clientY - rect.top };
+}
+
+function netMouseDown(event) {
+    const point = netPos(event);
+    NET.drag = NET.nodes.find((node) => Math.hypot(node.x - point.x, node.y - point.y) < 22) || null;
+    if (NET.drag) NET.canvas.style.cursor = 'grabbing';
+}
+
+function netMouseMove(event) {
+    if (!NET.canvas) return;
+    const point = netPos(event);
+    const tooltip = document.getElementById('networkTooltip');
+    if (NET.drag) {
+        NET.drag.x = point.x;
+        NET.drag.y = point.y;
+        drawNet();
+        if (tooltip) tooltip.style.display = 'none';
+        return;
+    }
+
+    const hover = NET.nodes.find((node) => Math.hypot(node.x - point.x, node.y - point.y) < 22);
+    NET.canvas.style.cursor = hover ? 'pointer' : 'grab';
+    if (!hover || !tooltip) {
+        if (tooltip) tooltip.style.display = 'none';
+        return;
+    }
+
+    const tier = hover.display_tier || hover.pqc_status || 'Unknown';
+    tooltip.style.display = 'block';
+    tooltip.style.left = `${event.clientX + 14}px`;
+    tooltip.style.top = `${event.clientY - 10}px`;
+    tooltip.innerHTML = `<strong>${escHtml(hover.label || hover.id)}</strong><br><span style="color:${tierColor(tier)}">${escHtml(tier)}</span><br><span style="color:var(--text-secondary);font-size:0.75rem">${escHtml(hover.ip_address || '')}</span>`;
+}
+
+function renderNetworkTable() {
+    const tableWrap = document.getElementById('networkTableWrap');
+    if (!tableWrap) return;
+    const visibleNodes = NET.nodes.filter((node) => nodeVisible(node));
+    tableWrap.innerHTML = `
+        <div class="network-table-wrap">
+            <table class="network-table">
+                <thead>
+                    <tr>
+                        <th>Node</th>
+                        <th>Type</th>
+                        <th>Tier</th>
+                        <th>IP</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${visibleNodes.map((node) => `
+                        <tr>
+                            <td><strong>${escHtml(node.label || node.id)}</strong></td>
+                            <td>${escHtml(node.type || 'asset')}</td>
+                            <td style="color:${tierColor(node.display_tier || node.pqc_status)}">${escHtml(node.display_tier || node.pqc_status || 'Unknown')}</td>
+                            <td>${escHtml(node.ip_address || '—')}</td>
+                        </tr>
+                    `).join('')}
+                </tbody>
+            </table>
+        </div>
+    `;
+}
+
+function renderNetworkGraphSection(graphPayload) {
+    const mount = document.getElementById('networkVizMount');
+    if (!mount) return;
+    const nodes = Array.isArray(graphPayload.nodes) ? graphPayload.nodes : [];
+    const edges = Array.isArray(graphPayload.edges) ? graphPayload.edges : [];
+
+    if (!nodes.length) {
+        mount.innerHTML = `${bannerHtml(graphPayload)}<div class="viz-state"><div class="viz-state-content"><div class="viz-state-title">No network data</div><div class="viz-state-copy">Run or refresh the enterprise pipeline to map related assets.</div></div></div>`;
+        return;
+    }
+
+    mount.innerHTML = `
+        ${bannerHtml(graphPayload)}
+        <div id="graphControls" style="display:flex;align-items:center;gap:0.75rem;flex-wrap:wrap;margin-bottom:0.75rem">
+            <span style="font-size:0.8rem;color:var(--text-secondary)">Filter:</span>
+            <button class="graph-filter-btn active" data-filter="all" onclick="graphFilter('all', this)">All</button>
+            <button class="graph-filter-btn" data-filter="elite" onclick="graphFilter('elite', this)">Elite-PQC</button>
+            <button class="graph-filter-btn" data-filter="standard" onclick="graphFilter('standard', this)">Standard</button>
+            <button class="graph-filter-btn" data-filter="vulnerable" onclick="graphFilter('vulnerable', this)">Vulnerable</button>
+            <button class="graph-view-toggle" id="graphViewToggleBtn" type="button" onclick="toggleGraphView()" style="margin-left:auto">Switch to Table</button>
+        </div>
+        <div class="network-view-shell">
+            <div id="networkCanvasWrap">
+                <canvas id="networkCanvas" style="width:100%;height:420px;display:block;cursor:grab"></canvas>
+            </div>
+            <div id="networkTableWrap" style="display:none"></div>
+        </div>
+        <div id="networkTooltip" style="display:none;position:fixed;background:var(--bg-primary);border:0.0625rem solid var(--border-subtle);border-radius:0.5rem;padding:0.6rem 0.9rem;font-size:0.8rem;pointer-events:none;z-index:1000"></div>
+    `;
+
+    NET.nodes = nodes.map((node, index) => ({
+        ...node,
+        x: 320 + Math.cos(index / Math.max(nodes.length, 1) * Math.PI * 2) * 140,
+        y: 210 + Math.sin(index / Math.max(nodes.length, 1) * Math.PI * 2) * 140,
+        vx: 0,
+        vy: 0,
+    }));
+    NET.edges = edges;
+    NET.byId = new Map(NET.nodes.map((node) => [node.id, node]));
+    NET.canvas = document.getElementById('networkCanvas');
+    NET.ctx = NET.canvas?.getContext('2d') || null;
+    NET.view = 'graph';
+    NET.drag = null;
+
+    resizeNetCanvas();
+    for (let step = 0; step < 300; step += 1) netSimStep();
+    drawNet();
+    renderNetworkTable();
+
+    if (NET.canvas) {
+        NET.canvas.onmousedown = netMouseDown;
+        NET.canvas.onmousemove = netMouseMove;
+        NET.canvas.onmouseup = () => {
+            NET.drag = null;
+            NET.canvas.style.cursor = 'grab';
+        };
+        NET.canvas.onmouseleave = () => {
+            NET.drag = null;
+            NET.canvas.style.cursor = 'grab';
+            const tooltip = document.getElementById('networkTooltip');
+            if (tooltip) tooltip.style.display = 'none';
+        };
+    }
+
+    if (!NET.resizeBound) {
+        window.addEventListener('resize', resizeNetCanvas);
+        NET.resizeBound = true;
+    }
+}
+
+const HM_COLORS = {
+    pqc_ready_strong: '#00C853',
+    pqc_ready_medium: '#76C442',
+    pqc_ready_weak: '#FFB800',
+    transition_strong: '#76C442',
+    transition_medium: '#FFB800',
+    transition_weak: '#FF6D00',
+    legacy_strong: '#FFB800',
+    legacy_medium: '#FF6D00',
+    legacy_weak: '#FF3A5C',
+};
+
+const HM_ROWS = ['pqc_ready', 'transition', 'legacy'];
+const HM_COLS = ['strong', 'medium', 'weak'];
+const HM_ROW_LABELS = { pqc_ready: 'PQC Ready', transition: 'Transition', legacy: 'Legacy' };
+const HM_COL_LABELS = { strong: 'Strong Crypto', medium: 'Medium Crypto', weak: 'Weak Crypto' };
+
+function initHeatmap() {
+    primeOverviewVisuals();
+}
+
+function renderHeatmap(grid, arrow) {
+    const heatmapGrid = document.getElementById('heatmapGrid');
+    if (!heatmapGrid) return;
+    let html = '<div></div>';
+    HM_COLS.forEach((col) => {
+        html += `<div class="hm-header">${HM_COL_LABELS[col]}</div>`;
+    });
+
+    HM_ROWS.forEach((row) => {
+        html += `<div class="hm-row-label">${HM_ROW_LABELS[row]}</div>`;
+        HM_COLS.forEach((col) => {
+            const key = `${row}_${col}`;
+            const cell = grid?.[row]?.[col] || { count: 0, hostnames: [] };
+            const count = Number(cell.count || 0);
+            const zeroClass = count === 0 ? 'zero' : '';
+            html += `<div class="hm-cell ${zeroClass}" data-row="${row}" data-col="${col}" style="background:${HM_COLORS[key] || '#888'}">
+                <div class="hm-count">${count}</div>
+                <div class="hm-label">assets</div>
+            </div>`;
+        });
+    });
+    heatmapGrid.innerHTML = html;
+
+    heatmapGrid.querySelectorAll('.hm-cell').forEach((cell) => {
+        if (cell.classList.contains('zero')) return;
+        const row = cell.dataset.row;
+        const col = cell.dataset.col;
+        cell.addEventListener('click', () => {
+            hmClick(row, col, grid?.[row]?.[col]?.hostnames || []);
+        });
+    });
+
+    const arrowEl = document.getElementById('heatmapArrow');
+    if (arrowEl && arrow) {
+        const current = arrow.current_state || {};
+        const curLabel = `${HM_ROW_LABELS[current.row] || current.row || 'Unknown'} + ${HM_COL_LABELS[current.col] || current.col || 'Unknown'}`;
+        const curColor = HM_COLORS[`${current.row}_${current.col}`] || '#888';
+        arrowEl.innerHTML = `
+            <div style="background:${curColor};border-radius:0.375rem;padding:0.4rem 0.75rem;font-size:0.75rem;font-weight:600;color:#fff">${escHtml(curLabel)} (current)</div>
+            <span style="font-size:1.1rem;color:var(--text-secondary)">→</span>
+            <div style="background:#00C853;border-radius:0.375rem;padding:0.4rem 0.75rem;font-size:0.75rem;font-weight:600;color:#fff">PQC Ready + Strong</div>
+            <span style="color:var(--text-secondary);font-size:0.75rem;margin-left:0.25rem">Your migration target</span>
+        `;
+    }
+}
+
+function hmClick(row, col, hostnames) {
+    const detail = document.getElementById('heatmapDetail');
+    if (!detail) return;
+    if (!hostnames || hostnames.length === 0) {
+        detail.style.display = 'none';
+        return;
+    }
+    const label = `${HM_ROW_LABELS[row]} + ${HM_COL_LABELS[col]}`;
+    detail.style.display = 'block';
+    detail.innerHTML = `
+        <strong>${escHtml(label)} — ${hostnames.length} assets</strong>
+        <div style="display:flex;flex-wrap:wrap;gap:0.4rem;margin-top:0.5rem">
+            ${hostnames.map((host) => `<span style="background:rgba(255,255,255,0.03);border:0.0625rem solid var(--border-subtle);border-radius:0.375rem;padding:0.15rem 0.5rem;font-size:0.75rem">${escHtml(host)}</span>`).join('')}
+        </div>
+    `;
+}
+
+function renderHeatmapSection(payload) {
+    const mount = document.getElementById('heatmapVizMount');
+    if (!mount) return;
+    mount.innerHTML = `
+        ${bannerHtml(payload)}
+        <div id="heatmapWrap" style="max-width:min(90vw,36rem)">
+            <div style="display:grid;grid-template-columns:6rem 1fr 1fr 1fr;gap:0.25rem" id="heatmapGrid"></div>
+            <div id="heatmapArrow" style="display:flex;align-items:center;gap:0.75rem;margin-top:1rem;padding:0.75rem 1rem;background:rgba(255,255,255,0.03);border-radius:0.5rem;font-size:0.8rem;flex-wrap:wrap"></div>
+            <div id="heatmapDetail" style="display:none;margin-top:0.75rem;padding:0.75rem 1rem;border:0.0625rem solid var(--border-subtle);border-radius:0.5rem;font-size:0.8rem"></div>
+            <div style="margin-top:1.5rem;display:flex;align-items:center;justify-content:space-between;gap:0.75rem;flex-wrap:wrap">
+                <div class="viz-surface-head" style="margin:0">Per-Asset Q-Score Gauges</div>
+                <div id="gaugeBannerSlot"></div>
+            </div>
+            <div id="gaugeGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(8.5rem,1fr));gap:0.75rem;margin-top:0.75rem"></div>
+        </div>
+    `;
+    renderHeatmap(payload.grid || payload.heatmap || {}, payload.migration_arrow);
+}
+
+function buildGaugeArc(cx, cy, radius, score) {
+    const pct = Math.min(Math.max(score, 0), 100) / 100;
+    const startAngle = Math.PI;
+    const endAngle = Math.PI + Math.PI * pct;
+    const startX = cx + radius * Math.cos(startAngle);
+    const startY = cy + radius * Math.sin(startAngle);
+    const endX = cx + radius * Math.cos(endAngle);
+    const endY = cy + radius * Math.sin(endAngle);
+    if (pct <= 0) return `M${startX},${startY}`;
+    return `M${startX},${startY} A${radius},${radius} 0 0,1 ${endX},${endY}`;
+}
+
+function renderGaugesFrame(assets, progress) {
+    const grid = document.getElementById('gaugeGrid');
+    if (!grid) return;
+    grid.innerHTML = assets.map((asset) => {
+        const rawScore = vizAssetScore(asset);
+        const score = Math.round(rawScore * progress);
+        const tier = vizTierLabel(asset);
+        const color = tierColor(tier) !== VIZ_COLORS.unknown ? tierColor(tier) : scoreColor(rawScore);
+        const tierShade = `${tierColor(tier)}18`;
+        const arc = buildGaugeArc(56, 56, 40, score);
+        const bgArc = buildGaugeArc(56, 56, 40, 100);
+        return `<div class="gauge-card">
+            <svg width="112" height="68" viewBox="0 0 112 68">
+                <path d="${bgArc}" fill="none" stroke="rgba(55,65,81,0.55)" stroke-width="7" stroke-linecap="round"></path>
+                <path d="${arc}" fill="none" stroke="${color}" stroke-width="7" stroke-linecap="round"></path>
+                <text x="56" y="52" text-anchor="middle" font-size="18" font-weight="600" fill="${color}">${score}</text>
+            </svg>
+            <div class="gauge-name">${escHtml((asset.hostname || asset.name || '').replace('.bank.com', '').replace('.pnb.bank.in', ''))}</div>
+            <span class="gauge-tier" style="background:${tierShade};color:${tierColor(tier)}">${escHtml(tier || 'Unknown')}</span>
+        </div>`;
+    }).join('');
+}
+
+async function initGauges(forceRefresh = false) {
+    const grid = document.getElementById('gaugeGrid');
+    const bannerSlot = document.getElementById('gaugeBannerSlot');
+    if (!grid) return;
+    grid.innerHTML = '<div class="viz-state" style="grid-column:1 / -1"><div class="viz-state-content"><div class="viz-spinner"></div><div class="viz-state-copy">Loading latest asset scores...</div></div></div>';
+    try {
+        const payload = await fetchLatestScan(forceRefresh);
+        if (bannerSlot) bannerSlot.innerHTML = bannerHtml(payload);
+        const assets = [...(payload.assets || payload.asset_scores || [])].sort((a, b) => vizAssetScore(b) - vizAssetScore(a));
+        if (!assets.length) {
+            grid.innerHTML = '<div class="viz-state" style="grid-column:1 / -1"><div class="viz-state-content"><div class="viz-state-title">No score data yet</div><div class="viz-state-copy">Run a scan or refresh the enterprise APIs to populate gauges.</div></div></div>';
+            return;
+        }
+
+        const start = performance.now();
+        const duration = 700;
+        const step = (now) => {
+            const progress = Math.min(1, (now - start) / duration);
+            renderGaugesFrame(assets, progress);
+            if (progress < 1) requestAnimationFrame(step);
+        };
+        requestAnimationFrame(step);
+    } catch (error) {
+        grid.innerHTML = `<div class="viz-state" style="grid-column:1 / -1"><div class="viz-state-content"><div class="viz-state-title">Gauge render failed</div><div class="viz-state-copy">${escHtml(error.message)}</div><button class="viz-retry" type="button" onclick="initGauges(true)">Retry</button></div></div>`;
+    }
+}
+
+const CYBER_BG = { elite: '#1B5E20', standard: '#E65100', legacy: '#B71C1C' };
+
+function cyberBg(score) {
+    return parseInt(score, 10) > 700 ? CYBER_BG.elite : parseInt(score, 10) > 400 ? CYBER_BG.standard : CYBER_BG.legacy;
+}
+
+function cyberTier(score) {
+    return parseInt(score, 10) > 700 ? 'Elite-PQC' : parseInt(score, 10) > 400 ? 'Standard' : 'Legacy';
+}
+
+function cyberTierSub(score) {
+    return parseInt(score, 10) > 700 ? 'Indicates a stronger security posture' : parseInt(score, 10) > 400 ? 'Acceptable enterprise configuration' : 'Remediation required';
+}
+
+function updateCyberCard(score) {
+    const scoreNode = document.getElementById('cyberScore');
+    const cardNode = document.getElementById('cyberCard');
+    const labelNode = document.getElementById('cyberTierLabel');
+    const subNode = document.getElementById('cyberTierSub');
+    if (scoreNode) scoreNode.textContent = Math.round(score);
+    if (cardNode) cardNode.style.background = cyberBg(score);
+    if (labelNode) labelNode.textContent = cyberTier(score);
+    if (subNode) subNode.textContent = cyberTierSub(score);
+}
+
+function initCyberRating() {
+    primeOverviewVisuals();
+}
+
+function renderCyberRatingSection(payload) {
+    const mount = document.getElementById('cyberVizMount');
+    if (!mount) return;
+    const score = payload.enterprise_score ?? 0;
+    const assets = payload.per_asset || [];
+    const tiers = payload.tier_criteria || [];
+    mount.innerHTML = `
+        ${bannerHtml(payload)}
+        <div id="cyberCard" style="border-radius:0.75rem;padding:1.75rem 2rem;display:flex;align-items:center;gap:1.5rem;flex-wrap:wrap;margin-bottom:1.25rem;transition:background 0.4s">
+            <div>
+                <div style="display:flex;align-items:baseline;gap:0.75rem">
+                    <span id="cyberScore" style="font-size:4rem;font-weight:800;line-height:1;color:#fff">0</span>
+                    <span style="font-size:1.5rem;color:rgba(255,255,255,0.6);font-weight:300">/ 1000</span>
+                </div>
+            </div>
+            <div>
+                <div id="cyberTierLabel" style="font-size:1.25rem;font-weight:600;color:#fff">Standard</div>
+                <div id="cyberTierSub" style="font-size:0.8rem;color:rgba(255,255,255,0.7);margin-top:0.2rem">Enterprise posture summary</div>
+            </div>
+            <div style="margin-left:auto;text-align:right">
+                <div style="font-size:0.75rem;color:rgba(255,255,255,0.6);margin-bottom:0.4rem">Simulate score</div>
+                <input type="range" id="cyberSlider" min="0" max="1000" value="${score}" style="width:9rem" oninput="updateCyberCard(this.value)">
+            </div>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(16rem,1fr));gap:1rem">
+            <div style="background:rgba(255,255,255,0.03);border:0.0625rem solid var(--border-subtle);border-radius:0.75rem;padding:1rem">
+                <div style="font-size:0.8rem;font-weight:600;margin-bottom:0.75rem">Asset Scores</div>
+                <div id="cyberAssetList"></div>
+            </div>
+            <div style="background:rgba(255,255,255,0.03);border:0.0625rem solid var(--border-subtle);border-radius:0.75rem;padding:1rem">
+                <div style="font-size:0.8rem;font-weight:600;margin-bottom:0.75rem">Tier Reference</div>
+                <div id="cyberTierTable"></div>
+            </div>
+        </div>
+    `;
+
+    updateCyberCard(score);
+
+    const assetList = document.getElementById('cyberAssetList');
+    if (assetList) {
+        assetList.innerHTML = assets.map((asset) => `
+            <div class="cyber-asset-row">
+                <div style="font-size:0.75rem;flex:1;color:var(--text-secondary)">${escHtml((asset.hostname || '').replace('.pnb.bank.in', '').replace('.bank.com', ''))}</div>
+                <div style="width:4rem;height:0.375rem;background:rgba(55,65,81,0.35);border-radius:0.25rem;overflow:hidden">
+                    <div style="height:100%;width:${vizAssetScore(asset)}%;background:${scoreColor(vizAssetScore(asset))};border-radius:0.25rem"></div>
+                </div>
+                <div style="font-size:0.8rem;font-weight:600;min-width:1.75rem;text-align:right;color:${scoreColor(vizAssetScore(asset))}">${vizAssetScore(asset)}</div>
+            </div>
+        `).join('');
+    }
+
+    const tierTable = document.getElementById('cyberTierTable');
+    if (tierTable) {
+        tierTable.innerHTML = tiers.map((tier) => `
+            <div style="display:flex;align-items:center;gap:0.625rem;padding:0.625rem 0;border-bottom:0.0625rem solid rgba(55,65,81,0.25);${cyberTier(score) === tier.tier ? 'background:rgba(255,165,0,0.06);border-radius:0.375rem;padding-inline:0.5rem' : ''}">
+                <span style="width:0.6rem;height:0.6rem;border-radius:50%;background:${tierColor(tier.tier)};display:inline-block;flex-shrink:0"></span>
+                <span style="font-size:0.8rem;flex:1">${escHtml(tier.tier || 'Tier')}</span>
+                <span style="font-size:0.76rem;color:var(--text-secondary);text-align:right">${escHtml(tier.security_level || tier.compliance_criteria || '')}</span>
+            </div>
+        `).join('');
+    }
+}
+
+function certColor(daysLeft) {
+    return daysLeft <= 30 ? '#c62828' : daysLeft <= 60 ? '#e64a19' : daysLeft <= 90 ? '#f57f17' : '#2e7d32';
+}
+
+async function initCertChart(sslData, payloadMeta = {}) {
+    const mount = document.getElementById('certVizMount');
+    if (!mount) return;
+    const items = Array.isArray(sslData) ? sslData : [];
+    if (!items.length) {
+        mount.innerHTML = `${bannerHtml(payloadMeta)}<div class="viz-state"><div class="viz-state-content"><div class="viz-state-title">No SSL inventory</div><div class="viz-state-copy">Refresh the overview to load certificate records.</div></div></div>`;
+        return;
+    }
+
+    mount.innerHTML = `
+        ${bannerHtml(payloadMeta)}
+        <div class="cert-stat-grid" id="certStatCards"></div>
+        <div style="background:rgba(255,255,255,0.03);border:0.0625rem solid var(--border-subtle);border-radius:0.75rem;padding:1rem">
+            <div style="font-size:0.8rem;font-weight:600;margin-bottom:0.75rem">Certificate Expiry Timeline</div>
+            <div class="cert-chart-wrap" id="certChartWrap">
+                <canvas id="certExpiryChart"></canvas>
+            </div>
+        </div>
+    `;
+
+    const certs = items.slice(0, 12).map((cert) => {
+        const validFrom = new Date(cert.valid_from);
+        const validTo = cert.valid_to ? new Date(cert.valid_to) : new Date(validFrom.getTime() + 90 * 24 * 60 * 60 * 1000);
+        const today = new Date();
+        const daysLeft = Math.max(0, Math.round((validTo - today) / (1000 * 60 * 60 * 24)));
+        return {
+            label: (cert.common_name || cert.ssl_sha_fingerprint || '').slice(0, 20),
+            daysLeft,
+        };
+    });
+
+    const chartWrap = document.getElementById('certChartWrap');
+    if (chartWrap) chartWrap.style.height = `${Math.max(200, certs.length * 36 + 60)}px`;
+
+    makeChart('certExpiryChart', {
+        type: 'bar',
+        data: {
+            labels: certs.map((cert) => cert.label),
+            datasets: [{
+                label: 'Days remaining',
+                data: certs.map((cert) => cert.daysLeft),
+                backgroundColor: certs.map((cert) => certColor(cert.daysLeft)),
+                borderRadius: 3,
+                borderSkipped: false,
+            }],
+        },
+        options: {
+            indexAxis: 'y',
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    callbacks: {
+                        label: (ctx) => `${ctx.raw} days remaining`,
+                    },
+                },
+            },
+            scales: {
+                x: {
+                    min: 0,
+                    max: 180,
+                    grid: { color: 'rgba(128,128,128,0.1)' },
+                    ticks: { color: '#9ca3af', font: { size: 11 } },
+                },
+                y: {
+                    ticks: { color: '#9ca3af', font: { size: 11 } },
+                    grid: { display: false },
+                },
+            },
+        },
+    });
+
+    const counts = { lt30: 0, lt60: 0, lt90: 0, ok: 0 };
+    certs.forEach((cert) => {
+        if (cert.daysLeft <= 30) counts.lt30 += 1;
+        else if (cert.daysLeft <= 60) counts.lt60 += 1;
+        else if (cert.daysLeft <= 90) counts.lt90 += 1;
+        else counts.ok += 1;
+    });
+    const statsNode = document.getElementById('certStatCards');
+    if (statsNode) {
+        statsNode.innerHTML = [
+            { label: 'Expiring < 30 days', val: counts.lt30, color: '#c62828' },
+            { label: 'Expiring 30–60 days', val: counts.lt60, color: '#e64a19' },
+            { label: 'Expiring 60–90 days', val: counts.lt90, color: '#f57f17' },
+            { label: 'Valid > 90 days', val: counts.ok, color: '#2e7d32' },
+        ].map((stat) => `
+            <div style="background:rgba(255,255,255,0.03);border-radius:0.5rem;padding:0.875rem">
+                <div style="font-size:0.7rem;color:var(--text-secondary)">${stat.label}</div>
+                <div style="font-size:1.5rem;font-weight:700;color:${stat.color}">${stat.val}</div>
+            </div>
+        `).join('');
+    }
+}
+
+function cipherColor(name) {
+    if (/MLKEM|X25519MLKEM/i.test(name)) return '#2e7d32';
+    if (/AES.?256.*GCM|CHACHA20/i.test(name)) return '#1976d2';
+    if (/DES|CBC|RC4|NULL/i.test(name)) return '#c62828';
+    return '#f57f17';
+}
+
+function deriveCbomMetrics(cbom) {
+    const components = (cbom.components || []).filter((component) => component.type === 'cryptographic-asset');
+    const summary = cbom.pqcSummary || {};
+    const distribution = summary.distribution || {};
+    const keyLengthDistribution = {};
+    const tlsDistribution = {};
+    const cipherUsage = [];
+
+    components.forEach((component) => {
+        const algorithmProperties = component.cryptoProperties?.algorithmProperties || {};
+        const protocolProperties = component.cryptoProperties?.protocolProperties || {};
+        const keyLength = Number(algorithmProperties.keySize || 0) || 0;
+        const keyBucket = keyLength >= 3072 ? '3072+' : keyLength >= 2048 ? '2048' : keyLength ? String(keyLength) : 'Unknown';
+        keyLengthDistribution[keyBucket] = (keyLengthDistribution[keyBucket] || 0) + 1;
+
+        const protocol = protocolProperties.version || 'Unknown';
+        tlsDistribution[protocol] = (tlsDistribution[protocol] || 0) + 1;
+
+        const cipherName = [algorithmProperties.keyExchange, algorithmProperties.authentication].filter(Boolean).join(' / ') || component.name || 'Unknown';
+        const existing = cipherUsage.find((entry) => entry.name === cipherName);
+        if (existing) existing.count += 1;
+        else cipherUsage.push({ name: cipherName, count: 1 });
+    });
+
+    return {
+        stats: [
+            { label: 'Total Applications', val: summary.totalAssets ?? components.length },
+            { label: 'Sites Surveyed', val: summary.totalAssets ?? components.length },
+            { label: 'Active Certificates', val: components.length },
+            { label: 'Weak Cryptography', val: (distribution.quantumVulnerable || 0) + (distribution.criticallyVulnerable || 0), warn: true },
+            { label: 'Certificate Issues', val: (cbom.vulnerabilities || []).length },
+        ],
+        keyLengthDistribution,
+        tlsDistribution,
+        cipherUsage: cipherUsage.sort((a, b) => b.count - a.count).slice(0, 8),
+        applications: components.map((component) => ({
+            name: component.name,
+            key_length: component.cryptoProperties?.algorithmProperties?.keySize || '—',
+            cipher: [component.cryptoProperties?.algorithmProperties?.keyExchange, component.cryptoProperties?.algorithmProperties?.authentication].filter(Boolean).join(' / ') || '—',
+            certificate_authority: (component.nistStandardRefs || []).join(', ') || component.provenance?.source || '—',
+        })),
+    };
+}
+
+async function downloadCBOM(format) {
+    try {
+        let resp;
+        if (format === 'cdxa') {
+            resp = await fetch(`${API_BASE}/api/attestation/v2/download`);
+            if (!resp.ok) resp = await fetch(`${API_BASE}/api/attestation/download`);
+        } else {
+            resp = await fetch(buildContextEndpoint('/api/cbom/latest'));
+        }
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        const blob = await resp.blob();
+        const url = URL.createObjectURL(blob);
+        const anchor = document.createElement('a');
+        anchor.href = url;
+        anchor.download = format === 'cdxa' ? 'qarmor-attestation-cdxa.json' : 'qarmor-cbom-latest.json';
+        anchor.click();
+        URL.revokeObjectURL(url);
+        showToast(format === 'cdxa' ? 'CDXA downloaded' : 'CBOM downloaded', 'success');
+    } catch (error) {
+        showToast(`Download failed: ${error.message}`, 'error');
+    }
+}
+
+async function initCBOM(forceRefresh = false) {
+    const mount = document.getElementById('cbomVizMount');
+    if (!mount) return;
+    renderVizLoading('cbomVizMount', 'Loading CBOM analytics', 'Summarizing components, protocols, and cryptographic posture...');
+    try {
+        const cbom = await fetchCbomLatest(forceRefresh);
+        latestCbomPayload = cbom;
+        const metrics = deriveCbomMetrics(cbom);
+        mount.innerHTML = `
+            ${bannerHtml(cbom)}
+            <div id="cbomStats" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(9rem,1fr));gap:0.75rem;margin-bottom:1.25rem"></div>
+            <div class="viz-grid viz-grid--two" style="margin-bottom:1rem">
+                <div style="background:rgba(255,255,255,0.03);border:0.0625rem solid var(--border-subtle);border-radius:0.75rem;padding:1rem">
+                    <div style="font-size:0.8rem;font-weight:600;margin-bottom:0.75rem">Key Length Distribution</div>
+                    <div class="cbom-chart-wrap" style="position:relative;height:12.5rem">
+                        <canvas id="keyLengthChart"></canvas>
+                    </div>
+                </div>
+                <div style="background:rgba(255,255,255,0.03);border:0.0625rem solid var(--border-subtle);border-radius:0.75rem;padding:1rem">
+                    <div style="font-size:0.8rem;font-weight:600;margin-bottom:0.75rem">Encryption Protocols</div>
+                    <div class="cbom-chart-wrap" style="position:relative;height:12.5rem">
+                        <canvas id="protoChart"></canvas>
+                    </div>
+                </div>
+            </div>
+            <div style="background:rgba(255,255,255,0.03);border:0.0625rem solid var(--border-subtle);border-radius:0.75rem;padding:1rem;margin-bottom:1rem">
+                <div style="font-size:0.8rem;font-weight:600;margin-bottom:0.75rem">Cipher Suite Usage</div>
+                <div id="cipherBars"></div>
+            </div>
+            <div style="background:rgba(255,255,255,0.03);border:0.0625rem solid var(--border-subtle);border-radius:0.75rem;padding:1rem">
+                <div style="font-size:0.8rem;font-weight:600;margin-bottom:0.75rem">Per-Application Detail</div>
+                <div style="overflow-x:auto">
+                    <table id="cbomTable" style="width:100%;border-collapse:collapse;font-size:0.8rem"></table>
+                </div>
+            </div>
+        `;
+
+        const statsNode = document.getElementById('cbomStats');
+        if (statsNode) {
+            statsNode.innerHTML = metrics.stats.map((stat) => `
+                <div style="background:${stat.warn ? 'rgba(198,40,40,0.08)' : 'rgba(255,255,255,0.03)'};border-radius:0.5rem;padding:0.875rem">
+                    <div style="font-size:0.7rem;color:var(--text-secondary)">${stat.label}</div>
+                    <div style="font-size:1.5rem;font-weight:700;color:${stat.warn ? '#c62828' : 'var(--text-primary)'}">${stat.val}</div>
+                </div>
+            `).join('');
+        }
+
+        makeChart('keyLengthChart', {
+            type: 'bar',
+            data: {
+                labels: Object.keys(metrics.keyLengthDistribution),
+                datasets: [{
+                    data: Object.values(metrics.keyLengthDistribution),
+                    backgroundColor: Object.keys(metrics.keyLengthDistribution).map((key) => {
+                        const numeric = parseInt(key, 10);
+                        if (numeric >= 3072) return '#1565c0';
+                        if (numeric >= 2048) return '#1976d2';
+                        return '#c62828';
+                    }),
+                    borderRadius: 4,
+                    borderSkipped: false,
+                }],
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: {
+                    y: { grid: { color: 'rgba(128,128,128,0.1)' }, ticks: { color: '#9ca3af', font: { size: 11 } } },
+                    x: { ticks: { color: '#9ca3af', font: { size: 11 } }, grid: { display: false } },
+                },
+            },
+        });
+
+        makeChart('protoChart', {
+            type: 'doughnut',
+            data: {
+                labels: Object.keys(metrics.tlsDistribution),
+                datasets: [{
+                    data: Object.values(metrics.tlsDistribution),
+                    backgroundColor: ['#2e7d32', '#f57f17', '#e64a19', '#b71c1c', '#616161'],
+                    borderWidth: 0,
+                }],
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        position: 'right',
+                        labels: { color: '#9ca3af', font: { size: 11 }, boxWidth: 12 },
+                    },
+                },
+            },
+        });
+
+        const cipherNode = document.getElementById('cipherBars');
+        if (cipherNode) {
+            const maxCount = Math.max(1, ...metrics.cipherUsage.map((entry) => entry.count));
+            cipherNode.innerHTML = metrics.cipherUsage.map((entry) => `
+                <div class="cipher-row">
+                    <div class="cipher-name">${escHtml(entry.name)}</div>
+                    <div class="cipher-bar-wrap"><div class="cipher-bar" data-pct="${(entry.count / maxCount) * 100}" style="background:${cipherColor(entry.name)}"></div></div>
+                    <div class="cipher-count">${entry.count}</div>
+                </div>
+            `).join('');
+            requestAnimationFrame(() => {
+                document.querySelectorAll('.cipher-bar').forEach((bar) => {
+                    bar.style.width = `${bar.dataset.pct}%`;
+                });
+            });
+        }
+
+        const tableNode = document.getElementById('cbomTable');
+        if (tableNode) {
+            tableNode.innerHTML = `
+                <thead>
+                    <tr style="border-bottom:0.0625rem solid var(--border-subtle)">
+                        ${['Application', 'Key Length', 'Cipher', 'Certificate Authority'].map((header) => `<th style="padding:0.5rem 0.75rem;text-align:left;font-size:0.75rem;color:var(--text-secondary);font-weight:600">${header}</th>`).join('')}
+                    </tr>
+                </thead>
+                <tbody>
+                    ${metrics.applications.map((app) => {
+                        const rowClass = /DES|CBC|RC4/i.test(app.cipher) ? 'cbom-table-row-weak' : /MLKEM/i.test(app.cipher) ? 'cbom-table-row-pqc' : 'cbom-table-row-normal';
+                        return `<tr class="${rowClass}">
+                            <td style="padding:0.5rem 0.75rem;font-size:0.8rem">${escHtml(app.name || '')}</td>
+                            <td style="padding:0.5rem 0.75rem;font-size:0.8rem">${escHtml(String(app.key_length || '—'))}</td>
+                            <td style="padding:0.5rem 0.75rem;font-size:0.8rem;color:${cipherColor(app.cipher || '')}">${escHtml(app.cipher || '—')}</td>
+                            <td style="padding:0.5rem 0.75rem;font-size:0.8rem">${escHtml(app.certificate_authority || '—')}</td>
+                        </tr>`;
+                    }).join('')}
+                </tbody>
+            `;
+        }
+    } catch (error) {
+        renderVizError('cbomVizMount', 'CBOM analytics failed', error.message, 'initCBOM(true)');
+    }
+}
+
+const NEG_TIER_COLORS = {
+    STRONG: { bg: '#e8f5e9', color: '#2e7d32' },
+    MEDIUM: { bg: '#fff3e0', color: '#e65100' },
+    CLASSICAL: { bg: '#e3f2fd', color: '#1565c0' },
+    WEAK: { bg: '#fce4ec', color: '#c62828' },
+    CRITICAL: { bg: '#ffebee', color: '#b71c1c' },
+};
+
+function buildNegIndicator(policy) {
+    if (!policy) return '<span style="color:var(--text-dim);font-size:0.75rem">—</span>';
+    const tier = (policy.negotiation_tier || 'UNKNOWN').toUpperCase();
+    const colors = NEG_TIER_COLORS[tier] || { bg: '#f5f5f5', color: '#616161' };
+    const score = policy.negotiation_security_score ?? 0;
+    const scoreTone = score >= 0 ? '#2e7d32' : '#c62828';
+    return `<div style="min-width:7rem">
+        <div class="neg-dots">
+            <div class="neg-dot-wrap">
+                <div class="neg-dot" style="background:${policy.pqc_supported ? '#2e7d32' : 'rgba(55,65,81,0.55)'}"></div>
+                <div class="neg-dot-label">PQC</div>
+            </div>
+            <div class="neg-dot-wrap">
+                <div class="neg-dot" style="background:${policy.tls13_supported ? '#1565c0' : 'rgba(55,65,81,0.55)'}"></div>
+                <div class="neg-dot-label">TLS13</div>
+            </div>
+            <div class="neg-dot-wrap">
+                <div class="neg-dot" style="background:${policy.downgrade_possible ? '#c62828' : 'rgba(55,65,81,0.55)'}"></div>
+                <div class="neg-dot-label">DWN</div>
+            </div>
+            <span class="neg-score" style="color:${scoreTone};margin-left:0.5rem">${score >= 0 ? '+' : ''}${score}</span>
+        </div>
+        <span class="neg-tier-badge" style="background:${colors.bg};color:${colors.color}">${tier}</span>
+    </div>`;
+}
+
+function toggleAssessmentDetail(rowId) {
+    const detailRow = document.getElementById(`assessment-detail-${rowId}`);
+    if (!detailRow) return;
+    detailRow.style.display = detailRow.style.display === 'table-row' ? 'none' : 'table-row';
+}
+
+function renderAssessmentTable(assessments) {
+    const container = document.getElementById('assessTableContainer');
+    const badge = document.getElementById('assessCount');
+    if (badge) badge.textContent = `${assessments.length} endpoints`;
+
+    if (!assessments.length) {
+        container.innerHTML = `<div class="empty-state"><div class="empty-state-icon">🛡️</div><div class="empty-state-title">No assessments</div></div>`;
+        return;
+    }
+
+    const riskOrder = { HIGH: 0, MEDIUM: 1, LOW: 2 };
+    const sorted = [...assessments].sort((a, b) => (riskOrder[a.overall_quantum_risk] ?? 9) - (riskOrder[b.overall_quantum_risk] ?? 9));
+
+    let html = `<table class="assess-table"><thead><tr>
+        <th>Endpoint</th>
+        <th>Risk</th>
+        <th>TLS</th>
+        <th>Key Exchange</th>
+        <th>Certificate</th>
+        <th>Symmetric</th>
+        <th>HNDL</th>
+        <th>Negotiation Policy</th>
+        <th>Q-Score</th>
+    </tr></thead><tbody>`;
+
+    sorted.forEach((assessment, index) => {
+        const hostname = String(assessment.target || '').trim();
+        const policy = assessmentNegotiationPolicies[hostname];
+        const rowId = `row-${index}`;
+        html += `<tr class="assessment-row-expand" onclick="toggleAssessmentDetail('${rowId}')">
+            <td><span class="asset-hostname">${escHtml(hostname || '?')}:${assessment.port || 443}</span></td>
+            <td><span class="risk-badge risk-badge--${assessment.overall_quantum_risk || 'HIGH'}">${escHtml(assessment.overall_quantum_risk || 'HIGH')}</span></td>
+            <td>${dimPill(assessment.tls_status, assessment.tls_version)}</td>
+            <td>${dimPillKex(assessment.key_exchange_status, assessment.key_exchange_algorithm)}</td>
+            <td>${dimPillKex(assessment.certificate_status, assessment.certificate_algorithm)}</td>
+            <td>${dimPill(assessment.symmetric_cipher_status, assessment.symmetric_cipher)}</td>
+            <td>${hndlBadge(assessment.hndl_vulnerable)}</td>
+            <td>${buildNegIndicator(policy)}</td>
+            <td><span class="qscore-value" style="color:${getScoreColor(assessment.q_score || 0)}">${assessment.q_score || 0}</span></td>
+        </tr>
+        <tr class="assessment-detail-row" id="assessment-detail-${rowId}" style="display:none">
+            <td colspan="9">
+                <div class="assessment-detail">
+                    <div class="assessment-detail-summary">${escHtml(policy?.policy_summary || 'No negotiation policy summary available for this endpoint.')}</div>
+                    <div class="assessment-detail-grid">
+                        <div><strong>PQC clients:</strong> ${escHtml(policy?.client_segmentation?.pqc_clients || '—')}</div>
+                        <div><strong>Classical clients:</strong> ${escHtml(policy?.client_segmentation?.classical_clients || '—')}</div>
+                        <div><strong>Legacy clients:</strong> ${escHtml(policy?.client_segmentation?.legacy_clients || '—')}</div>
+                    </div>
+                </div>
+            </td>
+        </tr>`;
+    });
+
+    html += '</tbody></table>';
+    container.innerHTML = html;
+}
+
+function buildAssetSeries(scans) {
+    const hostnames = [...new Set(scans.flatMap((scan) => (scan.asset_scores || scan.assets || []).map((asset) => asset.hostname).filter(Boolean)))].slice(0, 5);
+    return hostnames.map((hostname) => ({
+        hostname,
+        scores: scans.map((scan) => {
+            const asset = (scan.asset_scores || scan.assets || []).find((item) => item.hostname === hostname);
+            return asset ? (asset.worst_case_score ?? asset.worst_score ?? asset.q_score ?? null) : null;
+        }),
+    })).filter((series) => series.scores.some((score) => score !== null));
+}
+
+function renderLatestComparison(comparePayload) {
+    const baseline = document.getElementById('baselineContent');
+    if (!baseline || !comparePayload) return;
+    const delta = comparePayload.delta || {};
+    baseline.innerHTML = `
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(9rem,1fr));gap:0.75rem;margin-bottom:1rem">
+            <div class="stat-card stat-card--total" style="padding:0.875rem"><div class="stat-value" style="font-size:1.4rem">${comparePayload.scan_b?.total || 0}</div><div class="stat-label">Latest Assets</div></div>
+            <div class="stat-card stat-card--safe" style="padding:0.875rem"><div class="stat-value" style="font-size:1.4rem">${delta.fully_safe || 0}</div><div class="stat-label">Safe Delta</div></div>
+            <div class="stat-card stat-card--critical" style="padding:0.875rem"><div class="stat-value" style="font-size:1.4rem">${delta.crit_vuln || 0}</div><div class="stat-label">Critical Delta</div></div>
+            <div class="stat-card stat-card--transition" style="padding:0.875rem"><div class="stat-value" style="font-size:1.4rem">${delta.avg_score || 0}</div><div class="stat-label">Average Score Delta</div></div>
+        </div>
+        ${bannerHtml(comparePayload)}
+        <table class="asset-table">
+            <thead><tr><th>Metric</th><th>Previous</th><th>Latest</th><th>Delta</th></tr></thead>
+            <tbody>
+                <tr><td>Total Assets</td><td>${comparePayload.scan_a?.total || 0}</td><td>${comparePayload.scan_b?.total || 0}</td><td>${delta.total_assets || 0}</td></tr>
+                <tr><td>Average Score</td><td>${comparePayload.scan_a?.avg || 0}</td><td>${comparePayload.scan_b?.avg || 0}</td><td>${delta.avg_score || 0}</td></tr>
+                <tr><td>Fully Safe</td><td>${comparePayload.scan_a?.fully_safe || '—'}</td><td>${comparePayload.scan_b?.fully_safe || '—'}</td><td>${delta.fully_safe || 0}</td></tr>
+                <tr><td>Critical</td><td>${comparePayload.scan_a?.crit_vuln || '—'}</td><td>${comparePayload.scan_b?.crit_vuln || '—'}</td><td>${delta.crit_vuln || 0}</td></tr>
+            </tbody>
+        </table>
+    `;
+}
+
+async function initTimeline(forceRefresh = false) {
+    const enterpriseMount = document.getElementById('enterpriseTimelineMount');
+    const assetMount = document.getElementById('assetTimelineMount');
+    if (!enterpriseMount || !assetMount) return;
+    renderVizLoading('enterpriseTimelineMount', 'Loading enterprise timeline', 'Reading recent scan history for trend analysis...');
+    renderVizLoading('assetTimelineMount', 'Loading asset trends', 'Finding the assets with the biggest Q-Score changes...');
+
+    try {
+        const [historyPayload, comparePayload] = await Promise.all([
+            fetchHistoryLatest(forceRefresh),
+            apiCall('/api/compare/latest').catch(() => null),
+        ]);
+        latestHistoryPayload = historyPayload;
+        const scans = (historyPayload.scans || historyPayload || []).slice(-6);
+        const labels = scans.map((scan) => scan.label || `Scan ${scan.id || ''}`);
+        const scores = scans.map((scan) => scan.enterprise_score ?? scan.cyber_rating ?? Math.round((scan.avg_score || 0) * 10) ?? 0);
+
+        enterpriseMount.innerHTML = `${bannerHtml(historyPayload)}<div class="timeline-chart-wrap" style="position:relative;height:13.75rem"><canvas id="enterpriseTimelineChart"></canvas></div>`;
+        assetMount.innerHTML = `${bannerHtml(historyPayload)}<div class="timeline-chart-wrap" style="position:relative;height:13.75rem"><canvas id="assetTrendChart"></canvas></div>`;
+
+        makeChart('enterpriseTimelineChart', {
+            type: 'line',
+            data: {
+                labels,
+                datasets: [{
+                    label: 'Enterprise Score',
+                    data: scores,
+                    borderColor: '#2e7d32',
+                    backgroundColor: 'rgba(46,125,50,0.08)',
+                    fill: true,
+                    tension: 0.4,
+                    pointBackgroundColor: '#2e7d32',
+                    pointRadius: 5,
+                    pointHoverRadius: 7,
+                }],
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        callbacks: {
+                            label: (ctx) => `Score: ${ctx.raw} — ${cyberTier(ctx.raw)}`,
+                        },
+                    },
+                },
+                scales: {
+                    y: { min: 0, max: 1000, grid: { color: 'rgba(128,128,128,0.1)' }, ticks: { color: '#9ca3af', font: { size: 11 } } },
+                    x: { grid: { display: false }, ticks: { color: '#9ca3af', font: { size: 11 } } },
+                },
+            },
+        });
+
+        const assetSeries = buildAssetSeries(scans);
+        const palette = ['#2e7d32', '#1976d2', '#c62828', '#f57f17', '#6a1b9a'];
+        makeChart('assetTrendChart', {
+            type: 'line',
+            data: {
+                labels,
+                datasets: assetSeries.map((series, index) => ({
+                    label: series.hostname.replace('.pnb.bank.in', '').replace('.bank.com', ''),
+                    data: series.scores,
+                    borderColor: palette[index % palette.length],
+                    tension: 0.4,
+                    pointRadius: 3,
+                    pointHoverRadius: 5,
+                    fill: false,
+                })),
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { position: 'top', labels: { color: '#9ca3af', font: { size: 11 }, boxWidth: 12, padding: 16 } },
+                },
+                scales: {
+                    y: { min: 0, max: 100, grid: { color: 'rgba(128,128,128,0.1)' }, ticks: { color: '#9ca3af', font: { size: 11 } } },
+                    x: { grid: { display: false }, ticks: { color: '#9ca3af', font: { size: 11 } } },
+                },
+            },
+        });
+
+        if (comparePayload) renderLatestComparison(comparePayload);
+    } catch (error) {
+        renderVizError('enterpriseTimelineMount', 'Timeline failed', error.message, 'initTimeline(true)');
+        renderVizError('assetTimelineMount', 'Asset trends failed', error.message, 'initTimeline(true)');
+    }
+}
+
+const originalLoadHistory = loadHistory;
+const originalLoadLiveHistory = loadLiveHistory;
+const originalRunPhase9Demo = runPhase9Demo;
+const originalRunPhase9Live = runPhase9Live;
+const originalRunDemoScan = runDemoScan;
+const originalScanDomain = scanDomain;
+const originalScanSingleHost = scanSingleHost;
+
+loadEnterpriseDashboardData = async function loadEnterpriseDashboardDataInteractive(opts = {}) {
+    const notifyOnError = Boolean(opts.notifyOnError);
+    const forceRefresh = Boolean(opts.forceRefresh);
+    const context = getEnterpriseContext({ notifyOnError });
+    if (!context) return;
+
+    if (isTabActive('overview') || vizInit.network || vizInit.heatmap || vizInit.cyber || vizInit.gauges) {
+        ensureOverviewVizLoading();
+    }
+
+    try {
+        const [
+            home,
+            domains,
+            ssl,
+            ip,
+            software,
+            graph,
+            cyber,
+            heatmap,
+            negotiation,
+        ] = await Promise.all([
+            apiCall(buildEnterpriseEndpoint('/api/home/summary', context, forceRefresh)),
+            apiCall(buildEnterpriseEndpoint('/api/assets/domains', context)),
+            apiCall(buildEnterpriseEndpoint('/api/assets/ssl', context)),
+            apiCall(buildEnterpriseEndpoint('/api/assets/ip', context)),
+            apiCall(buildEnterpriseEndpoint('/api/assets/software', context)),
+            apiCall(buildEnterpriseEndpoint('/api/assets/network-graph', context)),
+            apiCall(buildEnterpriseEndpoint('/api/cyber-rating', context)),
+            apiCall(buildEnterpriseEndpoint('/api/pqc/heatmap', context)),
+            apiCall(buildEnterpriseEndpoint('/api/pqc/negotiation', context)),
+        ]);
+
+        enterpriseDashboardData = { home, domains, ssl, ip, software, graph, cyber, heatmap, negotiation };
+        assessmentNegotiationPolicies = negotiation.policies || {};
+
+        renderEnterpriseNotice(home.demo_mode, home.data_notice);
+        renderHomeSummaryV2(home);
+        renderAssetDiscoveryV2(domains, ssl, ip, software, graph);
+        renderCyberPqcV2(cyber, heatmap, negotiation);
+        await syncOverviewWithLatestScan(forceRefresh);
+
+        if (isTabActive('overview') || vizInit.network || vizInit.heatmap || vizInit.cyber || vizInit.gauges) {
+            prepareOverviewVisualizations(forceRefresh);
+        }
+
+        if (vizInit.cbom && isTabActive('phase9')) {
+            initCBOM(forceRefresh);
+        }
+    } catch (error) {
+        console.warn('Enterprise data API fetch failed:', error);
+        renderVizError('networkVizMount', 'Network graph failed', error.message, 'loadEnterpriseDashboardData({ notifyOnError: true, forceRefresh: true })');
+        renderVizError('cyberVizMount', 'Cyber rating failed', error.message, 'loadEnterpriseDashboardData({ notifyOnError: true, forceRefresh: true })');
+        renderVizError('heatmapVizMount', 'PQC posture failed', error.message, 'loadEnterpriseDashboardData({ notifyOnError: true, forceRefresh: true })');
+        renderVizError('certVizMount', 'Certificate timeline failed', error.message, 'loadEnterpriseDashboardData({ notifyOnError: true, forceRefresh: true })');
+        if (notifyOnError) showToast(`Failed to refresh enterprise APIs: ${error.message}`, 'error');
+    }
+};
+
+fetchPhase2Assessment = async function fetchPhase2AssessmentInteractive() {
+    const assessmentEmpty = document.getElementById('assessmentEmpty');
+    const assessmentContent = document.getElementById('assessmentContent');
+    const assessTable = document.getElementById('assessTableContainer');
+    if (assessmentEmpty) assessmentEmpty.style.display = 'none';
+    if (assessmentContent) assessmentContent.style.display = 'block';
+    if (assessTable) {
+        assessTable.innerHTML = `
+            <div class="viz-state">
+                <div class="viz-state-content">
+                    <div class="viz-spinner"></div>
+                    <div class="viz-state-title">Loading assessment intelligence</div>
+                    <div class="viz-state-copy">Calculating NIST posture and negotiation policy indicators...</div>
+                </div>
+            </div>
+        `;
+    }
+    try {
+        const [assessResult, remediationResult, negotiationResult] = await Promise.allSettled([
+            apiCall(buildContextEndpoint('/api/assess')),
+            apiCall('/api/assess/remediation'),
+            apiCall(buildContextEndpoint('/api/pqc/negotiation')),
+        ]);
+        if (assessResult.status !== 'fulfilled') {
+            throw assessResult.reason;
+        }
+        const assess = assessResult.value;
+        const remediation = remediationResult.status === 'fulfilled' ? remediationResult.value : null;
+        const negotiation = negotiationResult.status === 'fulfilled' ? negotiationResult.value : { policies: {} };
+        assessmentData = assess;
+        assessmentNegotiationPolicies = negotiation.policies || {};
+        renderPhase2Assessment(assess);
+        if (remediation) {
+            remediationData = remediation;
+            renderPhase2Remediation(remediation);
+        }
+    } catch (error) {
+        console.warn('Assessment fetch failed:', error);
+        showToast(`Assessment fetch failed: ${error.message}`, 'error');
+    }
+};
+
+switchTab = function switchTabInteractive(tabName) {
+    document.querySelectorAll('.tab-btn').forEach((button) => button.classList.remove('tab-btn--active'));
+    document.querySelectorAll('.tab-content').forEach((contentNode) => contentNode.classList.remove('tab-content--active'));
+
+    const button = document.querySelector(`.tab-btn[data-tab="${tabName}"]`);
+    const content = document.getElementById(`tab-${tabName}`);
+    if (button) button.classList.add('tab-btn--active');
+    if (content) content.classList.add('tab-content--active');
+
+    if (tabName === 'overview') {
+        primeOverviewVisuals();
+        if (!enterpriseDashboardData) {
+            loadEnterpriseDashboardData({ notifyOnError: true });
+        } else {
+            prepareOverviewVisualizations();
+        }
+    }
+
+    if (tabName === 'phase9' && !vizInit.cbom) {
+        vizInit.cbom = true;
+        initCBOM();
+    }
+
+    if (tabName === 'history' && !vizInit.timeline && document.getElementById('historyContent')?.style.display !== 'none') {
+        vizInit.timeline = true;
+        initTimeline();
+    }
+};
+
+loadHistory = async function loadHistoryInteractive() {
+    await originalLoadHistory();
+    if (document.getElementById('historyContent')?.style.display !== 'none') {
+        vizInit.timeline = true;
+        initTimeline(true);
+    }
+};
+
+loadLiveHistory = async function loadLiveHistoryInteractive() {
+    await originalLoadLiveHistory();
+    if (document.getElementById('historyContent')?.style.display !== 'none') {
+        vizInit.timeline = true;
+        initTimeline(true);
+    }
+};
+
+runPhase9Demo = async function runPhase9DemoInteractive() {
+    await originalRunPhase9Demo();
+    if (vizInit.cbom || isTabActive('phase9')) {
+        vizInit.cbom = true;
+        initCBOM(true);
+    }
+};
+
+runPhase9Live = async function runPhase9LiveInteractive() {
+    await originalRunPhase9Live();
+    if (vizInit.cbom || isTabActive('phase9')) {
+        vizInit.cbom = true;
+        initCBOM(true);
+    }
+};
+
+runDemoScan = async function runDemoScanInteractive() {
+    await originalRunDemoScan();
+    if (isTabActive('overview') || vizInit.network || vizInit.heatmap || vizInit.cyber || vizInit.gauges) {
+        await loadEnterpriseDashboardData({ notifyOnError: false, forceRefresh: true });
+        await syncOverviewWithLatestScan(true);
+    }
+};
+
+scanDomain = async function scanDomainInteractive() {
+    await originalScanDomain();
+    if (isTabActive('overview') || vizInit.network || vizInit.heatmap || vizInit.cyber || vizInit.gauges) {
+        await loadEnterpriseDashboardData({ notifyOnError: false, forceRefresh: true });
+        await syncOverviewWithLatestScan(true);
+    }
+};
+
+scanSingleHost = async function scanSingleHostInteractive() {
+    await originalScanSingleHost();
+    if (isTabActive('overview') || vizInit.network || vizInit.heatmap || vizInit.cyber || vizInit.gauges) {
+        await loadEnterpriseDashboardData({ notifyOnError: false, forceRefresh: true });
+        await syncOverviewWithLatestScan(true);
+    }
+};
+
+document.addEventListener('DOMContentLoaded', () => {
+    ensureOverviewVizLoading();
+    primeOverviewVisuals();
 });

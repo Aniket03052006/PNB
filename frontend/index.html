@@ -1,783 +1,1807 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="Q-ARMOR: Quantum-Aware Mapping & Observation for Risk Remediation — Cryptographic scanner and inventory engine for banking">
-    <title>Q-ARMOR — Quantum Cryptographic Scanner</title>
-    <link rel="stylesheet" href="/static/css/styles.css">
-    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2300ff88' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z'/></svg>">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="QArmor is a post-quantum cryptography scanner for banking infrastructure." />
+  <title>QArmor | Post-Quantum Cryptography Scanner</title>
+  <style>
+    :root {
+      --bg-base: #020617;
+      --bg-surface: #0a0f2e;
+      --bg-card-start: rgba(13, 18, 48, 0.9);
+      --bg-card-end: rgba(17, 24, 58, 0.6);
+      --bg-navbar: rgba(6, 9, 26, 0.88);
+
+      --glow-blue: #3b82f6;
+      --glow-indigo: #6366f1;
+      --glow-violet: #8b5cf6;
+      --glow-cyan: #06b6d4;
+
+      --text-primary: #f8fafc;
+      --text-secondary: #94a3b8;
+      --text-muted: #475569;
+      --text-accent: #60a5fa;
+      --text-accent-2: #a78bfa;
+      --status-safe: #34d399;
+      --status-transition: #f59e0b;
+      --status-vulnerable: #f87171;
+      --status-critical: #ef4444;
+      --status-unknown: #64748b;
+
+      --border-subtle: rgba(99, 102, 241, 0.18);
+      --border-card: rgba(99, 102, 241, 0.12);
+      --border-glow: rgba(59, 130, 246, 0.35);
+
+      --gradient-text-primary: linear-gradient(135deg, #60a5fa 0%, #a78bfa 50%, #60a5fa 100%);
+      --gradient-text-secondary: linear-gradient(135deg, #f8fafc 0%, #94a3b8 100%);
+      --gradient-btn-primary: linear-gradient(135deg, #3b82f6 0%, #6366f1 100%);
+      --gradient-btn-hover: linear-gradient(135deg, #2563eb 0%, #4f46e5 100%);
+      --gradient-card: linear-gradient(135deg, var(--bg-card-start), var(--bg-card-end));
+      --gradient-hero-glow: radial-gradient(ellipse 70% 45% at 50% 55%, rgba(59, 130, 246, 0.14) 0%, rgba(99, 102, 241, 0.06) 50%, transparent 75%);
+      --gradient-arc-glow: radial-gradient(ellipse 50% 30% at 50% 50%, rgba(59, 130, 246, 0.22) 0%, transparent 70%);
+      --gradient-body: radial-gradient(ellipse 100% 60% at 50% 0%, rgba(99, 102, 241, 0.08) 0%, transparent 60%);
+      --gradient-section-fade: linear-gradient(180deg, transparent 0%, rgba(99, 102, 241, 0.04) 50%, transparent 100%);
+      --gradient-stats-strip: linear-gradient(90deg, transparent, rgba(99, 102, 241, 0.06), transparent);
+      --gradient-standards-strip: linear-gradient(90deg, transparent, rgba(59, 130, 246, 0.04), transparent);
+      --gradient-cta-card: linear-gradient(135deg, rgba(59, 130, 246, 0.12), rgba(99, 102, 241, 0.08));
+      --gradient-shimmer: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.15), transparent);
+      --gradient-badge: linear-gradient(135deg, rgba(59, 130, 246, 0.15), rgba(99, 102, 241, 0.15));
+      --gradient-feature-icon: linear-gradient(135deg, var(--glow-blue), var(--glow-violet));
+      --gradient-stat-card: linear-gradient(135deg, rgba(59, 130, 246, 0.08) 0%, rgba(99, 102, 241, 0.04) 100%);
+      --gradient-footer: linear-gradient(180deg, transparent 0%, rgba(6, 9, 26, 1) 100%);
+
+      --space-xs: 0.25rem;
+      --space-sm: 0.5rem;
+      --space-md: 1rem;
+      --space-lg: 1.5rem;
+      --space-xl: 2rem;
+      --space-2xl: 3rem;
+      --space-3xl: 5rem;
+
+      --radius-sm: 0.375rem;
+      --radius-md: 0.75rem;
+      --radius-lg: 1rem;
+      --radius-xl: 1.5rem;
+      --radius-pill: 62.5rem;
+
+      --text-xs: clamp(0.7rem, 0.8vw, 0.75rem);
+      --text-sm: clamp(0.8rem, 0.9vw, 0.875rem);
+      --text-base: clamp(0.9rem, 1vw, 1rem);
+      --text-lg: clamp(1rem, 1.2vw, 1.125rem);
+      --text-xl: clamp(1.1rem, 1.5vw, 1.25rem);
+      --text-2xl: clamp(1.3rem, 2vw, 1.5rem);
+      --text-3xl: clamp(1.6rem, 2.5vw, 2rem);
+      --text-4xl: clamp(2rem, 3.5vw, 3rem);
+      --text-hero: clamp(2.8rem, 6vw, 5.5rem);
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    html {
+      scroll-behavior: smooth;
+    }
+
+    body {
+      background-color: var(--bg-base);
+      background-image: var(--gradient-body);
+      color: var(--text-primary);
+      font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+      font-size: var(--text-base);
+      line-height: 1.6;
+      overflow-x: hidden;
+    }
+
+    .cyber-grid-canvas {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 0;
+      pointer-events: none;
+      background: #020617;
+    }
+
+    .navbar,
+    main,
+    footer {
+      position: relative;
+      z-index: 12;
+    }
+
+    .container {
+      width: min(90vw, 75rem);
+      margin-inline: auto;
+    }
+
+    section {
+      padding-block: var(--space-3xl);
+      position: relative;
+    }
+
+    a {
+      color: inherit;
+      text-decoration: none;
+    }
+
+    .navbar {
+      position: fixed;
+      inset: 0 0 auto 0;
+      width: 100%;
+      height: 4.5rem;
+      z-index: 100;
+      background: var(--bg-navbar);
+      border-bottom: 0.5px solid var(--border-subtle);
+      backdrop-filter: blur(12px);
+    }
+
+    .navbar-inner {
+      width: min(90vw, 82rem);
+      margin-inline: auto;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--space-lg);
+    }
+
+    .brand {
+      display: inline-flex;
+      align-items: center;
+      gap: var(--space-sm);
+    }
+
+    .brand svg {
+      width: 1.5rem;
+      height: 1.5rem;
+      fill: var(--glow-blue);
+    }
+
+    .brand span {
+      font-size: var(--text-xl);
+      font-weight: 700;
+      color: var(--text-primary);
+      letter-spacing: 0.01em;
+    }
+
+    .navbar-links {
+      display: flex;
+      align-items: center;
+      gap: 2rem;
+    }
+
+    .navbar-links a {
+      font-size: var(--text-sm);
+      color: var(--text-secondary);
+      transition: color 0.2s ease;
+    }
+
+    .navbar-links a:hover {
+      color: var(--text-primary);
+    }
+
+    .navbar-right {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    .signin {
+      font-size: var(--text-sm);
+      color: var(--text-secondary);
+      transition: color 0.2s ease;
+    }
+
+    .signin:hover {
+      color: var(--text-primary);
+    }
+
+    .launch-btn {
+      background: var(--gradient-btn-primary);
+      color: var(--text-primary);
+      border: none;
+      border-radius: var(--radius-md);
+      padding: 0.5rem 1.25rem;
+      font-size: var(--text-sm);
+      font-weight: 600;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s ease;
+    }
+
+    .launch-btn:hover {
+      background: var(--gradient-btn-hover);
+      transform: translateY(-0.0625rem);
+    }
+
+    .hero {
+      position: relative;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding-top: 4.5rem;
+      overflow: hidden;
+    }
+
+    .hero-glow-layer {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .hero-body-glow {
+      position: absolute;
+      inset: 0;
+      background: var(--gradient-hero-glow);
+      opacity: 0.1;
+    }
+
+    .hero-content {
+      position: relative;
+      z-index: 20;
+      width: min(90vw, 48rem);
+      margin-inline: auto;
+      text-align: center;
+    }
+
+    .hero-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: var(--space-sm);
+      background: var(--gradient-badge);
+      border: 0.5px solid var(--border-glow);
+      border-radius: var(--radius-pill);
+      padding: 0.375rem 1rem;
+      font-size: var(--text-xs);
+      color: var(--text-accent-2);
+      margin-bottom: 1.5rem;
+    }
+
+    .hero-badge svg {
+      width: 0.875rem;
+      height: 0.875rem;
+      fill: currentColor;
+    }
+
+    .hero-title {
+      font-size: var(--text-hero);
+      font-weight: 800;
+      line-height: 1.05;
+      letter-spacing: -0.02em;
+      margin-bottom: 1.25rem;
+      text-wrap: balance;
+    }
+
+    .headline-gradient {
+      background: var(--gradient-text-primary);
+      background-size: 200% auto;
+      background-clip: text;
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .hero-subtitle {
+      font-size: var(--text-lg);
+      color: var(--text-secondary);
+      line-height: 1.7;
+      width: min(90vw, 36rem);
+      margin-inline: auto;
+      margin-bottom: 2.5rem;
+      text-wrap: pretty;
+    }
+
+    .hero-btns {
+      display: flex;
+      justify-content: center;
+      gap: 1rem;
+      flex-wrap: wrap;
+    }
+
+    .btn {
+      position: relative;
+      overflow: hidden;
+      border-radius: var(--radius-md);
+      padding: 0.875rem 2rem;
+      font-size: var(--text-base);
+      cursor: pointer;
+      transition: all 0.25s ease;
+      border: none;
+      font-family: inherit;
+    }
+
+    .btn-primary {
+      background: var(--gradient-btn-primary);
+      color: var(--text-primary);
+      font-weight: 700;
+      box-shadow: 0 0 1rem rgba(59, 130, 246, 0.24);
+    }
+
+    .btn-primary::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      transform: translateX(-100%);
+      background: var(--gradient-shimmer);
+    }
+
+    .btn-primary:hover {
+      transform: translateY(-0.125rem);
+      box-shadow: 0 0 2rem rgba(59, 130, 246, 0.4);
+      background: var(--gradient-btn-hover);
+    }
+
+    .btn-ghost {
+      background: rgba(255, 255, 255, 0.06);
+      color: var(--text-primary);
+      border: 0.5px solid rgba(255, 255, 255, 0.18);
+      font-weight: 600;
+      backdrop-filter: blur(8px);
+    }
+
+    .btn-ghost:hover {
+      background: rgba(255, 255, 255, 0.1);
+      border-color: rgba(255, 255, 255, 0.3);
+      transform: translateY(-0.125rem);
+    }
+
+    .trust-row {
+      margin-top: 2rem;
+      display: flex;
+      justify-content: center;
+      gap: 2rem;
+      flex-wrap: wrap;
+    }
+
+    .trust-row span {
+      font-size: var(--text-xs);
+      color: var(--text-muted);
+      letter-spacing: 0.02em;
+    }
+
+    .dashboard-mockup {
+      width: 92%;
+      max-width: 68.75rem;
+      margin: 5rem auto 0;
+      border: 0.5px solid var(--border-card);
+      border-radius: var(--radius-xl);
+      background: var(--gradient-card);
+      backdrop-filter: blur(12px);
+      overflow: hidden;
+      padding: 1.25rem;
+      box-shadow: 0 40px 100px rgba(0, 0, 0, 0.6), 0 0 120px rgba(99, 102, 241, 0.15);
+      text-align: left;
+    }
+
+    .mockup-chrome {
+      height: 2.75rem;
+      background: rgba(15, 23, 42, 0.95);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding-left: 1rem;
+      padding-right: 1rem;
+      border-top-left-radius: 0.875rem;
+      border-top-right-radius: 0.875rem;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+    }
+
+    .dot {
+      width: 0.75rem;
+      height: 0.75rem;
+      border-radius: 50%;
+    }
+
+    .dot-red { background: #ff5f57; }
+    .dot-yellow { background: #febc2e; }
+    .dot-green { background: #28c840; }
+
+    .url-bar {
+      margin-inline: auto;
+      background: rgba(255, 255, 255, 0.05);
+      border-radius: var(--radius-pill);
+      padding: 0.25rem 0.875rem;
+      font-size: var(--text-xs);
+      color: var(--text-muted);
+    }
+
+    .mockup-body {
+      padding: 1.25rem;
+      display: grid;
+      gap: 0.75rem;
+      background: rgba(2, 6, 23, 0.55);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      border-top: none;
+      border-bottom-left-radius: 0.875rem;
+      border-bottom-right-radius: 0.875rem;
+    }
+
+    .mockup-stats {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 1rem;
+    }
+
+    .mini-card {
+      background: rgba(30, 41, 59, 0.6);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      border-radius: 0.875rem;
+      padding: 1rem;
+      transition: box-shadow 0.2s ease, border-color 0.2s ease;
+    }
+
+    .mini-card:hover {
+      border-color: rgba(99, 102, 241, 0.35);
+      box-shadow: 0 0 12px rgba(99, 102, 241, 0.25);
+    }
+
+    .mini-card strong {
+      display: block;
+      font-size: var(--text-2xl);
+      font-weight: 700;
+      line-height: 1.2;
+    }
+
+    .safe-value { color: var(--text-accent); }
+    .vuln-value { color: #f87171; }
+    .score-value { color: #34d399; }
+
+    .mini-card span {
+      font-size: var(--text-xs);
+      color: var(--text-muted);
+      display: block;
+      margin-top: var(--space-xs);
+    }
+
+    .mini-heatmap-section {
+      display: grid;
+      grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr) minmax(0, 1fr);
+      gap: 0.5rem;
+      align-items: stretch;
+    }
+
+    .mini-heatmap-section > * {
+      min-width: 0;
+      overflow: hidden;
+    }
+
+    .mini-matrix,
+    .mini-legend,
+    .mini-insights {
+      background: rgba(15, 23, 42, 0.45);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      border-radius: var(--radius-md);
+      padding: 0.625rem;
+      display: grid;
+      align-content: start;
+      gap: 0.4rem;
+    }
+
+    .mini-matrix-table {
+      width: 100%;
+      border-collapse: collapse;
+      table-layout: fixed;
+      font-size: 0.68rem;
+    }
+
+    .mini-matrix-table col:first-child {
+      width: 36%;
+    }
+
+    .mini-matrix-table col:not(:first-child) {
+      width: 21.33%;
+    }
+
+    .mini-matrix-table th,
+    .mini-matrix-table td {
+      padding: 0.28rem 0.35rem;
+      text-align: left;
+      color: var(--text-secondary);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+      overflow-wrap: normal;
+      word-break: normal;
+    }
+
+    .mini-matrix-table th {
+      color: var(--text-muted);
+      font-weight: 600;
+      letter-spacing: 0.02em;
+      white-space: nowrap;
+    }
+
+    .mini-matrix-table tbody tr:last-child td {
+      border-bottom: none;
+    }
+
+    .matrix-num {
+      color: var(--text-primary);
+      font-weight: 700;
+    }
+
+    .mini-legend {
+      gap: 0.35rem;
+    }
+
+    .mini-legend-title {
+      font-size: 0.64rem;
+      color: var(--text-muted);
+      letter-spacing: 0.03em;
+      text-transform: uppercase;
+      font-weight: 700;
+    }
+
+    .legend-row {
+      display: grid;
+      grid-template-columns: auto 1fr auto;
+      align-items: center;
+      gap: 0.375rem;
+      font-size: 0.68rem;
+      color: var(--text-secondary);
+    }
+
+    .legend-row strong {
+      font-weight: 700;
+      color: var(--text-primary);
+    }
+
+    .legend-dot {
+      width: 0.625rem;
+      height: 0.625rem;
+      border-radius: 50%;
+    }
+
+    .mini-cell {
+      width: 3.25rem;
+      height: 3.25rem;
+      border-radius: var(--radius-sm);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--text-primary);
+      font-size: var(--text-xs);
+      font-weight: 700;
+      border: 0.5px solid rgba(255, 255, 255, 0.2);
+    }
+
+    .cell-safe {
+      background: color-mix(in srgb, var(--status-safe) 75%, transparent);
+      border-color: color-mix(in srgb, var(--status-safe) 40%, white 10%);
+    }
+
+    .cell-transition {
+      background: color-mix(in srgb, var(--status-transition) 78%, transparent);
+      border-color: color-mix(in srgb, var(--status-transition) 45%, white 10%);
+    }
+
+    .cell-vulnerable {
+      background: color-mix(in srgb, var(--status-vulnerable) 78%, transparent);
+      border-color: color-mix(in srgb, var(--status-vulnerable) 45%, white 10%);
+    }
+
+    .cell-critical {
+      background: color-mix(in srgb, var(--status-critical) 82%, transparent);
+      border-color: color-mix(in srgb, var(--status-critical) 48%, white 10%);
+    }
+
+    .cell-unknown {
+      background: color-mix(in srgb, var(--status-unknown) 78%, transparent);
+      border-color: color-mix(in srgb, var(--status-unknown) 45%, white 10%);
+    }
+
+    .mini-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: var(--text-xs);
+    }
+
+    .mini-insights {
+      gap: 0.35rem;
+    }
+
+    .mini-insights-table {
+      width: 100%;
+      border-collapse: collapse;
+      table-layout: fixed;
+      font-size: 0.68rem;
+    }
+
+    .mini-insights-table th,
+    .mini-insights-table td {
+      padding: 0.28rem 0.35rem;
+      text-align: left;
+      color: var(--text-secondary);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+      overflow-wrap: anywhere;
+    }
+
+    .mini-insights-table th {
+      color: var(--text-muted);
+      font-weight: 600;
+      letter-spacing: 0.02em;
+    }
+
+    .mini-insights-table tbody tr:last-child td {
+      border-bottom: none;
+    }
+
+    .insight-strong {
+      color: var(--text-primary);
+      font-weight: 700;
+    }
+
+    .mini-table th,
+    .mini-table td {
+      padding: 0.5rem 0.625rem;
+      text-align: left;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+      color: var(--text-secondary);
+    }
+
+    .mini-table tr {
+      height: 2.625rem;
+    }
+
+    .mini-table th {
+      color: var(--text-muted);
+      font-weight: 600;
+      letter-spacing: 0.02em;
+    }
+
+    .pill {
+      border-radius: var(--radius-pill);
+      padding: 0.125rem 0.5rem;
+      font-size: var(--text-xs);
+      font-weight: 600;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      white-space: nowrap;
+    }
+
+    .pill-elite {
+      color: #bbf7d0;
+      background: rgba(34, 197, 94, 0.2);
+      border: 0.5px solid rgba(34, 197, 94, 0.35);
+    }
+
+    .pill-standard {
+      color: #fde68a;
+      background: rgba(245, 158, 11, 0.2);
+      border: 0.5px solid rgba(245, 158, 11, 0.35);
+    }
+
+    .pill-critical {
+      color: #fecaca;
+      background: rgba(239, 68, 68, 0.2);
+      border: 0.5px solid rgba(239, 68, 68, 0.35);
+    }
+
+    .stats-strip {
+      width: 100%;
+      background: var(--gradient-stats-strip);
+      border-top: 0.5px solid var(--border-subtle);
+      border-bottom: 0.5px solid var(--border-subtle);
+      padding-block: var(--space-xl);
+    }
+
+    .stats-bar {
+      width: min(90vw, 75rem);
+      margin-inline: auto;
+      display: flex;
+      justify-content: space-evenly;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 2rem;
+    }
+
+    .stat {
+      text-align: center;
+    }
+
+    .stat strong {
+      display: block;
+      font-size: var(--text-4xl);
+      font-weight: 800;
+      line-height: 1.05;
+      background: var(--gradient-text-primary);
+      background-clip: text;
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .stat span {
+      display: block;
+      margin-top: 0.25rem;
+      font-size: var(--text-sm);
+      color: var(--text-secondary);
+    }
+
+    .section-fade {
+      background: var(--gradient-section-fade);
+    }
+
+    .section-head {
+      width: min(90vw, 50rem);
+      margin-inline: auto;
+      text-align: center;
+      margin-bottom: var(--space-2xl);
+    }
+
+    .eyebrow {
+      font-size: var(--text-xs);
+      letter-spacing: 0.15em;
+      color: var(--text-accent);
+      font-weight: 600;
+      margin-bottom: 0.75rem;
+    }
+
+    .section-head h2 {
+      font-size: var(--text-4xl);
+      line-height: 1.15;
+      font-weight: 800;
+      text-wrap: balance;
+    }
+
+    .section-head .grad {
+      background: var(--gradient-text-primary);
+      background-clip: text;
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .section-head p {
+      margin-top: var(--space-md);
+      font-size: var(--text-base);
+      color: var(--text-secondary);
+      width: min(90vw, 36rem);
+      margin-inline: auto;
+      text-wrap: pretty;
+    }
+
+    .pipeline {
+      width: min(90vw, 80rem);
+      margin-inline: auto;
+      display: flex;
+      flex-direction: row;
+      align-items: stretch;
+      gap: 0;
+    }
+
+    .pipeline-step {
+      flex: 1;
+      background: var(--gradient-card);
+      border: 0.5px solid var(--border-card);
+      border-radius: var(--radius-lg);
+      padding: var(--space-lg);
+      position: relative;
+      transition: all 0.3s ease;
+      min-height: 16rem;
+    }
+
+    .pipeline-step:hover {
+      border-color: var(--border-glow);
+      box-shadow: 0 0 1.5rem rgba(59, 130, 246, 0.12);
+    }
+
+    .phase-pill {
+      display: inline-block;
+      background: var(--gradient-btn-primary);
+      color: var(--text-primary);
+      border-radius: var(--radius-pill);
+      padding: 0.2rem 0.75rem;
+      font-size: var(--text-xs);
+      font-weight: 700;
+      margin-bottom: var(--space-md);
+    }
+
+    .step-icon {
+      width: 1.5rem;
+      height: 1.5rem;
+      fill: var(--glow-blue);
+      margin-bottom: 0;
+      flex-shrink: 0;
+    }
+
+    .step-head {
+      display: flex;
+      align-items: center;
+      gap: 0.625rem;
+      margin-block: 0.5rem 0.625rem;
+    }
+
+    .pipeline-step h3 {
+      font-size: var(--text-base);
+      font-weight: 700;
+      color: var(--text-primary);
+      margin: 0;
+    }
+
+    .pipeline-step p {
+      font-size: var(--text-sm);
+      color: var(--text-secondary);
+      line-height: 1.6;
+    }
+
+    .pipeline-arrow {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 2.25rem;
+      color: var(--text-muted);
+      flex-shrink: 0;
+    }
+
+    .pipeline-arrow svg {
+      width: 1rem;
+      height: 1rem;
+      stroke: currentColor;
+      stroke-width: 1.5px;
+      fill: none;
+    }
+
+    .features-grid {
+      width: min(90vw, 75rem);
+      margin-inline: auto;
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 1.5rem;
+    }
+
+    .feature-card {
+      background: var(--gradient-card);
+      border: 0.5px solid var(--border-card);
+      border-radius: var(--radius-lg);
+      padding: var(--space-lg);
+      transition: all 0.3s ease;
+    }
+
+    .feature-card:hover {
+      border-color: var(--border-glow);
+      transform: translateY(-0.1875rem);
+    }
+
+    .feature-icon {
+      width: 3rem;
+      height: 3rem;
+      background: var(--gradient-badge);
+      border: 0.5px solid var(--border-glow);
+      border-radius: var(--radius-md);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 0;
+      flex-shrink: 0;
+    }
+
+    .feature-head {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      margin-bottom: 0.75rem;
+    }
+
+    .feature-head h3 {
+      margin-bottom: 0;
+    }
+
+    .feature-icon svg {
+      width: 1.25rem;
+      height: 1.25rem;
+      fill: var(--glow-blue);
+    }
+
+    .feature-card h3 {
+      font-size: var(--text-lg);
+      font-weight: 700;
+      margin-bottom: 0;
+    }
+
+    .feature-card p {
+      font-size: var(--text-sm);
+      color: var(--text-secondary);
+      line-height: 1.6;
+    }
+
+    .standards-strip {
+      width: 100%;
+      border-top: 0.5px solid var(--border-subtle);
+      border-bottom: 0.5px solid var(--border-subtle);
+      padding-block: var(--space-xl);
+      background: var(--gradient-standards-strip);
+    }
+
+    .standards-inner {
+      width: min(90vw, 75rem);
+      margin-inline: auto;
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      flex-wrap: wrap;
+    }
+
+    .standards-label {
+      font-size: var(--text-xs);
+      letter-spacing: 0.12em;
+      color: var(--text-muted);
+      font-weight: 600;
+      margin-right: 0.5rem;
+    }
+
+    .standards-pills {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      flex-wrap: wrap;
+    }
+
+    .standard-pill {
+      background: rgba(255, 255, 255, 0.04);
+      border: 0.5px solid var(--border-subtle);
+      border-radius: var(--radius-pill);
+      padding: 0.375rem 1rem;
+      font-size: var(--text-xs);
+      color: var(--text-secondary);
+      font-weight: 500;
+    }
+
+    .cta-wrap {
+      width: min(90vw, 75rem);
+      margin-inline: auto;
+    }
+
+    .cta-card {
+      width: min(90vw, 48rem);
+      margin-inline: auto;
+      background: var(--gradient-cta-card);
+      border: 0.5px solid var(--border-glow);
+      border-radius: var(--radius-xl);
+      padding: var(--space-3xl);
+      text-align: center;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .cta-orb-1,
+    .cta-orb-2 {
+      position: absolute;
+      border-radius: 50%;
+      pointer-events: none;
+    }
+
+    .cta-orb-1 {
+      width: 12rem;
+      height: 12rem;
+      background: rgba(59, 130, 246, 0.15);
+      top: -3rem;
+      right: -3rem;
+      filter: blur(2.5rem);
+    }
+
+    .cta-orb-2 {
+      width: 10rem;
+      height: 10rem;
+      background: rgba(99, 102, 241, 0.12);
+      bottom: -2rem;
+      left: -2rem;
+      filter: blur(2rem);
+    }
+
+    .cta-content {
+      position: relative;
+      z-index: 1;
+    }
+
+    .cta-card h2 {
+      font-size: var(--text-4xl);
+      font-weight: 800;
+      line-height: 1.15;
+      text-wrap: balance;
+    }
+
+    .cta-card p {
+      font-size: var(--text-base);
+      color: var(--text-secondary);
+      margin-block: 1.25rem 2rem;
+      text-wrap: pretty;
+    }
+
+    .cta-btns {
+      display: flex;
+      justify-content: center;
+      gap: 1rem;
+      flex-wrap: wrap;
+    }
+
+    footer {
+      background: var(--gradient-footer);
+      border-top: 0.5px solid var(--border-subtle);
+      padding-block: var(--space-2xl);
+    }
+
+    .footer-inner {
+      width: min(90vw, 75rem);
+      margin-inline: auto;
+      display: grid;
+      gap: var(--space-lg);
+    }
+
+    .footer-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 1rem;
+    }
+
+    .footer-links {
+      display: flex;
+      align-items: center;
+      gap: 1.5rem;
+      flex-wrap: wrap;
+    }
+
+    .footer-links a {
+      font-size: var(--text-sm);
+      color: var(--text-muted);
+      transition: color 0.2s ease;
+    }
+
+    .footer-links a:hover {
+      color: var(--text-secondary);
+    }
+
+    .footer-note {
+      font-size: var(--text-xs);
+      color: var(--text-muted);
+    }
+
+    .footer-bottom {
+      border-top: 0.5px solid var(--border-subtle);
+      padding-top: 1.5rem;
+    }
+
+    .footer-pills {
+      display: flex;
+      align-items: center;
+      gap: var(--space-sm);
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+
+    .footer-pill {
+      background: rgba(255, 255, 255, 0.04);
+      border: 0.5px solid var(--border-subtle);
+      border-radius: var(--radius-pill);
+      padding: 0.25rem 0.75rem;
+      font-size: var(--text-xs);
+      color: var(--text-secondary);
+      font-weight: 500;
+    }
+
+    @media (prefers-reduced-motion: no-preference) {
+      @keyframes gradientShift {
+        0% { background-position: 0% 50%; }
+        50% { background-position: 100% 50%; }
+        100% { background-position: 0% 50%; }
+      }
+
+      @keyframes fadeUp {
+        from { opacity: 0; transform: translateY(1.5rem); }
+        to { opacity: 1; transform: translateY(0); }
+      }
+
+      @keyframes shimmer {
+        from { transform: translateX(-100%); }
+        to { transform: translateX(100%); }
+      }
+
+      @keyframes glowPulse {
+        0%, 100% { opacity: 0.12; }
+        50% { opacity: 0.22; }
+      }
+
+      .headline-gradient {
+        animation: gradientShift 4s ease infinite;
+      }
+
+      .hero-badge,
+      .hero-title,
+      .hero-subtitle,
+      .hero-btns,
+      .trust-row {
+        opacity: 0;
+      }
+
+      .hero-badge {
+        animation: fadeUp 0.7s ease forwards;
+        animation-delay: 0.1s;
+      }
+
+      .hero-title {
+        animation: fadeUp 0.7s ease forwards;
+        animation-delay: 0.2s;
+      }
+
+      .hero-subtitle {
+        animation: fadeUp 0.7s ease forwards;
+        animation-delay: 0.3s;
+      }
+
+      .hero-btns {
+        animation: fadeUp 0.7s ease forwards;
+        animation-delay: 0.4s;
+      }
+
+      .trust-row {
+        animation: fadeUp 0.7s ease forwards;
+        animation-delay: 0.5s;
+      }
+
+      .hero-body-glow {
+        animation: glowPulse 5s ease-in-out infinite;
+      }
+
+      .btn-primary:hover::after {
+        animation: shimmer 0.6s ease 1;
+      }
+    }
+
+    @media (max-width: 48rem) {
+      .navbar-links { display: none; }
+      .navbar-right .signin { display: none; }
+
+      .hero-content { padding-inline: 1.25rem; }
+
+      .hero-btns { flex-direction: column; align-items: center; }
+      .hero-btns button { width: min(90vw, 20rem); }
+
+      .trust-row {
+        flex-direction: column;
+        align-items: center;
+        gap: 0.75rem;
+      }
+
+      .mockup-stats {
+        grid-template-columns: 1fr;
+      }
+
+      .mini-heatmap-section {
+        grid-template-columns: 1fr;
+      }
+
+      .pipeline { flex-direction: column; }
+      .pipeline-arrow { display: none; }
+
+      .features-grid { grid-template-columns: 1fr; }
+
+      .stats-bar { flex-direction: column; gap: 1.5rem; }
+
+      .cta-card { padding: var(--space-xl); }
+
+      .footer-row { flex-direction: column; align-items: center; text-align: center; }
+
+      .standards-inner {
+        justify-content: center;
+      }
+
+      .footer-pills {
+        justify-content: center;
+      }
+    }
+  </style>
 </head>
 <body>
-    <!-- Loading Overlay -->
-    <div class="loading-overlay" id="loadingOverlay">
-        <div class="loading-spinner"></div>
-        <div class="loading-text">Scanning cryptographic surface...</div>
+  <canvas id="cyberGridCanvas" class="cyber-grid-canvas" aria-hidden="true"></canvas>
+
+  <header class="navbar">
+    <div class="navbar-inner">
+      <a class="brand" href="#top" aria-label="QArmor Home">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M12 2L4 5v6c0 5.25 3.4 9.75 8 11 4.6-1.25 8-5.75 8-11V5l-8-3zm0 2.1l6 2.25V11c0 4.35-2.7 8.05-6 9.15-3.3-1.1-6-4.8-6-9.15V6.35L12 4.1z"></path>
+        </svg>
+        <span>QArmor</span>
+      </a>
+
+      <nav class="navbar-links" aria-label="Primary">
+        <a href="#features">Features</a>
+        <a href="#pipeline">How It Works</a>
+        <a href="#standards">Standards</a>
+        <a href="#pricing">Pricing</a>
+      </nav>
+
+      <div class="navbar-right">
+        <a class="signin" href="#">Sign in</a>
+        <a class="launch-btn" href="/dashboard">Launch Scanner →</a>
+      </div>
     </div>
+  </header>
 
-    <div class="app-container">
-        <!-- Header -->
-        <header class="header">
-            <div class="header-brand">
-                <div class="header-logo">Q</div>
-                <div>
-                    <div class="header-title">Q-ARMOR</div>
-                    <div class="header-subtitle">Quantum-Aware Mapping &amp; Observation for Risk Remediation</div>
-                </div>
-            </div>
-            <div class="header-actions">
-                <button class="btn btn-primary" id="btnDemoScan" onclick="runDemoScan()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg> Run Demo Scan</button>
-                <button class="btn" id="btnExportCBOM" onclick="exportCBOM()" disabled><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg> Export CBOM</button>
-                <button class="btn" id="btnExportCDXA" onclick="exportCDXA()" disabled><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg> Export CDXA</button>
-            </div>
-        </header>
+  <main id="top">
+    <section class="hero">
+      <div class="hero-glow-layer" aria-hidden="true">
+        <div class="hero-body-glow"></div>
+      </div>
 
-        <!-- Scan Input -->
-        <div class="scan-input-section">
-            <input type="text" class="scan-input" id="domainInput" placeholder="Enter domain to scan (e.g. example.com)" />
-            <button class="btn" onclick="scanDomain()">Scan Domain</button>
-            <input type="text" class="scan-input" id="singleHostInput" placeholder="Single host (e.g. api.example.com)" style="max-width: 280px;" />
-            <button class="btn" onclick="scanSingleHost()">Probe</button>
+      <div class="hero-content">
+        <div class="hero-badge">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M12 2l1.8 4.2L18 8l-4.2 1.8L12 14l-1.8-4.2L6 8l4.2-1.8L12 2zm7 10l.9 2.1L22 15l-2.1.9L19 18l-.9-2.1L16 15l2.1-.9L19 12zM5 13l1.1 2.6L9 16.7l-2.9 1.1L5 20l-1.1-2.2L1 16.7l2.9-1.1L5 13z"></path>
+          </svg>
+          <span>NIST FIPS 203 · 204 · 205 Compliant</span>
         </div>
 
-        <!-- Tab Navigation -->
-        <div class="tab-nav" id="tabNav">
-            <button class="tab-btn tab-btn--active" data-tab="overview" onclick="switchTab('overview')"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg> Overview</button>
-            <button class="tab-btn" data-tab="assessment" onclick="switchTab('assessment')"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg> PQC Assessment</button>
-            <button class="tab-btn" data-tab="remediation" onclick="switchTab('remediation')"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"></path></svg> Remediation Plan</button>
-            <button class="tab-btn" data-tab="matrix" onclick="switchTab('matrix')"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path><rect x="8" y="2" width="8" height="4" rx="1" ry="1"></rect></svg> NIST Matrix</button>
-            <button class="tab-btn" data-tab="trimode" onclick="switchTab('trimode')"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12a10 10 0 1 1 10 10"></path><line x1="12" y1="2" x2="12" y2="22"></line><line x1="2" y1="12" x2="22" y2="12"></line></svg> Tri-Mode</button>
-            <button class="tab-btn" data-tab="history" onclick="switchTab('history')"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg> History</button>
-            <button class="tab-btn" data-tab="phase7" onclick="switchTab('phase7')"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"></path><path d="M2 17l10 5 10-5"></path><path d="M2 12l10 5 10-5"></path></svg> Classification &amp; Agility</button>
-            <button class="tab-btn" data-tab="phase9" onclick="switchTab('phase9')"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><polyline points="9 12 11 14 15 10"/></svg> Regression &amp; Certification</button>
+        <h1 class="hero-title">
+          <span>Scan. Classify.</span><br />
+          <span>Go </span><span class="headline-gradient">Quantum-Safe.</span>
+        </h1>
+
+        <p class="hero-subtitle">
+          QArmor discovers your bank's internet-facing assets, fingerprints cryptographic configurations across three client tiers, and generates a CycloneDX 1.7 CBOM — protecting against harvest-now-decrypt-later attacks before the quantum threat arrives.
+        </p>
+
+        <div class="hero-btns">
+          <button class="btn btn-primary" type="button" onclick="window.location.href='/dashboard'">Start Free Scan</button>
+          <button class="btn btn-ghost" type="button" onclick="window.location.href='#features'">Watch Demo</button>
         </div>
 
-        <!-- ═══════════════ TAB: OVERVIEW (Phase 1) ═══════════════ -->
-        <div class="tab-content tab-content--active" id="tab-overview">
+        <div class="trust-row">
+          <span>✓ CycloneDX 1.7</span>
+          <span>✓ ML-KEM-768</span>
+          <span>✓ Ed25519 Attestation</span>
+          <span>✓ Zero Dependencies</span>
+        </div>
 
-            <!-- Stats Grid -->
-            <div class="stats-grid" id="statsGrid">
-                <div class="stat-card stat-card--total">
-                    <div class="stat-value" id="statTotal">—</div>
-                    <div class="stat-label">Total Assets</div>
-                    <div class="stat-pct" id="statAvgScore">Avg Q-Score: —</div>
-                </div>
-                <div class="stat-card stat-card--safe">
-                    <div class="stat-value" id="statSafe">—</div>
-                    <div class="stat-label">Fully Quantum Safe</div>
-                    <div class="stat-pct" id="statSafePct">—</div>
-                </div>
-                <div class="stat-card stat-card--transition">
-                    <div class="stat-value" id="statTransition">—</div>
-                    <div class="stat-label">PQC Transition</div>
-                    <div class="stat-pct" id="statTransitionPct">—</div>
-                </div>
-                <div class="stat-card stat-card--vulnerable">
-                    <div class="stat-value" id="statVulnerable">—</div>
-                    <div class="stat-label">Quantum Vulnerable</div>
-                    <div class="stat-pct" id="statVulnerablePct">—</div>
-                </div>
-                <div class="stat-card stat-card--critical" id="criticalCard">
-                    <div class="stat-value" id="statCritical">0</div>
-                    <div class="stat-label">CRITICALLY VULNERABLE</div>
-                    <div class="stat-pct" id="statCriticalPct">—</div>
-                </div>
-                <div class="stat-card stat-card--unknown" id="unknownCard">
-                    <div class="stat-value" id="statUnknown">0</div>
-                    <div class="stat-label">UNKNOWN</div>
-                    <div class="stat-pct" id="statUnknownPct">—</div>
-                </div>
+        <div class="dashboard-mockup">
+          <div class="mockup-chrome">
+            <span class="dot dot-red"></span>
+            <span class="dot dot-yellow"></span>
+            <span class="dot dot-green"></span>
+            <span class="url-bar">app.qarmor.in/dashboard</span>
+          </div>
+
+          <div class="mockup-body">
+            <div class="mockup-stats">
+              <div class="mini-card">
+                <strong>21</strong>
+                <span>Assets Scanned</span>
+              </div>
+              <div class="mini-card">
+                <strong class="safe-value">8</strong>
+                <span>Quantum Safe</span>
+              </div>
+              <div class="mini-card">
+                <strong class="vuln-value">6</strong>
+                <span>Vulnerable</span>
+              </div>
+              <div class="mini-card">
+                <strong class="score-value">755/1000</strong>
+                <span>Cyber Rating</span>
+              </div>
             </div>
 
-            <!-- Enterprise API Dashboard (Home + Discovery + PQC Intelligence) -->
-            <div class="panel" id="enterpriseApiPanel" style="margin-bottom: 20px;">
-                <div class="panel-header">
-                    <div class="panel-title">Enterprise Intelligence Dashboard</div>
-                    <div class="enterprise-controls" style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
-                        <div class="panel-badge" id="apiDataNoticeBadge" style="background: rgba(0, 212, 255, 0.12); color: var(--accent-cyan);">Loading...</div>
-                        <select id="enterpriseModeSelect" class="scan-input" style="max-width: 110px;" onchange="onEnterpriseModeChange()">
-                            <option value="demo" selected>Demo</option>
-                            <option value="live">Live</option>
-                        </select>
-                        <input type="text" id="enterpriseDomainInput" class="scan-input" placeholder="Live domain (e.g. example.com)" style="max-width: 240px; display: none;" />
-                        <button class="btn" onclick="refreshNewDashboardApis()">Refresh Data APIs</button>
-                    </div>
-                </div>
-                <div id="enterpriseModeHint" style="font-size: 0.76rem; color: var(--text-dim); margin-bottom: 10px;">
-                    Demo mode is active. Switch to Live mode and provide a domain to fetch real data.
-                </div>
+            <div class="mini-heatmap-section">
+              <div class="mini-matrix" aria-label="PQC posture matrix">
+                <div class="mini-legend-title">PQC Posture Matrix</div>
+                <table class="mini-matrix-table">
+                  <colgroup>
+                    <col />
+                    <col />
+                    <col />
+                    <col />
+                  </colgroup>
+                  <thead>
+                    <tr>
+                      <th>Posture</th>
+                      <th>Strong</th>
+                      <th>Medium</th>
+                      <th>Weak</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td>PQC Ready</td>
+                      <td class="matrix-num">9</td>
+                      <td class="matrix-num">5</td>
+                      <td class="matrix-num">0</td>
+                    </tr>
+                    <tr>
+                      <td>Transition</td>
+                      <td class="matrix-num">2</td>
+                      <td class="matrix-num">4</td>
+                      <td class="matrix-num">0</td>
+                    </tr>
+                    <tr>
+                      <td>Legacy</td>
+                      <td class="matrix-num">0</td>
+                      <td class="matrix-num">3</td>
+                      <td class="matrix-num">3</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
 
-                <div class="api-v2-grid">
-                    <div class="api-v2-card">
-                        <div class="api-v2-title">Home Summary</div>
-                        <div class="metric-list">
-                            <div class="metric-row"><span>Domains</span><strong id="homeDomainCount">—</strong></div>
-                            <div class="metric-row"><span>IP Assets</span><strong id="homeIpCount">—</strong></div>
-                            <div class="metric-row"><span>Subdomains</span><strong id="homeSubdomainCount">—</strong></div>
-                            <div class="metric-row"><span>Cloud Assets</span><strong id="homeCloudCount">—</strong></div>
-                            <div class="metric-row"><span>SSL Certs</span><strong id="homeSslCount">—</strong></div>
-                            <div class="metric-row"><span>Software</span><strong id="homeSoftwareCount">—</strong></div>
-                            <div class="metric-row"><span>IoT Devices</span><strong id="homeIotCount">—</strong></div>
-                            <div class="metric-row"><span>Login Forms</span><strong id="homeLoginFormCount">—</strong></div>
-                            <div class="metric-row"><span>PQC Adoption</span><strong id="homePqcAdoptionPct">—</strong></div>
-                            <div class="metric-row"><span>PQC Transition</span><strong id="homeTransitionPct">—</strong></div>
-                            <div class="metric-row"><span>Vulnerable Components</span><strong id="homeVulnComponents">—</strong></div>
-                            <div class="metric-row"><span>Weak Crypto</span><strong id="homeWeakCrypto">—</strong></div>
-                        </div>
-                    </div>
+              <div class="mini-insights" aria-label="Negotiation snapshot">
+                <div class="mini-legend-title">Negotiation Snapshot</div>
+                <table class="mini-insights-table">
+                  <thead>
+                    <tr>
+                      <th>Tier</th>
+                      <th>Assets</th>
+                      <th>Delta</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td>Strong</td>
+                      <td class="insight-strong">12</td>
+                      <td>+2 wk</td>
+                    </tr>
+                    <tr>
+                      <td>Medium</td>
+                      <td class="insight-strong">6</td>
+                      <td>+1 wk</td>
+                    </tr>
+                    <tr>
+                      <td>Weak</td>
+                      <td class="insight-strong">3</td>
+                      <td>-3 wk</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
 
-                    <div class="api-v2-card">
-                        <div class="api-v2-title">Asset Discovery + Network Graph</div>
-                        <div class="metric-list" style="margin-bottom: 10px;">
-                            <div class="metric-row"><span>Domain Records</span><strong id="domainsCount">—</strong></div>
-                            <div class="metric-row"><span>SSL Records</span><strong id="sslCount">—</strong></div>
-                            <div class="metric-row"><span>IP Records</span><strong id="ipCount">—</strong></div>
-                            <div class="metric-row"><span>Software Records</span><strong id="softwareCount">—</strong></div>
-                            <div class="metric-row"><span>Network Nodes</span><strong id="networkNodesCount">—</strong></div>
-                            <div class="metric-row"><span>Network Edges</span><strong id="networkEdgesCount">—</strong></div>
-                        </div>
-                        <div class="api-mini-list" id="networkStatusSummary">Status distribution pending...</div>
-                        <div class="api-mini-list" id="assetSamples" style="margin-top:8px;">Asset sample data pending...</div>
-                    </div>
-
-                    <div class="api-v2-card">
-                        <div class="api-v2-title">Cyber Rating + PQC Intelligence</div>
-                        <div class="metric-list" style="margin-bottom: 10px;">
-                            <div class="metric-row"><span>Enterprise Score</span><strong id="cyberEnterpriseScore">—</strong></div>
-                            <div class="metric-row"><span>Tier</span><strong id="cyberTier">—</strong></div>
-                            <div class="metric-row"><span>Display Tier</span><strong id="cyberDisplayTier">—</strong></div>
-                            <div class="metric-row"><span>Negotiation Policies</span><strong id="negotiationCount">—</strong></div>
-                        </div>
-
-                        <div class="mini-section-title">PQC Heatmap</div>
-                        <div id="heatmapTableContainer" class="heatmap-grid">No heatmap data</div>
-
-                        <div class="mini-section-title" style="margin-top: 10px;">Top Negotiation Policies</div>
-                        <div id="negotiationTableContainer" class="api-mini-list">No negotiation data</div>
-                    </div>
-                </div>
-
-                <div class="report-controls">
-                    <div class="mini-section-title" style="margin: 0;">Reporting API</div>
-                    <select id="reportTypeSelect" class="scan-input" style="max-width: 220px;">
-                        <option value="executive">Executive</option>
-                        <option value="discovery">Discovery</option>
-                        <option value="inventory">Inventory</option>
-                        <option value="cbom">CBOM</option>
-                        <option value="posture">Posture</option>
-                        <option value="cyber_rating">Cyber Rating</option>
-                    </select>
-                    <select id="reportFormatSelect" class="scan-input" style="max-width: 140px;">
-                        <option value="json">JSON</option>
-                        <option value="html">HTML</option>
-                    </select>
-                    <button class="btn" onclick="generateApiReport()">Generate Report</button>
-                    <div class="panel-badge" id="reportMetaBadge" style="background: rgba(167, 139, 250, 0.12); color: var(--accent-purple);">No report generated</div>
-                </div>
-
-                <pre id="reportPreview" class="code-preview">Report output preview will appear here.</pre>
+              <div class="mini-legend" aria-label="Status distribution">
+                <div class="mini-legend-title">Status Distribution</div>
+                <div class="legend-row"><span class="legend-dot cell-safe"></span><span>Elite-PQC</span><strong>14</strong></div>
+                <div class="legend-row"><span class="legend-dot cell-transition"></span><span>Standard</span><strong>6</strong></div>
+                <div class="legend-row"><span class="legend-dot cell-vulnerable"></span><span>Vulnerable</span><strong>8</strong></div>
+                <div class="legend-row"><span class="legend-dot cell-critical"></span><span>Critical</span><strong>2</strong></div>
+                <div class="legend-row"><span class="legend-dot cell-unknown"></span><span>Unknown</span><strong>1</strong></div>
+              </div>
             </div>
 
-            <!-- Main Grid: Asset Table + Q-Score Ring -->
-            <div class="main-grid">
-                <!-- Asset Table Panel -->
-                <div class="panel">
-                    <div class="panel-header">
-                        <div class="panel-title">Asset Inventory</div>
-                        <div class="panel-badge" id="assetCount" style="background: rgba(0, 255, 136, 0.12); color: var(--accent-green);">0 assets</div>
-                    </div>
-                    <div id="assetTableContainer">
-                        <div class="empty-state">
-                            <div class="empty-state-icon"><svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg></div>
-                            <div class="empty-state-title">No scan data</div>
-                            <div class="empty-state-desc">Click "Run Demo Scan" or enter a domain to begin</div>
-                        </div>
-                    </div>
-                </div>
+            <table class="mini-table" aria-label="Asset summary">
+              <thead>
+                <tr>
+                  <th>Asset</th>
+                  <th>TLS</th>
+                  <th>KEX</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>netbanking.pnb</td>
+                  <td>TLS 1.3</td>
+                  <td>ML-KEM-768</td>
+                  <td><span class="pill pill-elite">Elite-PQC</span></td>
+                </tr>
+                <tr>
+                  <td>api.pnb</td>
+                  <td>TLS 1.3</td>
+                  <td>ECDHE</td>
+                  <td><span class="pill pill-standard">Standard</span></td>
+                </tr>
+                <tr>
+                  <td>vpn.pnb</td>
+                  <td>TLS 1.2</td>
+                  <td>RSA</td>
+                  <td><span class="pill pill-critical">Critical</span></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
 
-                <!-- Sidebar: Q-Score Overview -->
-                <div class="panel">
-                    <div class="panel-header">
-                        <div class="panel-title">Q-Score Overview</div>
-                    </div>
-                    <div class="qscore-ring-container" id="qscoreRingContainer">
-                        <div class="qscore-ring">
-                            <svg viewBox="0 0 160 160" width="160" height="160">
-                                <circle class="qscore-ring-bg" cx="80" cy="80" r="68"></circle>
-                                <circle class="qscore-ring-fill" id="qscoreRingFill" cx="80" cy="80" r="68"
-                                    stroke-dasharray="427.26" stroke-dashoffset="427.26"></circle>
-                            </svg>
-                            <div class="qscore-ring-text">
-                                <div class="qscore-ring-number" id="qscoreRingNumber">—</div>
-                                <div class="qscore-ring-label">AVG Q-SCORE</div>
-                            </div>
-                        </div>
-                        <div class="dist-bars" id="distBars"></div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Remediation Roadmap (Phase 1 summary) -->
-            <div class="remediation-section">
-                <div class="panel">
-                    <div class="panel-header">
-                        <div class="panel-title">Remediation Roadmap</div>
-                    </div>
-                    <div id="remediationContainer">
-                        <div class="empty-state">
-                            <div class="empty-state-icon"><svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path><rect x="8" y="2" width="8" height="4" rx="1" ry="1"></rect></svg></div>
-                            <div class="empty-state-title">Awaiting scan data</div>
-                            <div class="empty-state-desc">Remediation roadmap will appear after a scan</div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Certification Labels -->
-            <div class="panel" id="certLabelsSection" style="display: none;">
-                <div class="panel-header">
-                    <div class="panel-title"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"></path><line x1="7" y1="7" x2="7.01" y2="7"></line></svg> Certification Labels</div>
-                    <div class="panel-badge" id="certLabelCount" style="background: rgba(0, 212, 255, 0.12); color: var(--accent-cyan);">0 labels</div>
-                </div>
-                <!-- Tier summary cards -->
-                <div class="stats-grid" id="certLabelStats" style="margin-bottom: 16px;">
-                    <div class="stat-card stat-card--safe">
-                        <div class="stat-value" id="certFullySafe">0</div>
-                        <div class="stat-label"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"></polyline></svg> FULLY QUANTUM SAFE</div>
-                    </div>
-                    <div class="stat-card stat-card--transition">
-                        <div class="stat-value" id="certPQCReady">0</div>
-                        <div class="stat-label"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle></svg> PQC READY</div>
-                    </div>
-                    <div class="stat-card stat-card--critical">
-                        <div class="stat-value" id="certNonCompliant">0</div>
-                        <div class="stat-label"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg> NON-COMPLIANT</div>
-                    </div>
-                </div>
-                <div class="labels-grid" id="certLabelsContainer"></div>
-            </div>
-
-            <!-- PQC Labels (Phase 1) -->
-            <div class="panel" id="labelsSection" style="display: none;">
-                <div class="panel-header">
-                    <div class="panel-title">PQC-Ready Certificates Issued</div>
-                </div>
-                <div class="labels-grid" id="labelsContainer"></div>
-            </div>
-
-            <!-- Compliance Attestation -->
-            <div class="panel" id="attestationSection" style="display: none;">
-                <div class="panel-header">
-                    <div class="panel-title"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg> Compliance Attestation (CDXA)</div>
-                    <div class="panel-badge" id="attestStatus" style="background: rgba(168, 85, 247, 0.12); color: #a855f7;">Not Generated</div>
-                </div>
-                <div class="stats-grid" id="attestStats" style="margin-bottom: 16px;">
-                    <div class="stat-card stat-card--safe">
-                        <div class="stat-value" id="attestCompliant">0</div>
-                        <div class="stat-label"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"></polyline></svg> COMPLIANT</div>
-                    </div>
-                    <div class="stat-card stat-card--transition">
-                        <div class="stat-value" id="attestPartial">0</div>
-                        <div class="stat-label"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle></svg> PARTIAL</div>
-                    </div>
-                    <div class="stat-card stat-card--critical">
-                        <div class="stat-value" id="attestNonCompliant">0</div>
-                        <div class="stat-label"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg> NON-COMPLIANT</div>
-                    </div>
-                    <div class="stat-card" style="border-color: #a855f7;">
-                        <div class="stat-value" id="attestSigned" style="color: #a855f7;">—</div>
-                        <div class="stat-label">SIGNED (Ed25519)</div>
-                    </div>
-                </div>
-                <div id="attestDetails" style="font-size: 0.82rem; color: var(--text-secondary);"></div>
-            </div>
-
-            <!-- Security Alerts -->
-            <div class="panel" id="alertsSection" style="display: none;">
-                <div class="panel-header">
-                    <div class="panel-title"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg> Security Alerts</div>
-                    <div class="panel-badge" id="alertCount" style="background: rgba(255, 59, 48, 0.12); color: #ff3b30;">0 alerts</div>
-                </div>
-                <div id="alertsContainer"></div>
-            </div>
-
-        </div><!-- /tab-overview -->
-
-        <!-- ═══════════════ TAB: PQC ASSESSMENT (Phase 2) ═══════════════ -->
-        <div class="tab-content" id="tab-assessment">
-            <div id="assessmentEmpty" class="empty-state" style="padding: 80px 20px;">
-                <div class="empty-state-icon"><svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg></div>
-                <div class="empty-state-title">No assessment data</div>
-                <div class="empty-state-desc">Run a scan first, then the NIST PQC assessment will appear here</div>
-            </div>
-            <div id="assessmentContent" style="display:none;">
-
-                <!-- Phase 2 KPI Cards -->
-                <div class="stats-grid" id="phase2Stats">
-                    <div class="stat-card stat-card--total">
-                        <div class="stat-value" id="p2StatEndpoints">—</div>
-                        <div class="stat-label">Assessed Endpoints</div>
-                        <div class="stat-pct" id="p2AvgScore">Avg Q-Score: —</div>
-                    </div>
-                    <div class="stat-card stat-card--critical">
-                        <div class="stat-value" id="p2StatHigh">—</div>
-                        <div class="stat-label">HIGH RISK</div>
-                        <div class="stat-pct" id="p2StatHighPct">—</div>
-                    </div>
-                    <div class="stat-card stat-card--transition">
-                        <div class="stat-value" id="p2StatMedium">—</div>
-                        <div class="stat-label">MEDIUM RISK</div>
-                        <div class="stat-pct" id="p2StatMediumPct">—</div>
-                    </div>
-                    <div class="stat-card stat-card--safe">
-                        <div class="stat-value" id="p2StatLow">—</div>
-                        <div class="stat-label">LOW RISK</div>
-                        <div class="stat-pct" id="p2StatLowPct">—</div>
-                    </div>
-                    <div class="stat-card stat-card--vulnerable">
-                        <div class="stat-value" id="p2StatHNDL">—</div>
-                        <div class="stat-label">HNDL EXPOSED</div>
-                        <div class="stat-pct" id="p2StatHNDLPct">—</div>
-                    </div>
-                </div>
-
-                <!-- Charts Row -->
-                <div class="charts-row">
-                    <!-- KEX Status Chart -->
-                    <div class="panel chart-panel">
-                        <div class="panel-header">
-                            <div class="panel-title">Key Exchange Status</div>
-                        </div>
-                        <div class="chart-container">
-                            <canvas id="chartKEX" width="280" height="280"></canvas>
-                            <div class="chart-legend" id="legendKEX"></div>
-                        </div>
-                    </div>
-                    <!-- TLS Protocol Chart -->
-                    <div class="panel chart-panel">
-                        <div class="panel-header">
-                            <div class="panel-title">TLS Protocol Compliance</div>
-                        </div>
-                        <div class="chart-container">
-                            <canvas id="chartTLS" width="280" height="280"></canvas>
-                            <div class="chart-legend" id="legendTLS"></div>
-                        </div>
-                    </div>
-                    <!-- Risk Distribution Chart -->
-                    <div class="panel chart-panel">
-                        <div class="panel-header">
-                            <div class="panel-title">Quantum Risk Distribution</div>
-                        </div>
-                        <div class="chart-container">
-                            <canvas id="chartRisk" width="280" height="280"></canvas>
-                            <div class="chart-legend" id="legendRisk"></div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Dimension Breakdown Bars -->
-                <div class="panel" style="margin-bottom: 20px;">
-                    <div class="panel-header">
-                        <div class="panel-title">Cryptographic Dimension Breakdown</div>
-                    </div>
-                    <div id="dimensionBars" class="dimension-bars"></div>
-                </div>
-
-                <!-- Per-Endpoint Assessment Table -->
-                <div class="panel">
-                    <div class="panel-header">
-                        <div class="panel-title">Per-Endpoint NIST Assessment</div>
-                        <div class="panel-badge" id="assessCount" style="background: rgba(0, 212, 255, 0.12); color: var(--accent-cyan);">0 endpoints</div>
-                    </div>
-                    <div id="assessTableContainer" style="overflow-x:auto;">
-                    </div>
-                </div>
-
-            </div>
-        </div><!-- /tab-assessment -->
-
-        <!-- ═══════════════ TAB: REMEDIATION PLAN (Phase 2) ═══════════════ -->
-        <div class="tab-content" id="tab-remediation">
-            <div id="remPlanEmpty" class="empty-state" style="padding: 80px 20px;">
-                <div class="empty-state-icon"><svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"></path></svg></div>
-                <div class="empty-state-title">No remediation plan</div>
-                <div class="empty-state-desc">Run a scan to generate the PQC migration remediation plan</div>
-            </div>
-            <div id="remPlanContent" style="display:none;">
-
-                <!-- Remediation Summary Cards -->
-                <div class="stats-grid">
-                    <div class="stat-card stat-card--total">
-                        <div class="stat-value" id="remTotal">—</div>
-                        <div class="stat-label">Total Actions</div>
-                    </div>
-                    <div class="stat-card stat-card--critical">
-                        <div class="stat-value" id="remP1">—</div>
-                        <div class="stat-label">P1 CRITICAL</div>
-                        <div class="stat-pct">0–30 days</div>
-                    </div>
-                    <div class="stat-card stat-card--vulnerable">
-                        <div class="stat-value" id="remP2">—</div>
-                        <div class="stat-label">P2 HIGH</div>
-                        <div class="stat-pct">30–90 days</div>
-                    </div>
-                    <div class="stat-card stat-card--transition">
-                        <div class="stat-value" id="remP3">—</div>
-                        <div class="stat-label">P3 MEDIUM</div>
-                        <div class="stat-pct">90–180 days</div>
-                    </div>
-                    <div class="stat-card stat-card--safe">
-                        <div class="stat-value" id="remP4">—</div>
-                        <div class="stat-label">P4 LOW</div>
-                        <div class="stat-pct">180–365 days</div>
-                    </div>
-                </div>
-
-                <!-- Category Breakdown -->
-                <div class="panel" style="margin-bottom: 20px;">
-                    <div class="panel-header">
-                        <div class="panel-title">Actions by Category</div>
-                    </div>
-                    <div id="remCategoryBars" class="dimension-bars"></div>
-                </div>
-
-                <!-- Strategic Roadmap Timeline -->
-                <div class="panel">
-                    <div class="panel-header">
-                        <div class="panel-title">Strategic Migration Roadmap</div>
-                    </div>
-                    <div id="remRoadmapContainer" class="remediation-timeline-v2"></div>
-                </div>
-            </div>
-        </div><!-- /tab-remediation -->
-
-        <!-- ═══════════════ TAB: NIST MATRIX ═══════════════ -->
-        <div class="tab-content" id="tab-matrix">
-            <div id="matrixContent">
-                <div class="panel" style="margin-bottom: 20px;">
-                    <div class="panel-header">
-                        <div class="panel-title">NIST PQC Validation Matrix Reference</div>
-                        <button class="btn" onclick="loadNISTMatrix()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg> Load Matrix</button>
-                    </div>
-                    <p style="font-size: 0.82rem; color: var(--text-secondary); margin-bottom: 16px;">
-                        This matrix classifies cryptographic algorithms by their quantum vulnerability status
-                        based on NIST FIPS 203/204/205 standards. Used internally by Q-ARMOR's assessment engine.
-                    </p>
-                    <div id="matrixTables">
-                        <div class="empty-state">
-                            <div class="empty-state-icon"><svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path><rect x="8" y="2" width="8" height="4" rx="1" ry="1"></rect></svg></div>
-                            <div class="empty-state-title">Click "Load Matrix" to display</div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div><!-- /tab-matrix -->
-
-        <!-- ═══════════════ TAB: TRI-MODE PROBING (Phase 6) ═══════════════ -->
-        <div class="tab-content" id="tab-trimode">
-
-            <!-- ── Probe any host (always visible) ── -->
-            <div class="panel" style="margin-bottom:20px;">
-                <div class="panel-header">
-                    <div class="panel-title"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg> Live-Probe Any Host</div>
-                    <span style="color:var(--text-dim);font-size:0.75rem;">Real TLS handshakes — no demo data</span>
-                </div>
-                <div class="scan-input-section">
-                    <input id="singleHostInput" class="scan-input" type="text" placeholder="e.g. iitg.ac.in" onkeydown="if(event.key==='Enter') probeSingleHost()" />
-                    <input id="singlePortInput" class="scan-input port-input" type="number" value="443" min="1" max="65535" />
-                    <button id="singleProbeBtn" class="btn btn-primary" onclick="probeSingleHost()">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg> Probe
-                    </button>
-                </div>
-                <div id="singleHostResult"></div>
-            </div>
-
-            <div id="trimodeEmpty" class="empty-state" style="padding: 80px 20px;">
-                <div class="empty-state-icon"><svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 12a10 10 0 1 1 10 10"></path><line x1="12" y1="2" x2="12" y2="22"></line><line x1="2" y1="12" x2="22" y2="12"></line></svg></div>
-                <div class="empty-state-title">No tri-mode scan data</div>
-                <div class="empty-state-desc">Run a Demo Scan or Tri-Mode scan to see A/B/C probe results</div>
-            </div>
-            <div id="trimodeContent" style="display:none;">
-                <!-- Tri-Mode Summary Cards -->
-                <div class="stats-grid" id="trimodeStats">
-                    <div class="stat-card stat-card--total">
-                        <div class="stat-value" id="tmStatTotal">—</div>
-                        <div class="stat-label">Assets Probed</div>
-                        <div class="stat-pct" id="tmStatMode">Mode: —</div>
-                    </div>
-                    <div class="stat-card stat-card--safe">
-                        <div class="stat-value" id="tmStatSafe">—</div>
-                        <div class="stat-label">Fully Quantum Safe</div>
-                    </div>
-                    <div class="stat-card stat-card--transition">
-                        <div class="stat-value" id="tmStatTransition">—</div>
-                        <div class="stat-label">PQC Transition</div>
-                    </div>
-                    <div class="stat-card stat-card--vulnerable">
-                        <div class="stat-value" id="tmStatVulnerable">—</div>
-                        <div class="stat-label">Quantum Vulnerable</div>
-                    </div>
-                    <div class="stat-card stat-card--critical">
-                        <div class="stat-value" id="tmStatCritical">—</div>
-                        <div class="stat-label">Critically Vulnerable</div>
-                    </div>
-                </div>
-
-                <!-- Tri-Mode Fingerprint Table -->
-                <div class="panel">
-                    <div class="panel-header">
-                        <div class="panel-title"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12a10 10 0 1 1 10 10"></path><line x1="12" y1="2" x2="12" y2="22"></line><line x1="2" y1="12" x2="22" y2="12"></line></svg> Tri-Mode Probe Results (A / B / C)</div>
-                        <div class="panel-badge" id="tmAssetCount" style="background: rgba(0, 212, 255, 0.12); color: var(--accent-cyan);">0 assets</div>
-                    </div>
-                    <div id="trimodeTableContainer" style="overflow-x:auto;"></div>
-                </div>
-
-                <!-- Demo mode banner -->
-                <div id="trimodeDemoBanner" class="demo-banner" style="display:none;">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg> <strong>SIMULATED DATA</strong> — These results are pre-built demo fingerprints. No real network probes were executed.
-                </div>
-            </div>
-        </div><!-- /tab-trimode -->
-
-        <!-- ═══════════════ TAB: HISTORY (Phase 6) ═══════════════ -->
-        <div class="tab-content" id="tab-history">
-            <div id="historyEmpty" class="empty-state" style="padding: 60px 20px;">
-                <div class="empty-state-icon"><svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg></div>
-                <div class="empty-state-title">Scan History</div>
-                <div class="empty-state-desc">View real scan history from the database, or load demo trend data</div>
-                <div style="display:flex;gap:8px;align-items:center;margin-top:16px;flex-wrap:wrap;justify-content:center;">
-                    <button class="btn btn-primary" onclick="loadLiveHistory()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect><line x1="8" y1="21" x2="16" y2="21"></line><line x1="12" y1="17" x2="12" y2="21"></line></svg> Load DB History</button>
-                    <span style="color:var(--text-dim);font-size:0.8rem;">or</span>
-                    <button class="btn" onclick="loadHistory()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg> Load Demo History</button>
-                </div>
-            </div>
-            <div id="historyContent" style="display:none;">
-                <div class="panel">
-                    <div class="panel-header">
-                        <div class="panel-title"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg> Quantum Safety Score Trend (4 Weeks)</div>
-                        <div class="panel-badge" id="historyMode" style="background: rgba(168, 85, 247, 0.12); color: #a855f7;">demo</div>
-                    </div>
-                    <div id="historyTable" style="overflow-x:auto;"></div>
-                </div>
-                <div class="panel" style="margin-top: 16px;">
-                    <div class="panel-header">
-                        <div class="panel-title"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg> Baseline Comparison (Current vs 1 Week Ago)</div>
-                    </div>
-                    <div id="baselineContent">
-                        <div class="empty-state">
-                            <div class="empty-state-icon"><svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21.2 2H2.8C2.358 2 2 2.358 2 2.8v1.6C2 4.842 2.358 5 2.8 5h18.4c.442 0 .8-.158.8-.6V2.8c0-.442-.358-.8-.8-.8zM21.2 19H2.8c-.442 0-.8.158-.8.6v1.6c0 .442.358.8.8.8h18.4c.442 0 .8-.158.8-.6v-1.6c0-.442-.358-.8-.8-.8zM6 5v2.8c0 3.1 2.5 5.6 5.6 5.6 3.1 0 5.6-2.5 5.6-5.6V5H6zm0 14v-2.8c0-3.1 2.5-5.6 5.6-5.6 3.1 0 5.6 2.5 5.6 5.6V19H6z"></path></svg></div>
-                            <div class="empty-state-desc">Loading baseline comparison...</div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div><!-- /tab-history -->
-
-        <!-- ═══════════════ TAB: PHASE 7 — PQC Classification + Agility + DB ═══════════════ -->
-        <div class="tab-content" id="tab-phase7">
-            <div id="p7Empty" class="empty-state" style="padding: 60px 20px;">
-                <div class="empty-state-icon"><svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 2L2 7l10 5 10-5-10-5z"></path><path d="M2 17l10 5 10-5"></path><path d="M2 12l10 5 10-5"></path></svg></div>
-                <div class="empty-state-title">PQC Classification + Agility</div>
-                <div class="empty-state-desc">Enter a domain to classify live assets, or run demo mode with simulated data</div>
-                <div style="display:flex;gap:8px;align-items:center;margin-top:16px;flex-wrap:wrap;justify-content:center;">
-                    <input type="text" class="scan-input" id="p7DomainInput" placeholder="Enter domain (e.g. example.com)" style="max-width:280px;" />
-                    <button class="btn btn-primary" onclick="runPhase7Live()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg> Classify Live Domain</button>
-                    <span style="color:var(--text-dim);font-size:0.8rem;">or</span>
-                    <button class="btn" onclick="runPhase7Demo()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg> Run Demo</button>
-                </div>
-            </div>
-            <div id="p7Content" style="display:none;">
-
-                <!-- Phase 7 Summary Cards -->
-                <div class="stats-grid" id="p7Stats">
-                    <div class="stat-card stat-card--total">
-                        <div class="stat-value" id="p7Total">—</div>
-                        <div class="stat-label">Classified Assets</div>
-                        <div class="stat-pct" id="p7AvgScore">Avg Worst: —</div>
-                    </div>
-                    <div class="stat-card stat-card--safe">
-                        <div class="stat-value" id="p7Safe">—</div>
-                        <div class="stat-label">Fully Quantum Safe</div>
-                    </div>
-                    <div class="stat-card stat-card--transition">
-                        <div class="stat-value" id="p7Trans">—</div>
-                        <div class="stat-label">PQC Transition</div>
-                    </div>
-                    <div class="stat-card stat-card--vulnerable">
-                        <div class="stat-value" id="p7Vuln">—</div>
-                        <div class="stat-label">Quantum Vulnerable</div>
-                    </div>
-                    <div class="stat-card stat-card--critical">
-                        <div class="stat-value" id="p7Crit">—</div>
-                        <div class="stat-label">Critically Vulnerable</div>
-                    </div>
-                    <div class="stat-card stat-card--unknown">
-                        <div class="stat-value" id="p7Unknown">—</div>
-                        <div class="stat-label">Unknown</div>
-                    </div>
-                </div>
-
-                <!-- Classified Assets Table -->
-                <div class="panel">
-                    <div class="panel-header">
-                        <div class="panel-title"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"></path><path d="M2 17l10 5 10-5"></path><path d="M2 12l10 5 10-5"></path></svg> Classified Assets (Best / Typical / Worst)</div>
-                        <div class="panel-badge" id="p7AssetCount" style="background: rgba(168, 85, 247, 0.12); color: #a855f7;">0 assets</div>
-                    </div>
-                    <div id="p7TableContainer" style="overflow-x:auto;"></div>
-                </div>
-
-                <!-- Agility Breakdown -->
-                <div class="panel" style="margin-top: 16px;">
-                    <div class="panel-header">
-                        <div class="panel-title"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="13 17 18 12 13 7"></polyline><polyline points="6 17 11 12 6 7"></polyline></svg> Crypto-Agility Scores (max 15)</div>
-                    </div>
-                    <div id="p7AgilityContainer" style="overflow-x:auto;"></div>
-                </div>
-
-                <!-- Scan History from Database -->
-                <div class="panel" style="margin-top: 16px;">
-                    <div class="panel-header">
-                        <div class="panel-title"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect><line x1="8" y1="21" x2="16" y2="21"></line><line x1="12" y1="17" x2="12" y2="21"></line></svg> Scan Database</div>
-                        <button class="btn" onclick="loadDbScans()">Refresh</button>
-                    </div>
-                    <div id="p7DbScansContainer">
-                        <div class="empty-state"><div class="empty-state-desc">Run a classification to populate the database</div></div>
-                    </div>
-                </div>
-
-                <!-- Demo banner -->
-                <div id="p7DemoBanner" class="demo-banner" style="display:none;margin-top:16px;">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg> <strong>SIMULATED DATA</strong> — Five-dimension scoring on pre-built demo fingerprints. Agility indicators use heuristics.
-                </div>
-            </div>
-        </div><!-- /tab-phase7 -->
-
-        <!-- ═══════════════ TAB: PHASE 8+9 — Regression + CBOM v2 + Labels v2 + Registry + Attestation v2 ═══════════════ -->
-        <div class="tab-content" id="tab-phase9">
-            <div id="p9Empty" class="empty-state" style="padding: 60px 20px;">
-                <div class="empty-state-icon"><svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><polyline points="9 12 11 14 15 10"/></svg></div>
-                <div class="empty-state-title">Regression + CBOM + Labels + Registry + Attestation</div>
-                <div class="empty-state-desc">Enter a domain for live pipeline analysis, or run demo mode with simulated data</div>
-                <div style="display:flex;gap:8px;align-items:center;margin-top:16px;flex-wrap:wrap;justify-content:center;">
-                    <input type="text" class="scan-input" id="p9DomainInput" placeholder="Enter domain (e.g. example.com)" style="max-width:280px;" />
-                    <button class="btn btn-primary" onclick="runPhase9Live()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg> Run Live Pipeline</button>
-                    <span style="color:var(--text-dim);font-size:0.8rem;">or</span>
-                    <button class="btn" onclick="runPhase9Demo()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg> Run Demo</button>
-                </div>
-            </div>
-            <div id="p9Content" style="display:none;">
-
-                <!-- Phase 9 Pipeline KPI -->
-                <div class="stats-grid" id="p9Stats">
-                    <div class="stat-card stat-card--total">
-                        <div class="stat-value" id="p9Total">—</div>
-                        <div class="stat-label">Classified Assets</div>
-                        <div class="stat-pct" id="p9QSScore">Q-Safety: —</div>
-                    </div>
-                    <div class="stat-card stat-card--safe">
-                        <div class="stat-value" id="p9Tier1">—</div>
-                        <div class="stat-label">Tier 1: Fully Quantum Safe</div>
-                        <div class="stat-pct" id="p9Tier1Pct">—</div>
-                    </div>
-                    <div class="stat-card stat-card--transition">
-                        <div class="stat-value" id="p9Tier2">—</div>
-                        <div class="stat-label">Tier 2: PQC Ready</div>
-                        <div class="stat-pct" id="p9Tier2Pct">—</div>
-                    </div>
-                    <div class="stat-card stat-card--critical">
-                        <div class="stat-value" id="p9Tier3">—</div>
-                        <div class="stat-label">Tier 3: Non-Compliant</div>
-                        <div class="stat-pct" id="p9Tier3Pct">—</div>
-                    </div>
-                    <div class="stat-card stat-card--vulnerable">
-                        <div class="stat-value" id="p9Regressions">—</div>
-                        <div class="stat-label">Regressions Detected</div>
-                    </div>
-                    <div class="stat-card" style="border-color: #a855f7;">
-                        <div class="stat-value" id="p9Compliance" style="color: #a855f7;">—</div>
-                        <div class="stat-label">FIPS Compliance</div>
-                    </div>
-                </div>
-
-                <!-- Regression Report -->
-                <div class="panel" style="margin-bottom: 16px;">
-                    <div class="panel-header">
-                        <div class="panel-title"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> Regression Report</div>
-                        <div class="panel-badge" id="p9RegrBadge" style="background: rgba(255, 170, 0, 0.12); color: #ffaa00;">0 findings</div>
-                    </div>
-                    <div id="p9RegressionContainer" style="overflow-x:auto;"></div>
-                </div>
-
-                <!-- Phase 9 Labels v2 -->
-                <div class="panel" style="margin-bottom: 16px;">
-                    <div class="panel-header">
-                        <div class="panel-title"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg> PQC Certification Labels</div>
-                        <div class="panel-badge" id="p9LabelBadge" style="background: rgba(0, 255, 136, 0.12); color: var(--accent-green);">0 labels</div>
-                    </div>
-                    <div id="p9LabelExecSummary" style="font-size:0.82rem;color:var(--text-secondary);margin-bottom:12px;padding:8px 12px;background:rgba(0,0,0,0.2);border-radius:8px;"></div>
-                    <div id="p9LabelsContainer" style="overflow-x:auto;"></div>
-                </div>
-
-                <!-- Registry Info -->
-                <div class="panel" style="margin-bottom: 16px;">
-                    <div class="panel-header">
-                        <div class="panel-title"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg> Label Registry</div>
-                        <div class="panel-badge" id="p9RegistryBadge" style="background: rgba(0, 212, 255, 0.12); color: var(--accent-cyan);">—</div>
-                    </div>
-                    <div id="p9RegistryContainer" style="font-size:0.82rem;color:var(--text-secondary);"></div>
-                </div>
-
-                <!-- Attestation v2 -->
-                <div class="panel" style="margin-bottom: 16px;">
-                    <div class="panel-header">
-                        <div class="panel-title"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg> FIPS Compliance Attestation (CDXA v2)</div>
-                        <div class="panel-badge" id="p9AttestBadge" style="background: rgba(168, 85, 247, 0.12); color: #a855f7;">—</div>
-                    </div>
-                    <div id="p9AttestContainer" style="overflow-x:auto;"></div>
-                    <div style="margin-top:10px;display:flex;gap:10px;">
-                        <button class="btn" onclick="downloadPhase9CBOM()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Download CBOM v2</button>
-                        <button class="btn" onclick="downloadPhase9CDXA()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Download CDXA v2</button>
-                    </div>
-                </div>
-
-                <!-- Demo banner -->
-                <div id="p9DemoBanner" class="demo-banner" style="margin-top:16px;">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> <strong>SIMULATED DATA</strong> — Regression detection, labels, CBOM v2, registry and attestation all run on demo fingerprints.
-                </div>
-            </div>
-        </div><!-- /tab-phase9 -->
-
-        <!-- Footer -->
-        <footer class="footer">
-            <div class="footer-text">
-                Q-ARMOR v9.0.0 — Discover. Probe. Classify. Assess. Remediate. Label. Attest. Regress. Certify. Future-proof.
-                <br>
-                <span style="color: var(--accent-green); font-size: 0.75rem;">
-                    ✓ Discovery &amp; Protocol Analysis
-                    &nbsp;|&nbsp;
-                    ✓ PQC Assessment &amp; Remediation
-                    &nbsp;|&nbsp;
-                    ✓ CBOM Generation
-                    &nbsp;|&nbsp;
-                    ✓ Certification Labels
-                    &nbsp;|&nbsp;
-                    ✓ Compliance Attestations &amp; Automation
-                    &nbsp;|&nbsp;
-                    ✓ Tri-Mode Probing &amp; Asset Discovery
-                    &nbsp;|&nbsp;
-                    ✓ PQC Classification + Agility + SQLite DB
-                    &nbsp;|&nbsp;
-                    ✓ Regression Detection + CycloneDX 1.7 CBOM
-                    &nbsp;|&nbsp;
-                    ✓ PQC Labeling + Registry + FIPS Attestation
-                </span>
-                <br>
-                Built on <a href="#">NIST FIPS 203/204/205</a> &middot; <a href="#">CycloneDX 1.7 CBOM</a> &middot; <a href="#">PQCC Whitepaper</a>
-                &middot; <a href="#">PNB Cybersecurity Hackathon 2025-26</a>
-            </div>
-        </footer>
+    <div class="stats-strip">
+      <div class="stats-bar">
+        <div class="stat">
+          <strong>212K+</strong>
+          <span>Assets Discoverable</span>
+        </div>
+        <div class="stat">
+          <strong>21</strong>
+          <span>Cryptographic Checks</span>
+        </div>
+        <div class="stat">
+          <strong>99.9%</strong>
+          <span>Demo Uptime</span>
+        </div>
+        <div class="stat">
+          <strong>&lt; 60s</strong>
+          <span>Full Scan Time</span>
+        </div>
+      </div>
     </div>
 
-    <script src="/static/js/app.js"></script>
+    <section id="pipeline" class="section-fade">
+      <div class="section-head">
+        <div class="eyebrow">THE PIPELINE</div>
+        <h2>From Domain to CBOM <span class="grad">in Five Phases</span></h2>
+        <p>Every scan runs through a deterministic five-phase pipeline grounded in NIST FIPS 203, 204, and 205.</p>
+      </div>
+
+      <div class="pipeline">
+        <article class="pipeline-step">
+          <span class="phase-pill">Phase 1</span>
+          <div class="step-head">
+            <svg class="step-icon" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M11 2a9 9 0 0 0-7.2 14.4L2 22l5.6-1.8A9 9 0 1 0 11 2zm0 2a7 7 0 1 1 0 14 7 7 0 0 1 0-14z"></path>
+            </svg>
+            <h3>Asset Discovery</h3>
+          </div>
+          <p>Discovers domains, subdomains, IPs, SSL certificates, and software across your bank's attack surface using passive and active enumeration.</p>
+        </article>
+
+        <div class="pipeline-arrow" aria-hidden="true">
+          <svg viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"></path></svg>
+        </div>
+
+        <article class="pipeline-step">
+          <span class="phase-pill">Phase 2</span>
+          <div class="step-head">
+            <svg class="step-icon" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M12 3l9 4.5-9 4.5L3 7.5 12 3zm0 9l9 4.5-9 4.5-9-4.5L12 12zm-8-3.3v6.6l8 4 8-4V8.7"></path>
+            </svg>
+            <h3>Tri-Mode TLS Probing</h3>
+          </div>
+          <p>Three simultaneous probes simulate PQC-capable, classical TLS 1.3, and legacy TLS 1.2 clients. Captures what each client type actually negotiates.</p>
+        </article>
+
+        <div class="pipeline-arrow" aria-hidden="true">
+          <svg viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"></path></svg>
+        </div>
+
+        <article class="pipeline-step">
+          <span class="phase-pill">Phase 3</span>
+          <div class="step-head">
+            <svg class="step-icon" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M12 2l8 3v6c0 5-3.2 9.4-8 11-4.8-1.6-8-6-8-11V5l8-3zm-1 6v6l5-3-5-3z"></path>
+            </svg>
+            <h3>PQC Classification</h3>
+          </div>
+          <p>Q-Score engine evaluates six dimensions: TLS version, key exchange, certificate algorithm, cipher strength, crypto-agility, and negotiation policy.</p>
+        </article>
+
+        <div class="pipeline-arrow" aria-hidden="true">
+          <svg viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"></path></svg>
+        </div>
+
+        <article class="pipeline-step">
+          <span class="phase-pill">Phase 4</span>
+          <div class="step-head">
+            <svg class="step-icon" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M6 2h9l5 5v15H6V2zm8 1.5V8h4.5L14 3.5zM9 12h8v1.5H9V12zm0 3h8v1.5H9V15zm0 3h6v1.5H9V18z"></path>
+            </svg>
+            <h3>CBOM Generation</h3>
+          </div>
+          <p>Produces a CycloneDX 1.7 Cryptographic Bill of Materials with Ed25519 signed attestation for every scanned asset.</p>
+        </article>
+
+        <div class="pipeline-arrow" aria-hidden="true">
+          <svg viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"></path></svg>
+        </div>
+
+        <article class="pipeline-step">
+          <span class="phase-pill">Phase 5</span>
+          <div class="step-head">
+            <svg class="step-icon" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M12 2l8 4v6c0 5.2-3.5 9.8-8 10-4.5-.2-8-4.8-8-10V6l8-4zm-1 10.5l-2-2-1.4 1.4 3.4 3.4 5.4-5.4L15 8.5l-4 4z"></path>
+            </svg>
+            <h3>Certification Labeling</h3>
+          </div>
+          <p>Issues Elite-PQC, Standard, or Legacy labels. Revocable registry with public verification endpoint. Alerts on regression.</p>
+        </article>
+      </div>
+    </section>
+
+    <section id="features">
+      <div class="section-head">
+        <div class="eyebrow">CAPABILITIES</div>
+        <h2>Everything a bank needs to <span class="grad">go quantum-safe</span></h2>
+      </div>
+
+      <div class="features-grid">
+        <article class="feature-card">
+          <div class="feature-head">
+            <div class="feature-icon">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16v4H4V7zm0 6h16v4H4v-4zm2-9h3v2H6V4zm9 0h3v2h-3V4z"></path></svg>
+            </div>
+            <h3>Negotiation Policy Analyzer</h3>
+          </div>
+          <p>Detects what each client tier actually negotiates — not just what the server supports. Identifies downgrade vulnerabilities invisible to standard scanners.</p>
+        </article>
+
+        <article class="feature-card">
+          <div class="feature-head">
+            <div class="feature-icon">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 2h9l5 5v15H6V2zm8 1.5V8h4.5L14 3.5zM9 12h8v1.5H9V12zm0 3h8v1.5H9V15zm0 3h6v1.5H9V18z"></path></svg>
+            </div>
+            <h3>CycloneDX 1.7 CBOM</h3>
+          </div>
+          <p>Generates spec-compliant Cryptographic Bill of Materials with key length distribution, cipher usage, CA breakdown, and Ed25519-signed attestation.</p>
+        </article>
+
+        <article class="feature-card">
+          <div class="feature-head">
+            <div class="feature-icon">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3h8v8H3V3zm10 0h8v8h-8V3zM3 13h8v8H3v-8zm10 0h8v8h-8v-8z"></path></svg>
+            </div>
+            <h3>Security Posture Heatmap</h3>
+          </div>
+          <p>3×3 risk grid showing PQC readiness vs negotiation strength. Click any cell to drill into assets. Migration arrow shows the path to Elite-PQC.</p>
+        </article>
+
+        <article class="feature-card">
+          <div class="feature-head">
+            <div class="feature-icon">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2l2.4 4.9 5.4.8-3.9 3.8.9 5.4L12 14.8 7.2 16.9l.9-5.4L4.2 7.7l5.4-.8L12 2zm0 5.2l-.9 1.9-2.1.3 1.5 1.4-.3 2.1L12 12l1.8.9-.3-2.1 1.5-1.4-2.1-.3L12 7.2z"></path></svg>
+            </div>
+            <h3>Enterprise Cyber Rating</h3>
+          </div>
+          <p>Aggregated 0–1000 score across all assets. Tier thresholds: Legacy &lt;400, Standard 400–700, Elite-PQC &gt;700. Mapped to NIST compliance criteria.</p>
+        </article>
+
+        <article class="feature-card">
+          <div class="feature-head">
+            <div class="feature-icon">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 17h3.5l3-3 2.5 2.5L17 11h4v2h-3.2l-5.8 5.8-2.5-2.5-2.2 2.2H3v-1.5zM3 6h18v1.5H3V6z"></path></svg>
+            </div>
+            <h3>Regression Detection</h3>
+          </div>
+          <p>Compares every scan to history. Alerts on Q-Score drops ≥5, algorithm downgrades, new vulnerable assets, and negotiation tier regressions.</p>
+        </article>
+
+        <article class="feature-card">
+          <div class="feature-head">
+            <div class="feature-icon">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2zm.9 5v5.4l3.5 2.1-.8 1.3-4.2-2.5V7h1.5zm-1.6 9.2h1.8V18h-1.8v-1.8z"></path></svg>
+            </div>
+            <h3>Harvest-Now-Decrypt-Later Detection</h3>
+          </div>
+          <p>Identifies assets where legacy client traffic can be captured today and decrypted when quantum computers mature. Direct threat model mapping.</p>
+        </article>
+      </div>
+    </section>
+
+    <section id="standards" class="standards-strip">
+      <div class="standards-inner">
+        <span class="standards-label">BUILT ON</span>
+        <div class="standards-pills">
+          <span class="standard-pill">NIST FIPS 203 ML-KEM</span>
+          <span class="standard-pill">NIST FIPS 204 ML-DSA</span>
+          <span class="standard-pill">NIST FIPS 205 SLH-DSA</span>
+          <span class="standard-pill">CycloneDX 1.7</span>
+          <span class="standard-pill">OWASP CBOM</span>
+          <span class="standard-pill">RFC 8446 TLS 1.3</span>
+          <span class="standard-pill">RFC 8996</span>
+        </div>
+      </div>
+    </section>
+
+    <section id="pricing">
+      <div class="cta-wrap">
+        <div class="cta-card">
+          <div class="cta-orb-1" aria-hidden="true"></div>
+          <div class="cta-orb-2" aria-hidden="true"></div>
+          <div class="cta-content">
+            <h2>Start your <span class="grad">PQC audit</span> today.</h2>
+            <p>Built for the PNB Cybersecurity Hackathon 2026 in collaboration with IIT Kanpur. Demo mode runs 21 real-logic scans with no setup required.</p>
+            <div class="cta-btns">
+              <a class="btn btn-primary" href="/dashboard">Launch Scanner →</a>
+              <a class="btn btn-ghost" href="#">View Source</a>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <div class="footer-inner">
+      <div class="footer-row">
+        <a class="brand" href="#top" aria-label="QArmor Footer Home">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M12 2L4 5v6c0 5.25 3.4 9.75 8 11 4.6-1.25 8-5.75 8-11V5l-8-3zm0 2.1l6 2.25V11c0 4.35-2.7 8.05-6 9.15-3.3-1.1-6-4.8-6-9.15V6.35L12 4.1z"></path>
+          </svg>
+          <span>QArmor</span>
+        </a>
+
+        <nav class="footer-links" aria-label="Footer navigation">
+          <a href="#features">Features</a>
+          <a href="#standards">Standards</a>
+          <a href="#">GitHub</a>
+          <a href="#">Docs</a>
+        </nav>
+
+        <span class="footer-note">PSB Hackathon 2026 · IIT Kanpur</span>
+      </div>
+
+      <div class="footer-row footer-bottom">
+        <span class="footer-note">© 2026 QArmor. Built for PNB Cybersecurity Hackathon.</span>
+        <div class="footer-pills">
+          <span class="footer-pill">NIST Compliant</span>
+          <span class="footer-pill">CycloneDX 1.7</span>
+          <span class="footer-pill">Demo Mode</span>
+        </div>
+      </div>
+    </div>
+  </footer>
+
+  <script>
+    (() => {
+      const canvas = document.getElementById("cyberGridCanvas");
+      if (!canvas) return;
+
+      const context = canvas.getContext("2d", { alpha: true });
+      if (!context) return;
+
+      const staticLayer = document.createElement("canvas");
+      const staticContext = staticLayer.getContext("2d", { alpha: true });
+      if (!staticContext) return;
+
+      let width = 0;
+      let height = 0;
+      let cellSize = 80;
+      let cols = 0;
+      let rows = 0;
+      let alphaGrid = new Float32Array(0);
+      let pixelRatio = 1;
+
+      const fadeStep = 0.015;
+
+      function getCellSize() {
+        const baseline = Math.round(Math.min(window.innerWidth, window.innerHeight) / 11);
+        return Math.max(70, Math.min(90, baseline));
+      }
+
+      function setCanvasResolution(targetCanvas, targetContext, w, h, dpr) {
+        targetCanvas.width = Math.max(1, Math.floor(w * dpr));
+        targetCanvas.height = Math.max(1, Math.floor(h * dpr));
+        targetCanvas.style.width = `${w}px`;
+        targetCanvas.style.height = `${h}px`;
+        targetContext.setTransform(dpr, 0, 0, dpr, 0, 0);
+      }
+
+      function rebuildStaticGrid() {
+        staticContext.clearRect(0, 0, width, height);
+        staticContext.strokeStyle = "rgba(255,255,255,0.02)";
+        staticContext.lineWidth = 1;
+
+        staticContext.beginPath();
+        for (let x = 0; x <= cols; x += 1) {
+          const px = Math.round(x * cellSize) + 0.5;
+          staticContext.moveTo(px, 0);
+          staticContext.lineTo(px, height);
+        }
+        for (let y = 0; y <= rows; y += 1) {
+          const py = Math.round(y * cellSize) + 0.5;
+          staticContext.moveTo(0, py);
+          staticContext.lineTo(width, py);
+        }
+        staticContext.stroke();
+      }
+
+      function resize() {
+        width = window.innerWidth;
+        height = window.innerHeight;
+        pixelRatio = Math.min(window.devicePixelRatio || 1, 2);
+        cellSize = getCellSize();
+        cols = Math.ceil(width / cellSize) + 1;
+        rows = Math.ceil(height / cellSize) + 1;
+        alphaGrid = new Float32Array(cols * rows);
+
+        setCanvasResolution(canvas, context, width, height, pixelRatio);
+        setCanvasResolution(staticLayer, staticContext, width, height, pixelRatio);
+        rebuildStaticGrid();
+      }
+
+      function exciteCells(pointerX, pointerY) {
+        const influenceRadius = cellSize * 2.2;
+        const radiusInCells = Math.ceil(influenceRadius / cellSize);
+        const centerCol = Math.floor(pointerX / cellSize);
+        const centerRow = Math.floor(pointerY / cellSize);
+
+        const minCol = Math.max(0, centerCol - radiusInCells);
+        const maxCol = Math.min(cols - 1, centerCol + radiusInCells);
+        const minRow = Math.max(0, centerRow - radiusInCells);
+        const maxRow = Math.min(rows - 1, centerRow + radiusInCells);
+
+        for (let row = minRow; row <= maxRow; row += 1) {
+          for (let col = minCol; col <= maxCol; col += 1) {
+            const centerX = (col + 0.5) * cellSize;
+            const centerY = (row + 0.5) * cellSize;
+            const distance = Math.hypot(pointerX - centerX, pointerY - centerY);
+            if (distance > influenceRadius) continue;
+
+            const intensity = 1 - distance / influenceRadius;
+            const nextAlpha = 0.06 + intensity * 0.44;
+            const index = row * cols + col;
+            if (nextAlpha > alphaGrid[index]) {
+              alphaGrid[index] = nextAlpha;
+            }
+          }
+        }
+      }
+
+      function drawActiveCells() {
+        for (let row = 0; row < rows; row += 1) {
+          for (let col = 0; col < cols; col += 1) {
+            const index = row * cols + col;
+            const alpha = alphaGrid[index];
+            if (alpha <= 0.005) continue;
+
+            const centerX = (col + 0.5) * cellSize;
+            const centerY = (row + 0.5) * cellSize;
+            const glowRadius = cellSize * 0.72;
+
+            const primaryGradient = context.createRadialGradient(
+              centerX,
+              centerY,
+              0,
+              centerX,
+              centerY,
+              glowRadius
+            );
+            primaryGradient.addColorStop(0, `rgba(34,211,238,${Math.min(0.2, alpha * 0.34)})`);
+            primaryGradient.addColorStop(1, "rgba(34,211,238,0)");
+
+            context.fillStyle = primaryGradient;
+            context.beginPath();
+            context.arc(centerX, centerY, glowRadius, 0, Math.PI * 2);
+            context.fill();
+
+            const squareSize = cellSize * 0.72;
+            const squareX = centerX - squareSize / 2;
+            const squareY = centerY - squareSize / 2;
+
+            context.strokeStyle = `rgba(34,211,238,${Math.min(0.32, alpha * 0.64)})`;
+            context.lineWidth = 1;
+            context.strokeRect(squareX, squareY, squareSize, squareSize);
+
+            context.strokeStyle = `rgba(99,102,241,${Math.min(0.22, alpha * 0.48)})`;
+            context.lineWidth = 0.7;
+            context.strokeRect(squareX + 2, squareY + 2, squareSize - 4, squareSize - 4);
+
+            alphaGrid[index] = Math.max(0, alpha - fadeStep);
+          }
+        }
+      }
+
+      function render() {
+        context.clearRect(0, 0, width, height);
+        context.drawImage(staticLayer, 0, 0, width, height);
+        drawActiveCells();
+        window.requestAnimationFrame(render);
+      }
+
+      window.addEventListener("pointermove", (event) => {
+        exciteCells(event.clientX, event.clientY);
+      });
+
+      window.addEventListener("touchmove", (event) => {
+        const touch = event.touches[0];
+        if (!touch) return;
+        exciteCells(touch.clientX, touch.clientY);
+      }, { passive: true });
+
+      window.addEventListener("resize", resize);
+
+      resize();
+      render();
+    })();
+  </script>
 </body>
 </html>

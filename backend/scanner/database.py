@@ -476,8 +476,22 @@ def compare_scans(scan_id_a: int, scan_id_b: int) -> dict:
                 })
 
         return {
-            "scan_a": {"id": scan_id_a, "date": a["scan_date"], "total": a["total_assets"], "avg": a["avg_score"]},
-            "scan_b": {"id": scan_id_b, "date": b["scan_date"], "total": b["total_assets"], "avg": b["avg_score"]},
+            "scan_a": {
+                "id": scan_id_a,
+                "date": a["scan_date"],
+                "total": a["total_assets"],
+                "avg": a["avg_score"],
+                "fully_safe": a["fully_safe"],
+                "crit_vuln": a["crit_vuln"],
+            },
+            "scan_b": {
+                "id": scan_id_b,
+                "date": b["scan_date"],
+                "total": b["total_assets"],
+                "avg": b["avg_score"],
+                "fully_safe": b["fully_safe"],
+                "crit_vuln": b["crit_vuln"],
+            },
             "delta": {
                 "total_assets": b["total_assets"] - a["total_assets"],
                 "avg_score": round(b["avg_score"] - a["avg_score"], 1),

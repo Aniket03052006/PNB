@@ -105,6 +105,7 @@ async def _run_openssl(
     hostname: str,
     port: int,
     *,
+    connect_host: str | None = None,
     extra_args: list[str] | None = None,
     timeout: float = 8.0,
 ) -> dict[str, str]:
@@ -113,9 +114,10 @@ async def _run_openssl(
     Returns a dict with keys: kex, cipher, version, sig, hash.
     """
     info: dict[str, str] = {"kex": "", "cipher": "", "version": "", "sig": "", "hash": ""}
+    target_host = connect_host or hostname
     cmd = [
         "openssl", "s_client",
-        "-connect", f"{hostname}:{port}",
+        "-connect", f"{target_host}:{port}",
         "-servername", hostname,
         "-brief",
     ]
@@ -169,15 +171,16 @@ async def _run_openssl(
 # ── Certificate extraction ───────────────────────────────────────────────────
 
 
-async def _extract_certificate(hostname: str, port: int) -> CertificateInfo:
+async def _extract_certificate(hostname: str, port: int, connect_host: str | None = None) -> CertificateInfo:
     """Connect via Python ssl, pull the DER cert, parse with cryptography."""
     cert_info = CertificateInfo()
+    target_host = connect_host or hostname
     try:
         ctx = ssl.create_default_context()
         ctx.check_hostname = False
         ctx.verify_mode = ssl.CERT_NONE
 
-        fut = asyncio.open_connection(hostname, port, ssl=ctx, server_hostname=hostname)
+        fut = asyncio.open_connection(target_host, port, ssl=ctx, server_hostname=hostname)
         reader, writer = await asyncio.wait_for(fut, timeout=10.0)
 
         ssl_obj = writer.get_extra_info("ssl_object")
@@ -221,6 +224,7 @@ async def _run_single_probe(
     hostname: str,
     port: int,
     mode: str,
+    connect_host: str | None = None,
     extra_args: list[str] | None = None,
 ) -> ProbeProfile:
     """Execute a single TLS probe via openssl s_client.
@@ -234,7 +238,7 @@ async def _run_single_probe(
     """
     profile = ProbeProfile(mode=mode)
     try:
-        info = await _run_openssl(hostname, port, extra_args=extra_args)
+        info = await _run_openssl(hostname, port, connect_host=connect_host, extra_args=extra_args)
 
         # Fallback: if extra_args caused a silent failure, retry without them
         if extra_args and not info.get("version") and not info.get("cipher"):
@@ -242,7 +246,7 @@ async def _run_single_probe(
                 "Probe %s with extra_args %s returned empty for %s:%d — retrying plain",
                 mode, extra_args, hostname, port,
             )
-            info = await _run_openssl(hostname, port)
+            info = await _run_openssl(hostname, port, connect_host=connect_host)
 
         profile.tls_version = info.get("version") or None
         profile.cipher_suite = info.get("cipher") or None
@@ -289,6 +293,7 @@ async def probe_trimode(
     Probe C: TLS 1.2 only  — max_version forced to TLS 1.2
     """
     t0 = time.monotonic()
+    connect_host = ip or hostname
 
     # Run all 3 probes concurrently
     probe_a_task = _run_single_probe(hostname, port, "A", extra_args=[
@@ -307,7 +312,7 @@ async def probe_trimode(
     )
 
     # Certificate (one extraction is enough — shared across probes)
-    certificate = await _extract_certificate(hostname, port)
+    certificate = await _extract_certificate(hostname, port, connect_host=connect_host)
 
     elapsed = int((time.monotonic() - t0) * 1000)
 
@@ -399,7 +404,7 @@ async def probe_batch(
 # ── Legacy compatibility: probe_tls ──────────────────────────────────────────
 
 
-async def probe_tls(hostname: str, port: int = 443) -> CryptoFingerprint:
+async def probe_tls(hostname: str, port: int = 443, ip: str | None = None) -> CryptoFingerprint:
     """Legacy single-probe entry point (Phase 1-5 compatibility).
 
     Runs Probe B (TLS 1.3 classical) and converts to CryptoFingerprint.
@@ -407,6 +412,7 @@ async def probe_tls(hostname: str, port: int = 443) -> CryptoFingerprint:
     fingerprint = CryptoFingerprint()
     tls = TLSInfo()
     cert_info = CertificateInfo()
+    connect_host = ip or hostname
 
     # Phase 1: Python SSL — basic connection + certificate extraction
     try:
@@ -414,7 +420,7 @@ async def probe_tls(hostname: str, port: int = 443) -> CryptoFingerprint:
         ctx.check_hostname = False
         ctx.verify_mode = ssl.CERT_NONE
 
-        fut = asyncio.open_connection(hostname, port, ssl=ctx, server_hostname=hostname)
+        fut = asyncio.open_connection(connect_host, port, ssl=ctx, server_hostname=hostname)
         reader, writer = await asyncio.wait_for(fut, timeout=10.0)
 
         ssl_obj = writer.get_extra_info("ssl_object")

@@ -124,14 +124,19 @@ async def scan_ports(host: str, ports: list[int] | None = None) -> list[int]:
     open_ports: list[int] = []
     loop = asyncio.get_running_loop()
 
+    def _connect(target_host: str, target_port: int) -> bool:
+        try:
+            sock = socket.create_connection((target_host, target_port), timeout=2.0)
+            sock.close()
+            return True
+        except Exception:
+            return False
+
     async def probe(port: int) -> None:
         try:
-            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            sock.settimeout(2.0)
-            result = await loop.run_in_executor(None, sock.connect_ex, (host, port))
-            if result == 0:
+            is_open = await loop.run_in_executor(None, _connect, host, port)
+            if is_open:
                 open_ports.append(port)
-            sock.close()
         except Exception:
             pass
 

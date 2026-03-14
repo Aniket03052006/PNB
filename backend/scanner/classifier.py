@@ -17,12 +17,12 @@ Phase 7 additions
 
   • Legacy classify(CryptoFingerprint) → QScore kept for backward compat.
 
-Status thresholds (from worst_case score)
-─────────────────────────────────────────
-  FULLY_QUANTUM_SAFE     : worst ≥ 85 AND PQC KEX AND PQC cert
-  PQC_TRANSITION         : worst ≥ 65 AND (hybrid KEX or PQC KEX) AND TLS 1.3
-  QUANTUM_VULNERABLE     : worst ≥ 30 AND classical + TLS 1.2+
-  CRITICALLY_VULNERABLE  : worst < 30 OR TLS ≤ 1.1
+Status thresholds (from negotiated posture)
+───────────────────────────────────────────
+  FULLY_QUANTUM_SAFE     : TLS 1.3 everywhere + PQC KEX + PQC cert + strong worst-case score
+  PQC_TRANSITION         : TLS 1.3 with ML-KEM or hybrid PQC path, but classical cert and/or downgrade exposure remains
+  QUANTUM_VULNERABLE     : classical crypto only, but no immediately-broken legacy protocol
+  CRITICALLY_VULNERABLE  : weak or legacy transport posture
   UNKNOWN                : probe failure
 """
 
@@ -60,7 +60,9 @@ TLS_VERSION_SCORES_V7 = {
 # Key exchange scoring (max 30)
 KEX_SCORES_V7 = {
     "ML-KEM-1024": 30, "ML-KEM-768": 30, "ML-KEM-512": 28,
-    "X25519MLKEM768": 22, "X25519KYBER768": 22, "KYBER": 22,
+    "X25519MLKEM768": 24, "X25519KYBER768": 24, "X448MLKEM1024": 24,
+    "SECP256R1MLKEM768": 24, "0X11EC": 24,
+    "KYBER": 22,
     "ECDHE": 12, "X25519": 12, "X448": 12,
     "DHE": 6, "DH": 0, "RSA": 0,
 }
@@ -86,7 +88,51 @@ CIPHER_STRENGTH_SCORES_V7 = {
 # PQC algorithm name fragments for detection
 _PQC_KEX_NAMES = frozenset({"ML-KEM", "MLKEM", "KYBER"})
 _PQC_SIG_NAMES = frozenset({"ML-DSA", "MLDSA", "SLH-DSA", "SLHDSA"})
-_HYBRID_KEX = frozenset({"X25519MLKEM768", "X25519KYBER768", "X448MLKEM1024"})
+_HYBRID_KEX = frozenset({"X25519MLKEM768", "X25519KYBER768", "X448MLKEM1024", "SECP256R1MLKEM768", "0X11EC"})
+_LEGACY_TLS_VERSIONS = frozenset({"TLSV1.1", "TLSV1", "TLSV1.0", "SSLV3", "SSLV2"})
+
+
+def _norm_alg(value: str | None) -> str:
+    return str(value or "").upper().replace("-", "").replace("_", "").replace(" ", "").replace(".", "")
+
+
+def _matches_any(value: str | None, patterns: set[str] | frozenset[str]) -> bool:
+    norm = _norm_alg(value)
+    return any(_norm_alg(pattern) in norm for pattern in patterns)
+
+
+def _is_tls13_version(value: str | None) -> bool:
+    return "13" in _norm_alg(value)
+
+
+def _is_legacy_tls_version(value: str | None) -> bool:
+    norm = _norm_alg(value)
+    return norm in _LEGACY_TLS_VERSIONS or "11" in norm or norm.startswith("SSL")
+
+
+def _is_hybrid_kex_name(value: str | None) -> bool:
+    return _matches_any(value, _HYBRID_KEX)
+
+
+def _is_pqc_kex_name(value: str | None) -> bool:
+    norm = _norm_alg(value)
+    if not norm:
+        return False
+    if _is_hybrid_kex_name(norm):
+        return True
+    return _matches_any(norm, _PQC_KEX_NAMES)
+
+
+def _is_pqc_sig_name(*values: str | None) -> bool:
+    return any(_matches_any(value, _PQC_SIG_NAMES) for value in values if value)
+
+
+def _resolve_kex_score(kex_raw: str) -> int:
+    best = 0
+    for pattern, points in KEX_SCORES_V7.items():
+        if _norm_alg(pattern) in kex_raw:
+            best = max(best, points)
+    return best
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -122,22 +168,23 @@ def _score_probe(probe: ProbeProfile, agility: int = 0) -> QScore:
         findings.append("TLS 1.3 — PQC extension support available")
 
     # ── Key Exchange ───────────────────────────────────────────────────
-    kex_raw = (probe.key_exchange or probe.key_exchange_group or "").upper()
-    kex_score = 0
-    for pattern, pts in KEX_SCORES_V7.items():
-        if pattern in kex_raw:
-            kex_score = max(kex_score, pts)
+    kex_display = probe.key_exchange or probe.key_exchange_group or ""
+    kex_raw = _norm_alg(kex_display)
+    kex_score = _resolve_kex_score(kex_raw)
     score.key_exchange_score = kex_score
 
-    has_pqc_kex = any(n in kex_raw for n in _PQC_KEX_NAMES)
+    has_pqc_kex = _is_pqc_kex_name(kex_raw)
+    has_hybrid_kex = _is_hybrid_kex_name(kex_raw)
 
-    if has_pqc_kex:
-        findings.append(f"PQC key exchange: {kex_raw}")
+    if has_hybrid_kex:
+        findings.append(f"Hybrid PQC key exchange: {kex_display or kex_raw}")
+    elif has_pqc_kex:
+        findings.append(f"PQC key exchange: {kex_display or kex_raw}")
     elif kex_score == 0:
-        findings.append(f"CRITICAL: {kex_raw or 'RSA'} key exchange — no forward secrecy, quantum-vulnerable")
+        findings.append(f"CRITICAL: {kex_display or 'RSA'} key exchange — no forward secrecy, quantum-vulnerable")
         recommendations.append("Enable ECDHE/X25519 then migrate to ML-KEM hybrid")
     else:
-        findings.append(f"{kex_raw} — quantum-vulnerable but provides forward secrecy")
+        findings.append(f"{kex_display or kex_raw} — quantum-vulnerable but provides forward secrecy")
         recommendations.append("Enable X25519+ML-KEM-768 hybrid key exchange")
 
     # ── Certificate ────────────────────────────────────────────────────
@@ -165,11 +212,11 @@ def _score_probe(probe: ProbeProfile, agility: int = 0) -> QScore:
 
     score.certificate_score = cert_score
 
-    has_pqc_sig = any(n in sig_algo or n in pk_type for n in _PQC_SIG_NAMES)
+    has_pqc_sig = _is_pqc_sig_name(sig_algo, pk_type)
     if has_pqc_sig:
         findings.append("PQC digital signature — quantum-resistant certificate")
     else:
-        findings.append(f"Classical certificate ({pk_type}-{pk_bits}) — quantum-vulnerable")
+        findings.append(f"Classical certificate ({pk_type or sig_algo or 'UNKNOWN'}-{pk_bits}) — quantum-vulnerable")
         recommendations.append("Request ML-DSA or SLH-DSA certificate from CA")
 
     # ── Cipher Strength ────────────────────────────────────────────────
@@ -196,43 +243,73 @@ def _score_probe(probe: ProbeProfile, agility: int = 0) -> QScore:
     return score
 
 
-def _determine_status(
-    worst_q: QScore,
-    best_q: QScore,
-    worst_probe: ProbeProfile,
-    best_probe: ProbeProfile,
+def _determine_probe_status(
+    probe_q: QScore,
+    probe: ProbeProfile,
+    *,
+    cert_sig: str = "",
+    cert_pk: str = "",
 ) -> PQCStatus:
-    """Derive overall PQC status from worst-case score + probe metadata."""
-    if worst_q.status == PQCStatus.UNKNOWN:
+    """Classify one probe path using negotiated algorithms plus certificate posture."""
+    if probe_q.status == PQCStatus.UNKNOWN:
         return PQCStatus.UNKNOWN
 
-    worst_total = worst_q.total
-    worst_tls = (worst_probe.tls_version or "")
-    best_kex = (best_probe.key_exchange or best_probe.key_exchange_group or "").upper()
-    best_sig = (best_probe.signature_algorithm or "").upper()
+    tls_version = probe.tls_version or ""
+    kex_name = probe.key_exchange or probe.key_exchange_group or ""
+    has_tls13 = _is_tls13_version(tls_version)
+    has_pqc_kex = _is_pqc_kex_name(kex_name)
+    has_pqc_sig = _is_pqc_sig_name(probe.signature_algorithm, probe.public_key_type, cert_sig, cert_pk)
 
-    has_pqc_kex = any(n in best_kex for n in _PQC_KEX_NAMES)
-    has_hybrid = any(h in best_kex for h in _HYBRID_KEX)
-    has_pqc_sig = any(n in best_sig for n in _PQC_SIG_NAMES)
-
-    # FULLY_QUANTUM_SAFE: worst ≥ 85, PQC KEX, PQC cert
-    if worst_total >= 85 and has_pqc_kex and has_pqc_sig:
+    if has_tls13 and has_pqc_kex and has_pqc_sig and probe_q.total >= 85:
         return PQCStatus.FULLY_QUANTUM_SAFE
 
-    # PQC_TRANSITION: worst ≥ 65, hybrid/PQC KEX, TLS 1.3 in best probe
-    best_tls = (best_probe.tls_version or "")
-    if worst_total >= 65 and (has_hybrid or has_pqc_kex) and "1.3" in best_tls:
+    if has_tls13 and has_pqc_kex:
         return PQCStatus.PQC_TRANSITION
 
-    # CRITICALLY_VULNERABLE: worst < 30 or TLS ≤1.1
-    if worst_total < 30 or worst_tls in ("TLSv1.1", "TLSv1", "TLSv1.0", "SSLv3", "SSLv2"):
+    if probe_q.total < 30 or _is_legacy_tls_version(tls_version):
         return PQCStatus.CRITICALLY_VULNERABLE
 
-    # QUANTUM_VULNERABLE: classical + TLS 1.2+
-    if worst_total >= 30:
+    if probe_q.total >= 30:
         return PQCStatus.QUANTUM_VULNERABLE
 
     return PQCStatus.CRITICALLY_VULNERABLE
+
+
+def _determine_asset_status(
+    best_q: QScore,
+    typical_q: QScore,
+    worst_q: QScore,
+    fp: TriModeFingerprint,
+) -> PQCStatus:
+    """Derive overall asset posture from all three probes plus certificate metadata."""
+    if all(q.status == PQCStatus.UNKNOWN for q in (best_q, typical_q, worst_q)):
+        return PQCStatus.UNKNOWN
+
+    probes = [fp.probe_a, fp.probe_b, fp.probe_c]
+    cert_sig = fp.certificate.signature_algorithm or fp.probe_a.signature_algorithm or fp.probe_b.signature_algorithm or fp.probe_c.signature_algorithm or ""
+    cert_pk = fp.certificate.public_key_type or fp.probe_a.public_key_type or fp.probe_b.public_key_type or fp.probe_c.public_key_type or ""
+
+    has_tls13_path = any(_is_tls13_version(probe.tls_version) for probe in probes)
+    has_pqc_path = any(_is_pqc_kex_name(probe.key_exchange or probe.key_exchange_group) for probe in probes)
+    has_pqc_sig = _is_pqc_sig_name(cert_sig, cert_pk)
+    all_legacy = all(
+        not (probe.tls_version or probe.cipher_suite or probe.cipher_bits)
+        or _is_legacy_tls_version(probe.tls_version)
+        for probe in probes
+    )
+
+    if has_tls13_path and has_pqc_path and has_pqc_sig and _is_tls13_version(fp.probe_c.tls_version) and worst_q.total >= 85:
+        return PQCStatus.FULLY_QUANTUM_SAFE
+
+    # Any ML-KEM / hybrid-capable TLS 1.3 path should be treated as transition posture
+    # even if a classical cert or downgrade path still drags the worst-case score down.
+    if has_tls13_path and has_pqc_path:
+        return PQCStatus.PQC_TRANSITION
+
+    if worst_q.total < 30 or all_legacy:
+        return PQCStatus.CRITICALLY_VULNERABLE
+
+    return PQCStatus.QUANTUM_VULNERABLE
 
 
 def _build_summary(hostname: str, status: PQCStatus, best: int, worst: int) -> str:
@@ -287,10 +364,12 @@ def classify_trimode(fp: TriModeFingerprint) -> ClassifiedAsset:
     typical_q = _score_probe(fp.probe_b, agility)
     worst_q = _score_probe(fp.probe_c, agility)
 
-    status = _determine_status(worst_q, best_q, fp.probe_c, fp.probe_a)
-    best_q.status = _determine_status(best_q, best_q, fp.probe_a, fp.probe_a)
-    typical_q.status = _determine_status(typical_q, best_q, fp.probe_b, fp.probe_a)
-    worst_q.status = status
+    cert_sig = fp.certificate.signature_algorithm or ""
+    cert_pk = fp.certificate.public_key_type or ""
+    best_q.status = _determine_probe_status(best_q, fp.probe_a, cert_sig=cert_sig, cert_pk=cert_pk)
+    typical_q.status = _determine_probe_status(typical_q, fp.probe_b, cert_sig=cert_sig, cert_pk=cert_pk)
+    worst_q.status = _determine_probe_status(worst_q, fp.probe_c, cert_sig=cert_sig, cert_pk=cert_pk)
+    status = _determine_asset_status(best_q, typical_q, worst_q, fp)
 
     return ClassifiedAsset(
         hostname=fp.hostname,
@@ -459,12 +538,16 @@ def classify(fingerprint: CryptoFingerprint, negotiation_policy: Any | None = No
     score.total = max(0, min(100, int(score.total)))
 
     # Status Classification
+    has_tls13 = _is_tls13_version(tls.version)
+    has_pqc_path = fingerprint.has_pqc_kex or _is_pqc_kex_name(tls.key_exchange)
+    has_pqc_cert = fingerprint.has_pqc_signature or _is_pqc_sig_name(cert.signature_algorithm, cert.public_key_type)
+
     if tls_score == 0 or cert.is_expired:
         score.status = PQCStatus.CRITICALLY_VULNERABLE
         score.total = min(score.total, 39)
-    elif score.total >= 90 or (fingerprint.has_pqc_kex and fingerprint.has_pqc_signature):
+    elif has_tls13 and has_pqc_path and has_pqc_cert and score.total >= 90:
         score.status = PQCStatus.FULLY_QUANTUM_SAFE
-    elif score.total >= 70 or fingerprint.has_hybrid_mode or fingerprint.has_pqc_kex:
+    elif has_tls13 and has_pqc_path:
         score.status = PQCStatus.PQC_TRANSITION
     elif score.total >= 40:
         score.status = PQCStatus.QUANTUM_VULNERABLE

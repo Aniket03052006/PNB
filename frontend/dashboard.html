@@ -1,0 +1,826 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Q-ARMOR: Quantum-Aware Mapping & Observation for Risk Remediation — Cryptographic scanner and inventory engine for banking">
+    <title>Q-ARMOR — Quantum Cryptographic Scanner</title>
+    <link rel="stylesheet" href="./css/styles.css">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2300ff88' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z'/></svg>">
+</head>
+<body>
+    <!-- Loading Overlay -->
+    <div class="loading-overlay" id="loadingOverlay">
+        <div class="loading-spinner"></div>
+        <div class="loading-text">Scanning cryptographic surface...</div>
+    </div>
+
+    <div class="app-container">
+        <!-- Header -->
+        <header class="header">
+            <div class="header-brand">
+                <div class="header-logo">Q</div>
+                <div>
+                    <div class="header-title">Q-ARMOR</div>
+                    <div class="header-subtitle">Quantum-Aware Mapping &amp; Observation for Risk Remediation</div>
+                </div>
+            </div>
+            <div class="header-actions">
+                <button class="btn btn-primary" id="btnDemoScan" onclick="runDemoScan()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg> Run Demo Scan</button>
+                <button class="btn" id="btnExportCBOM" onclick="exportCBOM()" disabled><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg> Export CBOM</button>
+                <button class="btn" id="btnExportCDXA" onclick="exportCDXA()" disabled><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg> Export CDXA</button>
+            </div>
+        </header>
+
+        <!-- Scan Input -->
+        <div class="scan-input-section">
+            <input type="text" class="scan-input" id="domainInput" placeholder="Enter domain to scan (e.g. example.com)" />
+            <button class="btn" onclick="scanDomain()">Scan Domain</button>
+            <input type="text" class="scan-input" id="singleHostInput" placeholder="Single host (e.g. api.example.com)" style="max-width: 280px;" />
+            <button class="btn" onclick="scanSingleHost()">Probe</button>
+        </div>
+
+        <!-- Tab Navigation -->
+        <div class="tab-nav" id="tabNav">
+            <button class="tab-btn tab-btn--active" data-tab="overview" onclick="switchTab('overview')"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg> Overview</button>
+            <button class="tab-btn" data-tab="assessment" onclick="switchTab('assessment')"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg> PQC Assessment</button>
+            <button class="tab-btn" data-tab="remediation" onclick="switchTab('remediation')"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"></path></svg> Remediation Plan</button>
+            <button class="tab-btn" data-tab="matrix" onclick="switchTab('matrix')"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path><rect x="8" y="2" width="8" height="4" rx="1" ry="1"></rect></svg> NIST Matrix</button>
+            <button class="tab-btn" data-tab="trimode" onclick="switchTab('trimode')"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12a10 10 0 1 1 10 10"></path><line x1="12" y1="2" x2="12" y2="22"></line><line x1="2" y1="12" x2="22" y2="12"></line></svg> Tri-Mode</button>
+            <button class="tab-btn" data-tab="history" onclick="switchTab('history')"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg> History</button>
+            <button class="tab-btn" data-tab="phase7" onclick="switchTab('phase7')"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"></path><path d="M2 17l10 5 10-5"></path><path d="M2 12l10 5 10-5"></path></svg> Classification &amp; Agility</button>
+            <button class="tab-btn" data-tab="phase9" onclick="switchTab('phase9')"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><polyline points="9 12 11 14 15 10"/></svg> Regression &amp; Certification</button>
+        </div>
+
+        <!-- ═══════════════ TAB: OVERVIEW (Phase 1) ═══════════════ -->
+        <div class="tab-content tab-content--active" id="tab-overview">
+
+            <!-- Stats Grid -->
+            <div class="stats-grid" id="statsGrid">
+                <div class="stat-card stat-card--total">
+                    <div class="stat-value" id="statTotal">—</div>
+                    <div class="stat-label">Total Assets</div>
+                    <div class="stat-pct" id="statAvgScore">Avg Q-Score: —</div>
+                </div>
+                <div class="stat-card stat-card--safe">
+                    <div class="stat-value" id="statSafe">—</div>
+                    <div class="stat-label">Fully Quantum Safe</div>
+                    <div class="stat-pct" id="statSafePct">—</div>
+                </div>
+                <div class="stat-card stat-card--transition">
+                    <div class="stat-value" id="statTransition">—</div>
+                    <div class="stat-label">PQC Transition</div>
+                    <div class="stat-pct" id="statTransitionPct">—</div>
+                </div>
+                <div class="stat-card stat-card--vulnerable">
+                    <div class="stat-value" id="statVulnerable">—</div>
+                    <div class="stat-label">Quantum Vulnerable</div>
+                    <div class="stat-pct" id="statVulnerablePct">—</div>
+                </div>
+                <div class="stat-card stat-card--critical" id="criticalCard">
+                    <div class="stat-value" id="statCritical">0</div>
+                    <div class="stat-label">CRITICALLY VULNERABLE</div>
+                    <div class="stat-pct" id="statCriticalPct">—</div>
+                </div>
+                <div class="stat-card stat-card--unknown" id="unknownCard">
+                    <div class="stat-value" id="statUnknown">0</div>
+                    <div class="stat-label">UNKNOWN</div>
+                    <div class="stat-pct" id="statUnknownPct">—</div>
+                </div>
+            </div>
+
+            <!-- Enterprise API Dashboard (Home + Discovery + PQC Intelligence) -->
+            <div class="panel" id="enterpriseApiPanel" style="margin-bottom: 20px;">
+                <div class="panel-header">
+                    <div class="panel-title">Enterprise Intelligence Dashboard</div>
+                    <div class="enterprise-controls" style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+                        <div class="panel-badge" id="apiDataNoticeBadge" style="background: rgba(0, 212, 255, 0.12); color: var(--accent-cyan);">Loading...</div>
+                        <select id="enterpriseModeSelect" class="scan-input" style="max-width: 110px;" onchange="onEnterpriseModeChange()">
+                            <option value="demo" selected>Demo</option>
+                            <option value="live">Live</option>
+                        </select>
+                        <input type="text" id="enterpriseDomainInput" class="scan-input" placeholder="Live domain (e.g. example.com)" style="max-width: 240px; display: none;" />
+                        <button class="btn" onclick="refreshNewDashboardApis()">Refresh Data APIs</button>
+                    </div>
+                </div>
+                <div id="enterpriseModeHint" style="font-size: 0.76rem; color: var(--text-dim); margin-bottom: 10px;">
+                    Demo mode is active. Switch to Live mode and provide a domain to fetch real data.
+                </div>
+
+                <div class="api-v2-grid">
+                    <div class="api-v2-card">
+                        <div class="api-v2-title">Home Summary</div>
+                        <div class="metric-list">
+                            <div class="metric-row"><span>Domains</span><strong id="homeDomainCount">—</strong></div>
+                            <div class="metric-row"><span>IP Assets</span><strong id="homeIpCount">—</strong></div>
+                            <div class="metric-row"><span>Subdomains</span><strong id="homeSubdomainCount">—</strong></div>
+                            <div class="metric-row"><span>Cloud Assets</span><strong id="homeCloudCount">—</strong></div>
+                            <div class="metric-row"><span>SSL Certs</span><strong id="homeSslCount">—</strong></div>
+                            <div class="metric-row"><span>Software</span><strong id="homeSoftwareCount">—</strong></div>
+                            <div class="metric-row"><span>IoT Devices</span><strong id="homeIotCount">—</strong></div>
+                            <div class="metric-row"><span>Login Forms</span><strong id="homeLoginFormCount">—</strong></div>
+                            <div class="metric-row"><span>PQC Adoption</span><strong id="homePqcAdoptionPct">—</strong></div>
+                            <div class="metric-row"><span>PQC Transition</span><strong id="homeTransitionPct">—</strong></div>
+                            <div class="metric-row"><span>Vulnerable Components</span><strong id="homeVulnComponents">—</strong></div>
+                            <div class="metric-row"><span>Weak Crypto</span><strong id="homeWeakCrypto">—</strong></div>
+                        </div>
+                    </div>
+
+                    <div class="api-v2-card">
+                        <div class="api-v2-title">Asset Discovery + Network Graph</div>
+                        <div class="metric-list" style="margin-bottom: 10px;">
+                            <div class="metric-row"><span>Domain Records</span><strong id="domainsCount">—</strong></div>
+                            <div class="metric-row"><span>SSL Records</span><strong id="sslCount">—</strong></div>
+                            <div class="metric-row"><span>IP Records</span><strong id="ipCount">—</strong></div>
+                            <div class="metric-row"><span>Software Records</span><strong id="softwareCount">—</strong></div>
+                            <div class="metric-row"><span>Network Nodes</span><strong id="networkNodesCount">—</strong></div>
+                            <div class="metric-row"><span>Network Edges</span><strong id="networkEdgesCount">—</strong></div>
+                        </div>
+                        <div class="api-mini-list" id="networkStatusSummary">Status distribution pending...</div>
+                        <div class="api-mini-list" id="assetSamples" style="margin-top:8px;">Asset sample data pending...</div>
+                    </div>
+
+                    <div class="api-v2-card">
+                        <div class="api-v2-title">Cyber Rating + PQC Intelligence</div>
+                        <div class="metric-list" style="margin-bottom: 10px;">
+                            <div class="metric-row"><span>Enterprise Score</span><strong id="cyberEnterpriseScore">—</strong></div>
+                            <div class="metric-row"><span>Tier</span><strong id="cyberTier">—</strong></div>
+                            <div class="metric-row"><span>Display Tier</span><strong id="cyberDisplayTier">—</strong></div>
+                            <div class="metric-row"><span>Negotiation Policies</span><strong id="negotiationCount">—</strong></div>
+                        </div>
+
+                        <div class="mini-section-title">PQC Heatmap</div>
+                        <div id="heatmapTableContainer" class="heatmap-grid">No heatmap data</div>
+
+                        <div class="mini-section-title" style="margin-top: 10px;">Top Negotiation Policies</div>
+                        <div id="negotiationTableContainer" class="api-mini-list">No negotiation data</div>
+                    </div>
+                </div>
+
+                <div class="viz-grid viz-grid--two" id="overviewInteractiveGrid" style="margin-top: 1rem;">
+                    <div class="viz-surface">
+                        <div class="viz-surface-head">Asset Discovery Network Graph</div>
+                        <div id="networkVizMount"></div>
+                    </div>
+                    <div class="viz-surface">
+                        <div class="viz-surface-head">Cyber Rating</div>
+                        <div id="cyberVizMount"></div>
+                    </div>
+                </div>
+
+                <div class="viz-grid viz-grid--two" id="overviewPostureGrid" style="margin-top: 1rem;">
+                    <div class="viz-surface">
+                        <div class="viz-surface-head">PQC Posture Heatmap</div>
+                        <div id="heatmapVizMount"></div>
+                    </div>
+                    <div class="viz-surface">
+                        <div class="viz-surface-head">SSL Certificate Timeline</div>
+                        <div id="certVizMount"></div>
+                    </div>
+                </div>
+
+                <div class="report-controls">
+                    <div class="mini-section-title" style="margin: 0;">Reporting API</div>
+                    <select id="reportTypeSelect" class="scan-input" style="max-width: 220px;">
+                        <option value="executive">Executive</option>
+                        <option value="discovery">Discovery</option>
+                        <option value="inventory">Inventory</option>
+                        <option value="cbom">CBOM</option>
+                        <option value="posture">Posture</option>
+                        <option value="cyber_rating">Cyber Rating</option>
+                    </select>
+                    <select id="reportFormatSelect" class="scan-input" style="max-width: 140px;">
+                        <option value="json">JSON</option>
+                        <option value="html">HTML</option>
+                    </select>
+                    <button class="btn" onclick="generateApiReport()">Generate Report</button>
+                    <div class="panel-badge" id="reportMetaBadge" style="background: rgba(167, 139, 250, 0.12); color: var(--accent-purple);">No report generated</div>
+                </div>
+
+                <pre id="reportPreview" class="code-preview">Report output preview will appear here.</pre>
+            </div>
+
+            <!-- Main Grid: Asset Table + Q-Score Ring -->
+            <div class="main-grid">
+                <!-- Asset Table Panel -->
+                <div class="panel">
+                    <div class="panel-header">
+                        <div class="panel-title">Asset Inventory</div>
+                        <div class="panel-badge" id="assetCount" style="background: rgba(0, 255, 136, 0.12); color: var(--accent-green);">0 assets</div>
+                    </div>
+                    <div id="assetTableContainer">
+                        <div class="empty-state">
+                            <div class="empty-state-icon"><svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg></div>
+                            <div class="empty-state-title">No scan data</div>
+                            <div class="empty-state-desc">Click "Run Demo Scan" or enter a domain to begin</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Sidebar: Q-Score Overview -->
+                <div class="panel">
+                    <div class="panel-header">
+                        <div class="panel-title">Q-Score Overview</div>
+                    </div>
+                    <div class="qscore-ring-container" id="qscoreRingContainer">
+                        <div class="qscore-ring">
+                            <svg viewBox="0 0 160 160" width="160" height="160">
+                                <circle class="qscore-ring-bg" cx="80" cy="80" r="68"></circle>
+                                <circle class="qscore-ring-fill" id="qscoreRingFill" cx="80" cy="80" r="68"
+                                    stroke-dasharray="427.26" stroke-dashoffset="427.26"></circle>
+                            </svg>
+                            <div class="qscore-ring-text">
+                                <div class="qscore-ring-number" id="qscoreRingNumber">—</div>
+                                <div class="qscore-ring-label">AVG Q-SCORE</div>
+                            </div>
+                        </div>
+                        <div class="dist-bars" id="distBars"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Remediation Roadmap (Phase 1 summary) -->
+            <div class="remediation-section">
+                <div class="panel">
+                    <div class="panel-header">
+                        <div class="panel-title">Remediation Roadmap</div>
+                    </div>
+                    <div id="remediationContainer">
+                        <div class="empty-state">
+                            <div class="empty-state-icon"><svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path><rect x="8" y="2" width="8" height="4" rx="1" ry="1"></rect></svg></div>
+                            <div class="empty-state-title">Awaiting scan data</div>
+                            <div class="empty-state-desc">Remediation roadmap will appear after a scan</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Certification Labels -->
+            <div class="panel" id="certLabelsSection" style="display: none;">
+                <div class="panel-header">
+                    <div class="panel-title"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"></path><line x1="7" y1="7" x2="7.01" y2="7"></line></svg> Certification Labels</div>
+                    <div class="panel-badge" id="certLabelCount" style="background: rgba(0, 212, 255, 0.12); color: var(--accent-cyan);">0 labels</div>
+                </div>
+                <!-- Tier summary cards -->
+                <div class="stats-grid" id="certLabelStats" style="margin-bottom: 16px;">
+                    <div class="stat-card stat-card--safe">
+                        <div class="stat-value" id="certFullySafe">0</div>
+                        <div class="stat-label"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"></polyline></svg> FULLY QUANTUM SAFE</div>
+                    </div>
+                    <div class="stat-card stat-card--transition">
+                        <div class="stat-value" id="certPQCReady">0</div>
+                        <div class="stat-label"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle></svg> PQC READY</div>
+                    </div>
+                    <div class="stat-card stat-card--critical">
+                        <div class="stat-value" id="certNonCompliant">0</div>
+                        <div class="stat-label"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg> NON-COMPLIANT</div>
+                    </div>
+                </div>
+                <div class="labels-grid" id="certLabelsContainer"></div>
+            </div>
+
+            <!-- PQC Labels (Phase 1) -->
+            <div class="panel" id="labelsSection" style="display: none;">
+                <div class="panel-header">
+                    <div class="panel-title">PQC-Ready Certificates Issued</div>
+                </div>
+                <div class="labels-grid" id="labelsContainer"></div>
+            </div>
+
+            <!-- Compliance Attestation -->
+            <div class="panel" id="attestationSection" style="display: none;">
+                <div class="panel-header">
+                    <div class="panel-title"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg> Compliance Attestation (CDXA)</div>
+                    <div class="panel-badge" id="attestStatus" style="background: rgba(168, 85, 247, 0.12); color: #a855f7;">Not Generated</div>
+                </div>
+                <div class="stats-grid" id="attestStats" style="margin-bottom: 16px;">
+                    <div class="stat-card stat-card--safe">
+                        <div class="stat-value" id="attestCompliant">0</div>
+                        <div class="stat-label"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"></polyline></svg> COMPLIANT</div>
+                    </div>
+                    <div class="stat-card stat-card--transition">
+                        <div class="stat-value" id="attestPartial">0</div>
+                        <div class="stat-label"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle></svg> PARTIAL</div>
+                    </div>
+                    <div class="stat-card stat-card--critical">
+                        <div class="stat-value" id="attestNonCompliant">0</div>
+                        <div class="stat-label"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg> NON-COMPLIANT</div>
+                    </div>
+                    <div class="stat-card" style="border-color: #a855f7;">
+                        <div class="stat-value" id="attestSigned" style="color: #a855f7;">—</div>
+                        <div class="stat-label">SIGNED (Ed25519)</div>
+                    </div>
+                </div>
+                <div id="attestDetails" style="font-size: 0.82rem; color: var(--text-secondary);"></div>
+            </div>
+
+            <!-- Security Alerts -->
+            <div class="panel" id="alertsSection" style="display: none;">
+                <div class="panel-header">
+                    <div class="panel-title"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg> Security Alerts</div>
+                    <div class="panel-badge" id="alertCount" style="background: rgba(255, 59, 48, 0.12); color: #ff3b30;">0 alerts</div>
+                </div>
+                <div id="alertsContainer"></div>
+            </div>
+
+        </div><!-- /tab-overview -->
+
+        <!-- ═══════════════ TAB: PQC ASSESSMENT (Phase 2) ═══════════════ -->
+        <div class="tab-content" id="tab-assessment">
+            <div id="assessmentEmpty" class="empty-state" style="padding: 80px 20px;">
+                <div class="empty-state-icon"><svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg></div>
+                <div class="empty-state-title">No assessment data</div>
+                <div class="empty-state-desc">Run a scan first, then the NIST PQC assessment will appear here</div>
+            </div>
+            <div id="assessmentContent" style="display:none;">
+
+                <!-- Phase 2 KPI Cards -->
+                <div class="stats-grid" id="phase2Stats">
+                    <div class="stat-card stat-card--total">
+                        <div class="stat-value" id="p2StatEndpoints">—</div>
+                        <div class="stat-label">Assessed Endpoints</div>
+                        <div class="stat-pct" id="p2AvgScore">Avg Q-Score: —</div>
+                    </div>
+                    <div class="stat-card stat-card--critical">
+                        <div class="stat-value" id="p2StatHigh">—</div>
+                        <div class="stat-label">HIGH RISK</div>
+                        <div class="stat-pct" id="p2StatHighPct">—</div>
+                    </div>
+                    <div class="stat-card stat-card--transition">
+                        <div class="stat-value" id="p2StatMedium">—</div>
+                        <div class="stat-label">MEDIUM RISK</div>
+                        <div class="stat-pct" id="p2StatMediumPct">—</div>
+                    </div>
+                    <div class="stat-card stat-card--safe">
+                        <div class="stat-value" id="p2StatLow">—</div>
+                        <div class="stat-label">LOW RISK</div>
+                        <div class="stat-pct" id="p2StatLowPct">—</div>
+                    </div>
+                    <div class="stat-card stat-card--vulnerable">
+                        <div class="stat-value" id="p2StatHNDL">—</div>
+                        <div class="stat-label">HNDL EXPOSED</div>
+                        <div class="stat-pct" id="p2StatHNDLPct">—</div>
+                    </div>
+                </div>
+
+                <!-- Charts Row -->
+                <div class="charts-row">
+                    <!-- KEX Status Chart -->
+                    <div class="panel chart-panel">
+                        <div class="panel-header">
+                            <div class="panel-title">Key Exchange Status</div>
+                        </div>
+                        <div class="chart-container">
+                            <canvas id="chartKEX" width="280" height="280"></canvas>
+                            <div class="chart-legend" id="legendKEX"></div>
+                        </div>
+                    </div>
+                    <!-- TLS Protocol Chart -->
+                    <div class="panel chart-panel">
+                        <div class="panel-header">
+                            <div class="panel-title">TLS Protocol Compliance</div>
+                        </div>
+                        <div class="chart-container">
+                            <canvas id="chartTLS" width="280" height="280"></canvas>
+                            <div class="chart-legend" id="legendTLS"></div>
+                        </div>
+                    </div>
+                    <!-- Risk Distribution Chart -->
+                    <div class="panel chart-panel">
+                        <div class="panel-header">
+                            <div class="panel-title">Quantum Risk Distribution</div>
+                        </div>
+                        <div class="chart-container">
+                            <canvas id="chartRisk" width="280" height="280"></canvas>
+                            <div class="chart-legend" id="legendRisk"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Dimension Breakdown Bars -->
+                <div class="panel" style="margin-bottom: 20px;">
+                    <div class="panel-header">
+                        <div class="panel-title">Cryptographic Dimension Breakdown</div>
+                    </div>
+                    <div id="dimensionBars" class="dimension-bars"></div>
+                </div>
+
+                <!-- Per-Endpoint Assessment Table -->
+                <div class="panel">
+                    <div class="panel-header">
+                        <div class="panel-title">Per-Endpoint NIST Assessment</div>
+                        <div class="panel-badge" id="assessCount" style="background: rgba(0, 212, 255, 0.12); color: var(--accent-cyan);">0 endpoints</div>
+                    </div>
+                    <div id="assessTableContainer" style="overflow-x:auto;">
+                    </div>
+                </div>
+
+            </div>
+        </div><!-- /tab-assessment -->
+
+        <!-- ═══════════════ TAB: REMEDIATION PLAN (Phase 2) ═══════════════ -->
+        <div class="tab-content" id="tab-remediation">
+            <div id="remPlanEmpty" class="empty-state" style="padding: 80px 20px;">
+                <div class="empty-state-icon"><svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"></path></svg></div>
+                <div class="empty-state-title">No remediation plan</div>
+                <div class="empty-state-desc">Run a scan to generate the PQC migration remediation plan</div>
+            </div>
+            <div id="remPlanContent" style="display:none;">
+
+                <!-- Remediation Summary Cards -->
+                <div class="stats-grid">
+                    <div class="stat-card stat-card--total">
+                        <div class="stat-value" id="remTotal">—</div>
+                        <div class="stat-label">Total Actions</div>
+                    </div>
+                    <div class="stat-card stat-card--critical">
+                        <div class="stat-value" id="remP1">—</div>
+                        <div class="stat-label">P1 CRITICAL</div>
+                        <div class="stat-pct">0–30 days</div>
+                    </div>
+                    <div class="stat-card stat-card--vulnerable">
+                        <div class="stat-value" id="remP2">—</div>
+                        <div class="stat-label">P2 HIGH</div>
+                        <div class="stat-pct">30–90 days</div>
+                    </div>
+                    <div class="stat-card stat-card--transition">
+                        <div class="stat-value" id="remP3">—</div>
+                        <div class="stat-label">P3 MEDIUM</div>
+                        <div class="stat-pct">90–180 days</div>
+                    </div>
+                    <div class="stat-card stat-card--safe">
+                        <div class="stat-value" id="remP4">—</div>
+                        <div class="stat-label">P4 LOW</div>
+                        <div class="stat-pct">180–365 days</div>
+                    </div>
+                </div>
+
+                <!-- Category Breakdown -->
+                <div class="panel" style="margin-bottom: 20px;">
+                    <div class="panel-header">
+                        <div class="panel-title">Actions by Category</div>
+                    </div>
+                    <div id="remCategoryBars" class="dimension-bars"></div>
+                </div>
+
+                <!-- Strategic Roadmap Timeline -->
+                <div class="panel">
+                    <div class="panel-header">
+                        <div class="panel-title">Strategic Migration Roadmap</div>
+                    </div>
+                    <div id="remRoadmapContainer" class="remediation-timeline-v2"></div>
+                </div>
+            </div>
+        </div><!-- /tab-remediation -->
+
+        <!-- ═══════════════ TAB: NIST MATRIX ═══════════════ -->
+        <div class="tab-content" id="tab-matrix">
+            <div id="matrixContent">
+                <div class="panel" style="margin-bottom: 20px;">
+                    <div class="panel-header">
+                        <div class="panel-title">NIST PQC Validation Matrix Reference</div>
+                        <button class="btn" onclick="loadNISTMatrix()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg> Load Matrix</button>
+                    </div>
+                    <p style="font-size: 0.82rem; color: var(--text-secondary); margin-bottom: 16px;">
+                        This matrix classifies cryptographic algorithms by their quantum vulnerability status
+                        based on NIST FIPS 203/204/205 standards. Used internally by Q-ARMOR's assessment engine.
+                    </p>
+                    <div id="matrixTables">
+                        <div class="empty-state">
+                            <div class="empty-state-icon"><svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path><rect x="8" y="2" width="8" height="4" rx="1" ry="1"></rect></svg></div>
+                            <div class="empty-state-title">Click "Load Matrix" to display</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div><!-- /tab-matrix -->
+
+        <!-- ═══════════════ TAB: TRI-MODE PROBING (Phase 6) ═══════════════ -->
+        <div class="tab-content" id="tab-trimode">
+
+            <!-- ── Probe any host (always visible) ── -->
+            <div class="panel" style="margin-bottom:20px;">
+                <div class="panel-header">
+                    <div class="panel-title"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg> Live-Probe Any Host</div>
+                    <span style="color:var(--text-dim);font-size:0.75rem;">Real TLS handshakes — no demo data</span>
+                </div>
+                <div class="scan-input-section">
+                    <input id="singleHostInput" class="scan-input" type="text" placeholder="e.g. iitg.ac.in" onkeydown="if(event.key==='Enter') probeSingleHost()" />
+                    <input id="singlePortInput" class="scan-input port-input" type="number" value="443" min="1" max="65535" />
+                    <button id="singleProbeBtn" class="btn btn-primary" onclick="probeSingleHost()">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg> Probe
+                    </button>
+                </div>
+                <div id="singleHostResult"></div>
+            </div>
+
+            <div id="trimodeEmpty" class="empty-state" style="padding: 80px 20px;">
+                <div class="empty-state-icon"><svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 12a10 10 0 1 1 10 10"></path><line x1="12" y1="2" x2="12" y2="22"></line><line x1="2" y1="12" x2="22" y2="12"></line></svg></div>
+                <div class="empty-state-title">No tri-mode scan data</div>
+                <div class="empty-state-desc">Run a Demo Scan or Tri-Mode scan to see A/B/C probe results</div>
+            </div>
+            <div id="trimodeContent" style="display:none;">
+                <!-- Tri-Mode Summary Cards -->
+                <div class="stats-grid" id="trimodeStats">
+                    <div class="stat-card stat-card--total">
+                        <div class="stat-value" id="tmStatTotal">—</div>
+                        <div class="stat-label">Assets Probed</div>
+                        <div class="stat-pct" id="tmStatMode">Mode: —</div>
+                    </div>
+                    <div class="stat-card stat-card--safe">
+                        <div class="stat-value" id="tmStatSafe">—</div>
+                        <div class="stat-label">Fully Quantum Safe</div>
+                    </div>
+                    <div class="stat-card stat-card--transition">
+                        <div class="stat-value" id="tmStatTransition">—</div>
+                        <div class="stat-label">PQC Transition</div>
+                    </div>
+                    <div class="stat-card stat-card--vulnerable">
+                        <div class="stat-value" id="tmStatVulnerable">—</div>
+                        <div class="stat-label">Quantum Vulnerable</div>
+                    </div>
+                    <div class="stat-card stat-card--critical">
+                        <div class="stat-value" id="tmStatCritical">—</div>
+                        <div class="stat-label">Critically Vulnerable</div>
+                    </div>
+                </div>
+
+                <!-- Tri-Mode Fingerprint Table -->
+                <div class="panel">
+                    <div class="panel-header">
+                        <div class="panel-title"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12a10 10 0 1 1 10 10"></path><line x1="12" y1="2" x2="12" y2="22"></line><line x1="2" y1="12" x2="22" y2="12"></line></svg> Tri-Mode Probe Results (A / B / C)</div>
+                        <div class="panel-badge" id="tmAssetCount" style="background: rgba(0, 212, 255, 0.12); color: var(--accent-cyan);">0 assets</div>
+                    </div>
+                    <div id="trimodeTableContainer" style="overflow-x:auto;"></div>
+                </div>
+
+                <!-- Demo mode banner -->
+                <div id="trimodeDemoBanner" class="demo-banner" style="display:none;">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg> <strong>SIMULATED DATA</strong> — These results are pre-built demo fingerprints. No real network probes were executed.
+                </div>
+            </div>
+        </div><!-- /tab-trimode -->
+
+        <!-- ═══════════════ TAB: HISTORY (Phase 6) ═══════════════ -->
+        <div class="tab-content" id="tab-history">
+            <div id="historyEmpty" class="empty-state" style="padding: 60px 20px;">
+                <div class="empty-state-icon"><svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg></div>
+                <div class="empty-state-title">Scan History</div>
+                <div class="empty-state-desc">View real scan history from the database, or load demo trend data</div>
+                <div style="display:flex;gap:8px;align-items:center;margin-top:16px;flex-wrap:wrap;justify-content:center;">
+                    <button class="btn btn-primary" onclick="loadLiveHistory()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect><line x1="8" y1="21" x2="16" y2="21"></line><line x1="12" y1="17" x2="12" y2="21"></line></svg> Load DB History</button>
+                    <span style="color:var(--text-dim);font-size:0.8rem;">or</span>
+                    <button class="btn" onclick="loadHistory()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg> Load Demo History</button>
+                </div>
+            </div>
+            <div id="historyContent" style="display:none;">
+                <div class="viz-grid viz-grid--two" id="historyVizGrid" style="margin-bottom: 1rem;">
+                    <div class="viz-surface">
+                        <div class="viz-surface-head">Enterprise Cyber Rating — weekly progress</div>
+                        <div id="enterpriseTimelineMount"></div>
+                    </div>
+                    <div class="viz-surface">
+                        <div class="viz-surface-head">Asset Q-Score trends</div>
+                        <div id="assetTimelineMount"></div>
+                    </div>
+                </div>
+                <div class="panel">
+                    <div class="panel-header">
+                        <div class="panel-title"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg> Quantum Safety Score Trend (4 Weeks)</div>
+                        <div class="panel-badge" id="historyMode" style="background: rgba(168, 85, 247, 0.12); color: #a855f7;">demo</div>
+                    </div>
+                    <div id="historyTable" style="overflow-x:auto;"></div>
+                </div>
+                <div class="panel" style="margin-top: 16px;">
+                    <div class="panel-header">
+                        <div class="panel-title"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg> Baseline Comparison (Current vs 1 Week Ago)</div>
+                    </div>
+                    <div id="baselineContent">
+                        <div class="empty-state">
+                            <div class="empty-state-icon"><svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21.2 2H2.8C2.358 2 2 2.358 2 2.8v1.6C2 4.842 2.358 5 2.8 5h18.4c.442 0 .8-.158.8-.6V2.8c0-.442-.358-.8-.8-.8zM21.2 19H2.8c-.442 0-.8.158-.8.6v1.6c0 .442.358.8.8.8h18.4c.442 0 .8-.158.8-.6v-1.6c0-.442-.358-.8-.8-.8zM6 5v2.8c0 3.1 2.5 5.6 5.6 5.6 3.1 0 5.6-2.5 5.6-5.6V5H6zm0 14v-2.8c0-3.1 2.5-5.6 5.6-5.6 3.1 0 5.6 2.5 5.6 5.6V19H6z"></path></svg></div>
+                            <div class="empty-state-desc">Loading baseline comparison...</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div><!-- /tab-history -->
+
+        <!-- ═══════════════ TAB: PHASE 7 — PQC Classification + Agility + DB ═══════════════ -->
+        <div class="tab-content" id="tab-phase7">
+            <div id="p7Empty" class="empty-state" style="padding: 60px 20px;">
+                <div class="empty-state-icon"><svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 2L2 7l10 5 10-5-10-5z"></path><path d="M2 17l10 5 10-5"></path><path d="M2 12l10 5 10-5"></path></svg></div>
+                <div class="empty-state-title">PQC Classification + Agility</div>
+                <div class="empty-state-desc">Enter a domain to classify live assets, or run demo mode with simulated data</div>
+                <div style="display:flex;gap:8px;align-items:center;margin-top:16px;flex-wrap:wrap;justify-content:center;">
+                    <input type="text" class="scan-input" id="p7DomainInput" placeholder="Enter domain (e.g. example.com)" style="max-width:280px;" />
+                    <button class="btn btn-primary" onclick="runPhase7Live()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg> Classify Live Domain</button>
+                    <span style="color:var(--text-dim);font-size:0.8rem;">or</span>
+                    <button class="btn" onclick="runPhase7Demo()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg> Run Demo</button>
+                </div>
+            </div>
+            <div id="p7Content" style="display:none;">
+
+                <!-- Phase 7 Summary Cards -->
+                <div class="stats-grid" id="p7Stats">
+                    <div class="stat-card stat-card--total">
+                        <div class="stat-value" id="p7Total">—</div>
+                        <div class="stat-label">Classified Assets</div>
+                        <div class="stat-pct" id="p7AvgScore">Avg Worst: —</div>
+                    </div>
+                    <div class="stat-card stat-card--safe">
+                        <div class="stat-value" id="p7Safe">—</div>
+                        <div class="stat-label">Fully Quantum Safe</div>
+                    </div>
+                    <div class="stat-card stat-card--transition">
+                        <div class="stat-value" id="p7Trans">—</div>
+                        <div class="stat-label">PQC Transition</div>
+                    </div>
+                    <div class="stat-card stat-card--vulnerable">
+                        <div class="stat-value" id="p7Vuln">—</div>
+                        <div class="stat-label">Quantum Vulnerable</div>
+                    </div>
+                    <div class="stat-card stat-card--critical">
+                        <div class="stat-value" id="p7Crit">—</div>
+                        <div class="stat-label">Critically Vulnerable</div>
+                    </div>
+                    <div class="stat-card stat-card--unknown">
+                        <div class="stat-value" id="p7Unknown">—</div>
+                        <div class="stat-label">Unknown</div>
+                    </div>
+                </div>
+
+                <!-- Classified Assets Table -->
+                <div class="panel">
+                    <div class="panel-header">
+                        <div class="panel-title"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"></path><path d="M2 17l10 5 10-5"></path><path d="M2 12l10 5 10-5"></path></svg> Classified Assets (Best / Typical / Worst)</div>
+                        <div class="panel-badge" id="p7AssetCount" style="background: rgba(168, 85, 247, 0.12); color: #a855f7;">0 assets</div>
+                    </div>
+                    <div id="p7TableContainer" style="overflow-x:auto;"></div>
+                </div>
+
+                <!-- Agility Breakdown -->
+                <div class="panel" style="margin-top: 16px;">
+                    <div class="panel-header">
+                        <div class="panel-title"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="13 17 18 12 13 7"></polyline><polyline points="6 17 11 12 6 7"></polyline></svg> Crypto-Agility Scores (max 15)</div>
+                    </div>
+                    <div id="p7AgilityContainer" style="overflow-x:auto;"></div>
+                </div>
+
+                <!-- Scan History from Database -->
+                <div class="panel" style="margin-top: 16px;">
+                    <div class="panel-header">
+                        <div class="panel-title"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect><line x1="8" y1="21" x2="16" y2="21"></line><line x1="12" y1="17" x2="12" y2="21"></line></svg> Scan Database</div>
+                        <button class="btn" onclick="loadDbScans()">Refresh</button>
+                    </div>
+                    <div id="p7DbScansContainer">
+                        <div class="empty-state"><div class="empty-state-desc">Run a classification to populate the database</div></div>
+                    </div>
+                </div>
+
+                <!-- Demo banner -->
+                <div id="p7DemoBanner" class="demo-banner" style="display:none;margin-top:16px;">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg> <strong>SIMULATED DATA</strong> — Five-dimension scoring on pre-built demo fingerprints. Agility indicators use heuristics.
+                </div>
+            </div>
+        </div><!-- /tab-phase7 -->
+
+        <!-- ═══════════════ TAB: PHASE 8+9 — Regression + CBOM v2 + Labels v2 + Registry + Attestation v2 ═══════════════ -->
+        <div class="tab-content" id="tab-phase9">
+            <div class="panel" id="cbomVizSection" style="margin-bottom: 1rem;">
+                <div class="panel-header">
+                    <div class="panel-title">CBOM Intelligence</div>
+                    <div style="display:flex;gap:0.5rem;flex-wrap:wrap;">
+                        <button class="btn" type="button" onclick="downloadCBOM('json')" style="font-size:0.75rem;padding:0.35rem 0.875rem;">Download CBOM</button>
+                        <button class="btn" type="button" onclick="downloadCBOM('cdxa')" style="font-size:0.75rem;padding:0.35rem 0.875rem;">Download CDXA</button>
+                    </div>
+                </div>
+                <div id="cbomVizMount"></div>
+            </div>
+            <div id="p9Empty" class="empty-state" style="padding: 60px 20px;">
+                <div class="empty-state-icon"><svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><polyline points="9 12 11 14 15 10"/></svg></div>
+                <div class="empty-state-title">Regression + CBOM + Labels + Registry + Attestation</div>
+                <div class="empty-state-desc">Enter a domain for live pipeline analysis, or run demo mode with simulated data</div>
+                <div style="display:flex;gap:8px;align-items:center;margin-top:16px;flex-wrap:wrap;justify-content:center;">
+                    <input type="text" class="scan-input" id="p9DomainInput" placeholder="Enter domain (e.g. example.com)" style="max-width:280px;" />
+                    <button class="btn btn-primary" onclick="runPhase9Live()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg> Run Live Pipeline</button>
+                    <span style="color:var(--text-dim);font-size:0.8rem;">or</span>
+                    <button class="btn" onclick="runPhase9Demo()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg> Run Demo</button>
+                </div>
+            </div>
+            <div id="p9Content" style="display:none;">
+
+                <!-- Phase 9 Pipeline KPI -->
+                <div class="stats-grid" id="p9Stats">
+                    <div class="stat-card stat-card--total">
+                        <div class="stat-value" id="p9Total">—</div>
+                        <div class="stat-label">Classified Assets</div>
+                        <div class="stat-pct" id="p9QSScore">Q-Safety: —</div>
+                    </div>
+                    <div class="stat-card stat-card--safe">
+                        <div class="stat-value" id="p9Tier1">—</div>
+                        <div class="stat-label">Tier 1: Fully Quantum Safe</div>
+                        <div class="stat-pct" id="p9Tier1Pct">—</div>
+                    </div>
+                    <div class="stat-card stat-card--transition">
+                        <div class="stat-value" id="p9Tier2">—</div>
+                        <div class="stat-label">Tier 2: PQC Ready</div>
+                        <div class="stat-pct" id="p9Tier2Pct">—</div>
+                    </div>
+                    <div class="stat-card stat-card--critical">
+                        <div class="stat-value" id="p9Tier3">—</div>
+                        <div class="stat-label">Tier 3: Non-Compliant</div>
+                        <div class="stat-pct" id="p9Tier3Pct">—</div>
+                    </div>
+                    <div class="stat-card stat-card--vulnerable">
+                        <div class="stat-value" id="p9Regressions">—</div>
+                        <div class="stat-label">Regressions Detected</div>
+                    </div>
+                    <div class="stat-card" style="border-color: #a855f7;">
+                        <div class="stat-value" id="p9Compliance" style="color: #a855f7;">—</div>
+                        <div class="stat-label">FIPS Compliance</div>
+                    </div>
+                </div>
+
+                <!-- Regression Report -->
+                <div class="panel" style="margin-bottom: 16px;">
+                    <div class="panel-header">
+                        <div class="panel-title"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> Regression Report</div>
+                        <div class="panel-badge" id="p9RegrBadge" style="background: rgba(255, 170, 0, 0.12); color: #ffaa00;">0 findings</div>
+                    </div>
+                    <div id="p9RegressionContainer" style="overflow-x:auto;"></div>
+                </div>
+
+                <!-- Phase 9 Labels v2 -->
+                <div class="panel" style="margin-bottom: 16px;">
+                    <div class="panel-header">
+                        <div class="panel-title"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg> PQC Certification Labels</div>
+                        <div class="panel-badge" id="p9LabelBadge" style="background: rgba(0, 255, 136, 0.12); color: var(--accent-green);">0 labels</div>
+                    </div>
+                    <div id="p9LabelExecSummary" style="font-size:0.82rem;color:var(--text-secondary);margin-bottom:12px;padding:8px 12px;background:rgba(0,0,0,0.2);border-radius:8px;"></div>
+                    <div id="p9LabelsContainer" style="overflow-x:auto;"></div>
+                </div>
+
+                <!-- Registry Info -->
+                <div class="panel" style="margin-bottom: 16px;">
+                    <div class="panel-header">
+                        <div class="panel-title"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg> Label Registry</div>
+                        <div class="panel-badge" id="p9RegistryBadge" style="background: rgba(0, 212, 255, 0.12); color: var(--accent-cyan);">—</div>
+                    </div>
+                    <div id="p9RegistryContainer" style="font-size:0.82rem;color:var(--text-secondary);"></div>
+                </div>
+
+                <!-- Attestation v2 -->
+                <div class="panel" style="margin-bottom: 16px;">
+                    <div class="panel-header">
+                        <div class="panel-title"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg> FIPS Compliance Attestation (CDXA v2)</div>
+                        <div class="panel-badge" id="p9AttestBadge" style="background: rgba(168, 85, 247, 0.12); color: #a855f7;">—</div>
+                    </div>
+                    <div id="p9AttestContainer" style="overflow-x:auto;"></div>
+                    <div style="margin-top:10px;display:flex;gap:10px;">
+                        <button class="btn" onclick="downloadPhase9CBOM()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Download CBOM v2</button>
+                        <button class="btn" onclick="downloadPhase9CDXA()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Download CDXA v2</button>
+                    </div>
+                </div>
+
+                <!-- Demo banner -->
+                <div id="p9DemoBanner" class="demo-banner" style="margin-top:16px;">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> <strong>SIMULATED DATA</strong> — Regression detection, labels, CBOM v2, registry and attestation all run on demo fingerprints.
+                </div>
+            </div>
+        </div><!-- /tab-phase9 -->
+
+        <!-- Footer -->
+        <footer class="footer">
+            <div class="footer-text">
+                Q-ARMOR v9.0.0 — Discover. Probe. Classify. Assess. Remediate. Label. Attest. Regress. Certify. Future-proof.
+                <br>
+                <span style="color: var(--accent-green); font-size: 0.75rem;">
+                    ✓ Discovery &amp; Protocol Analysis
+                    &nbsp;|&nbsp;
+                    ✓ PQC Assessment &amp; Remediation
+                    &nbsp;|&nbsp;
+                    ✓ CBOM Generation
+                    &nbsp;|&nbsp;
+                    ✓ Certification Labels
+                    &nbsp;|&nbsp;
+                    ✓ Compliance Attestations &amp; Automation
+                    &nbsp;|&nbsp;
+                    ✓ Tri-Mode Probing &amp; Asset Discovery
+                    &nbsp;|&nbsp;
+                    ✓ PQC Classification + Agility + SQLite DB
+                    &nbsp;|&nbsp;
+                    ✓ Regression Detection + CycloneDX 1.7 CBOM
+                    &nbsp;|&nbsp;
+                    ✓ PQC Labeling + Registry + FIPS Attestation
+                </span>
+                <br>
+                Built on <a href="#">NIST FIPS 203/204/205</a> &middot; <a href="#">CycloneDX 1.7 CBOM</a> &middot; <a href="#">PQCC Whitepaper</a>
+                &middot; <a href="#">PNB Cybersecurity Hackathon 2025-26</a>
+            </div>
+        </footer>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+    <script src="./js/app.js"></script>
+</body>
+</html>

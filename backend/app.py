@@ -8,6 +8,7 @@ import os
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlparse
 from fastapi import FastAPI, HTTPException
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse, JSONResponse
@@ -33,7 +34,21 @@ from backend.scanner.cbom_generator import generate_cbom, generate_cbom_v2
 from backend.scanner.classifier import classify, classify_trimode
 from backend.scanner.prober import probe_tls, probe_trimode, probe_batch
 from backend.scanner.discoverer import discover_assets
-from backend.scanner.assessment import analyze_endpoint, analyze_batch
+from backend.scanner.assessment import (
+    KX_HYBRID,
+    KX_PQC_SAFE,
+    KX_VULNERABLE,
+    RISK_HIGH,
+    RISK_LOW,
+    RISK_MEDIUM,
+    SYM_FAIL,
+    SYM_PASS,
+    TLS_FAIL,
+    TLS_PASS,
+    analyze_batch,
+    analyze_endpoint,
+)
+from backend.scanner.nist_matrix import QuantumStatus, classify_kex, classify_protocol, classify_signature, classify_symmetric
 from backend.scanner.remediation import generate_remediation, generate_batch_remediation
 from backend.scanner.attestor import (
     generate_attestation, verify_attestation, get_attestation_summary,
@@ -58,6 +73,11 @@ app = FastAPI(
 # CORS — allow Vercel frontend in production, wildcard in dev
 _frontend_url = os.environ.get("FRONTEND_URL", "")
 _allowed_origins = [_frontend_url] if _frontend_url else ["*"]
+_local_full_scan_default = "0"
+LOCAL_FULL_SCAN = os.environ.get("QARMOR_LOCAL_FULL_SCAN", _local_full_scan_default) == "1"
+LOCAL_API_CRAWL = os.environ.get("QARMOR_LOCAL_API_CRAWL", "0") == "1"
+_live_scan_limit_default = "0" if not _frontend_url else "20"
+LIVE_SCAN_LIMIT = int(os.environ.get("QARMOR_LIVE_SCAN_LIMIT", _live_scan_limit_default))
 
 app.add_middleware(
     CORSMiddleware,
@@ -76,6 +96,8 @@ app.include_router(attestation_router)
 # Serve frontend static files
 FRONTEND_DIR = Path(__file__).parent.parent / "frontend"
 app.mount("/static", StaticFiles(directory=str(FRONTEND_DIR)), name="static")
+app.mount("/css", StaticFiles(directory=str(FRONTEND_DIR / "css")), name="frontend-css")
+app.mount("/js", StaticFiles(directory=str(FRONTEND_DIR / "js")), name="frontend-js")
 
 # In-memory cache for latest scan
 _latest_scan: ScanSummary | None = None
@@ -90,11 +112,62 @@ def _data_notice(demo_mode: bool) -> str:
     return "SIMULATED DATA" if demo_mode else "LIVE DATA"
 
 
+def _live_scan_options() -> dict[str, Any]:
+    return {
+        "include_ct": True,
+        "include_port_scan": LOCAL_FULL_SCAN,
+        "include_api_crawl": LOCAL_API_CRAWL,
+        "limit": LIVE_SCAN_LIMIT,
+    }
+
+
+def _select_live_assets(assets: list[Any], limit: int) -> list[Any]:
+    return assets if limit <= 0 else assets[:limit]
+
+
 def _normalize_pipeline_mode(mode: str | None) -> str:
     normalized = (mode or "demo").strip().lower()
     if normalized not in {"demo", "live"}:
         raise HTTPException(status_code=400, detail="mode must be one of: demo, live")
     return normalized
+
+
+def _normalize_hostname_input(raw: str, *, allow_port: bool = False) -> tuple[str, int | None]:
+    value = (raw or "").strip()
+    if not value:
+        raise HTTPException(status_code=400, detail="hostname is required")
+
+    candidate = value if "://" in value else f"https://{value}"
+    hostname = ""
+    port: int | None = None
+
+    try:
+        parsed = urlparse(candidate)
+        hostname = (parsed.hostname or "").strip().rstrip(".")
+        if parsed.port:
+            port = parsed.port
+    except ValueError:
+        hostname = ""
+
+    if not hostname:
+        stripped = value
+        if "://" in stripped:
+            stripped = stripped.split("://", 1)[1]
+        stripped = stripped.split("/", 1)[0].split("?", 1)[0].split("#", 1)[0].rstrip(".")
+        if allow_port and ":" in stripped and stripped.count(":") == 1:
+            maybe_host, maybe_port = stripped.rsplit(":", 1)
+            if maybe_port.isdigit():
+                hostname = maybe_host.strip("[]")
+                port = int(maybe_port)
+            else:
+                hostname = stripped.strip("[]")
+        else:
+            hostname = stripped.split(":", 1)[0].strip("[]")
+
+    if not hostname:
+        raise HTTPException(status_code=400, detail="Enter a valid hostname or domain")
+
+    return hostname, port
 
 
 def _status_to_asset_state(status: str) -> str:
@@ -121,6 +194,314 @@ def _company_from_hostname(hostname: str) -> str:
     if len(parts) >= 2:
         return parts[-2].upper()
     return "LIVE"
+
+
+def _parse_scan_results(scan: dict[str, Any] | None) -> list[dict[str, Any]]:
+    if not scan:
+        return []
+    raw = scan.get("results_json", "[]")
+    if isinstance(raw, list):
+        return raw
+    if not isinstance(raw, str):
+        return []
+    try:
+        parsed = json.loads(raw)
+    except json.JSONDecodeError:
+        return []
+    return parsed if isinstance(parsed, list) else []
+
+
+def _status_counts_from_assets(assets: list[dict[str, Any]]) -> dict[str, int]:
+    counts = {status.value: 0 for status in PQCStatus}
+    for asset in assets:
+        status = str(asset.get("status") or asset.get("pqc_status") or "UNKNOWN")
+        counts[status] = counts.get(status, 0) + 1
+    return counts
+
+
+def _average_asset_score(assets: list[dict[str, Any]]) -> float:
+    if not assets:
+        return 0.0
+    total = 0.0
+    for asset in assets:
+        total += float(
+            asset.get("worst_case_score")
+            or asset.get("worst_score")
+            or asset.get("q_score", 0)
+            or 0
+        )
+    return round(total / len(assets), 1)
+
+
+def _latest_scan_payload_from_assets(
+    assets: list[dict[str, Any]],
+    *,
+    scan_id: Any = None,
+    mode: str = "demo",
+    domain: str = "",
+) -> dict[str, Any]:
+    counts = _status_counts_from_assets(assets)
+    demo_mode = str(mode).lower() == "demo"
+    return {
+        "scan_id": scan_id,
+        "mode": mode,
+        "domain": domain,
+        "total_assets": len(assets),
+        "average_q_score": _average_asset_score(assets),
+        "fully_quantum_safe": counts.get(PQCStatus.FULLY_QUANTUM_SAFE.value, 0),
+        "pqc_transition": counts.get(PQCStatus.PQC_TRANSITION.value, 0),
+        "quantum_vulnerable": counts.get(PQCStatus.QUANTUM_VULNERABLE.value, 0),
+        "critically_vulnerable": counts.get(PQCStatus.CRITICALLY_VULNERABLE.value, 0),
+        "unknown": counts.get(PQCStatus.UNKNOWN.value, 0),
+        "assets": assets,
+        "asset_scores": assets,
+        "demo_mode": demo_mode,
+        "data_notice": _data_notice(demo_mode),
+    }
+
+
+def _infer_cipher_bits(cipher_name: str, fallback: Any = 0) -> int:
+    if fallback:
+        try:
+            return int(fallback)
+        except (TypeError, ValueError):
+            pass
+    upper = str(cipher_name or "").upper()
+    if "CHACHA20" in upper:
+        return 256
+    for bit_size in (512, 384, 256, 192, 168, 128, 112, 64, 56, 40):
+        if str(bit_size) in upper:
+            return bit_size
+    return 0
+
+
+def _assessment_kex_status(name: str) -> str:
+    mapping = {
+        QuantumStatus.PQC_SAFE: KX_PQC_SAFE,
+        QuantumStatus.HYBRID_PQC: KX_HYBRID,
+        QuantumStatus.COMPLIANT: KX_VULNERABLE,
+        QuantumStatus.VULNERABLE: KX_VULNERABLE,
+        QuantumStatus.WEAKENED: KX_VULNERABLE,
+        QuantumStatus.LEGACY_PROTOCOL: KX_VULNERABLE,
+    }
+    return mapping.get(classify_kex(name or "UNKNOWN"), KX_VULNERABLE)
+
+
+def _assessment_certificate_status(name: str) -> str:
+    if not name or name == "Unknown":
+        return KX_VULNERABLE
+    sig_status = classify_signature(name)
+    if sig_status == QuantumStatus.PQC_SAFE:
+        return KX_PQC_SAFE
+    if sig_status == QuantumStatus.HYBRID_PQC:
+        return KX_HYBRID
+    return KX_VULNERABLE
+
+
+def _assessment_symmetric_status(cipher_name: str, cipher_bits: int) -> str:
+    if not cipher_name or cipher_name == "Unknown":
+        return SYM_FAIL
+    return (
+        SYM_PASS
+        if classify_symmetric(cipher_name, cipher_bits) in (QuantumStatus.COMPLIANT, QuantumStatus.PQC_SAFE)
+        else SYM_FAIL
+    )
+
+
+def _pipeline_asset_to_assessment(asset: dict[str, Any]) -> dict[str, Any]:
+    tls_version = str(asset.get("tls_version") or "Unknown")
+    tls_status = TLS_PASS if classify_protocol(tls_version) == QuantumStatus.COMPLIANT else TLS_FAIL
+
+    key_exchange = str(asset.get("key_exchange") or "UNKNOWN")
+    key_exchange_status = _assessment_kex_status(key_exchange)
+
+    certificate_algorithm = str(asset.get("cert_algorithm") or asset.get("certificate_algorithm") or "Unknown")
+    certificate_status = _assessment_certificate_status(certificate_algorithm)
+
+    symmetric_cipher = str(
+        asset.get("cipher_suite")
+        or asset.get("cipher")
+        or asset.get("cipher_algorithm")
+        or "Unknown"
+    )
+    cipher_bits = _infer_cipher_bits(symmetric_cipher, asset.get("cipher_bits"))
+    symmetric_cipher_status = _assessment_symmetric_status(symmetric_cipher, cipher_bits)
+
+    q_score = int(
+        asset.get("worst_case_score")
+        or asset.get("worst_score")
+        or asset.get("q_score", 0)
+        or 0
+    )
+    pqc_status = str(asset.get("status") or asset.get("pqc_status") or "UNKNOWN")
+    hndl_vulnerable = int(asset.get("negotiation_security_score") or 0) < 0 or key_exchange_status == KX_VULNERABLE
+
+    fail_count = sum(
+        [
+            tls_status == TLS_FAIL,
+            key_exchange_status == KX_VULNERABLE,
+            certificate_status == KX_VULNERABLE,
+            symmetric_cipher_status == SYM_FAIL,
+        ]
+    )
+    hybrid_count = sum(
+        [
+            key_exchange_status == KX_HYBRID,
+            certificate_status == KX_HYBRID,
+        ]
+    )
+    pqc_safe_count = sum(
+        [
+            tls_status == TLS_PASS,
+            key_exchange_status == KX_PQC_SAFE,
+            certificate_status == KX_PQC_SAFE,
+            symmetric_cipher_status == SYM_PASS,
+        ]
+    )
+
+    if tls_status == TLS_FAIL and key_exchange_status == KX_VULNERABLE:
+        risk = RISK_HIGH
+        risk_summary = "Legacy transport with vulnerable key exchange."
+    elif fail_count >= 2 or (hndl_vulnerable and hybrid_count == 0):
+        risk = RISK_HIGH
+        risk_summary = "High exposure to harvest-now-decrypt-later risk."
+    elif pqc_safe_count >= 3 and fail_count == 0:
+        risk = RISK_LOW
+        risk_summary = "Broad PQC-aligned coverage across transport, key exchange, and certificate posture."
+    else:
+        risk = RISK_MEDIUM
+        risk_summary = "Mixed posture with partial PQC coverage and remediation still required."
+
+    worst_case_q = asset.get("worst_case_q")
+    findings = worst_case_q.get("findings", []) if isinstance(worst_case_q, dict) else []
+
+    return {
+        "target": str(asset.get("hostname") or "unknown"),
+        "port": int(asset.get("port") or 443),
+        "assessed_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+        "tls_status": tls_status,
+        "tls_version": tls_version,
+        "tls_details": f"Observed protocol: {tls_version}.",
+        "key_exchange_status": key_exchange_status,
+        "key_exchange_algorithm": key_exchange,
+        "key_exchange_details": f"Observed key exchange: {key_exchange}.",
+        "certificate_status": certificate_status,
+        "certificate_algorithm": certificate_algorithm,
+        "certificate_details": f"Observed certificate algorithm: {certificate_algorithm}.",
+        "symmetric_cipher_status": symmetric_cipher_status,
+        "symmetric_cipher": symmetric_cipher,
+        "symmetric_bits": cipher_bits,
+        "symmetric_details": f"Observed symmetric cipher: {symmetric_cipher}.",
+        "overall_quantum_risk": risk,
+        "risk_summary": risk_summary,
+        "hndl_vulnerable": hndl_vulnerable,
+        "q_score": q_score,
+        "pqc_status": pqc_status,
+        "findings": findings,
+        "nist_references": [],
+    }
+
+
+def _build_pipeline_assessment_batch(assets: list[dict[str, Any]]) -> dict[str, Any]:
+    assessments = [_pipeline_asset_to_assessment(asset) for asset in assets]
+    total = len(assessments)
+
+    tls_pass = sum(1 for item in assessments if item.get("tls_status") == TLS_PASS)
+    kex_vulnerable = sum(1 for item in assessments if item.get("key_exchange_status") == KX_VULNERABLE)
+    kex_hybrid = sum(1 for item in assessments if item.get("key_exchange_status") == KX_HYBRID)
+    kex_pqc_safe = sum(1 for item in assessments if item.get("key_exchange_status") == KX_PQC_SAFE)
+    cert_vulnerable = sum(1 for item in assessments if item.get("certificate_status") == KX_VULNERABLE)
+    cert_hybrid = sum(1 for item in assessments if item.get("certificate_status") == KX_HYBRID)
+    cert_pqc_safe = sum(1 for item in assessments if item.get("certificate_status") == KX_PQC_SAFE)
+    sym_pass = sum(1 for item in assessments if item.get("symmetric_cipher_status") == SYM_PASS)
+    risk_high = sum(1 for item in assessments if item.get("overall_quantum_risk") == RISK_HIGH)
+    risk_medium = sum(1 for item in assessments if item.get("overall_quantum_risk") == RISK_MEDIUM)
+    risk_low = sum(1 for item in assessments if item.get("overall_quantum_risk") == RISK_LOW)
+    hndl_vulnerable = sum(1 for item in assessments if item.get("hndl_vulnerable"))
+    counts = _status_counts_from_assets(assets)
+    avg_score = round(sum(item.get("q_score", 0) for item in assessments) / total, 1) if total else 0.0
+
+    return {
+        "assessed_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+        "total_endpoints": total,
+        "assessments": assessments,
+        "aggregate": {
+            "total_endpoints": total,
+            "average_q_score": avg_score,
+            "tls_pass": tls_pass,
+            "tls_fail": total - tls_pass,
+            "tls_pass_pct": round(tls_pass / total * 100, 1) if total else 0,
+            "kex_vulnerable": kex_vulnerable,
+            "kex_hybrid": kex_hybrid,
+            "kex_pqc_safe": kex_pqc_safe,
+            "kex_vulnerable_pct": round(kex_vulnerable / total * 100, 1) if total else 0,
+            "kex_hybrid_pct": round(kex_hybrid / total * 100, 1) if total else 0,
+            "kex_pqc_safe_pct": round(kex_pqc_safe / total * 100, 1) if total else 0,
+            "cert_vulnerable": cert_vulnerable,
+            "cert_hybrid": cert_hybrid,
+            "cert_pqc_safe": cert_pqc_safe,
+            "sym_pass": sym_pass,
+            "sym_fail": total - sym_pass,
+            "sym_pass_pct": round(sym_pass / total * 100, 1) if total else 0,
+            "risk_high": risk_high,
+            "risk_medium": risk_medium,
+            "risk_low": risk_low,
+            "risk_high_pct": round(risk_high / total * 100, 1) if total else 0,
+            "hndl_vulnerable": hndl_vulnerable,
+            "hndl_vulnerable_pct": round(hndl_vulnerable / total * 100, 1) if total else 0,
+            "fully_quantum_safe": counts.get(PQCStatus.FULLY_QUANTUM_SAFE.value, 0),
+            "pqc_transition": counts.get(PQCStatus.PQC_TRANSITION.value, 0),
+            "quantum_vulnerable": counts.get(PQCStatus.QUANTUM_VULNERABLE.value, 0),
+            "critically_vulnerable": counts.get(PQCStatus.CRITICALLY_VULNERABLE.value, 0),
+        },
+    }
+
+
+def _build_legacy_scan_summary_from_fingerprints(fingerprints: list[TriModeFingerprint]) -> ScanSummary:
+    from backend.models import DiscoveredAsset, ScanResult
+    from backend.demo_data import _build_remediation_roadmap
+    from backend.scanner.label_issuer import issue_label
+
+    results: list[ScanResult] = []
+    counts = {status: 0 for status in PQCStatus}
+    total_score = 0
+
+    for fp in fingerprints:
+        crypto = _trimode_to_crypto(fp)
+        q_score = classify(crypto)
+        asset = DiscoveredAsset(
+            hostname=fp.hostname,
+            ip=fp.ip,
+            port=fp.port,
+            asset_type=fp.asset_type,
+            discovery_method="dns+ct" if fp.port == 443 else "dns+ct+portscan",
+        )
+        results.append(
+            ScanResult(
+                asset=asset,
+                fingerprint=crypto,
+                q_score=q_score,
+                scan_duration_ms=fp.scan_duration_ms,
+                error=fp.error,
+            )
+        )
+        counts[q_score.status] += 1
+        total_score += q_score.total
+
+    labels = [label for result in results if (label := issue_label(result.asset.hostname, result.asset.port, result.q_score))]
+
+    return ScanSummary(
+        total_assets=len(results),
+        fully_quantum_safe=counts[PQCStatus.FULLY_QUANTUM_SAFE],
+        pqc_transition=counts[PQCStatus.PQC_TRANSITION],
+        quantum_vulnerable=counts[PQCStatus.QUANTUM_VULNERABLE],
+        critically_vulnerable=counts[PQCStatus.CRITICALLY_VULNERABLE],
+        unknown=counts.get(PQCStatus.UNKNOWN, 0),
+        average_q_score=round(total_score / len(results), 1) if results else 0,
+        results=results,
+        remediation_roadmap=_build_remediation_roadmap(results),
+        labels=labels,
+    )
 
 
 def _pipeline_detection_date(pipeline_result: dict[str, Any]) -> str:
@@ -295,7 +676,16 @@ async def _ensure_latest_pipeline_result(
     ):
         return _latest_pipeline_result
 
-    result = await run_pipeline(mode=requested_mode, domain=requested_domain)
+    pipeline_kwargs: dict[str, Any] = {"mode": requested_mode, "domain": requested_domain}
+    if requested_mode == "live":
+        scan_opts = _live_scan_options()
+        pipeline_kwargs.update({
+            "limit": scan_opts["limit"],
+            "include_port_scan": scan_opts["include_port_scan"],
+            "include_api_crawl": scan_opts["include_api_crawl"],
+        })
+
+    result = await run_pipeline(**pipeline_kwargs)
     _latest_pipeline_result = result.model_dump(mode="json")
     _latest_pipeline_context = {"mode": requested_mode, "domain": requested_domain}
     return _latest_pipeline_result
@@ -437,18 +827,21 @@ def _render_report_html(report_type: str, data: dict[str, Any]) -> str:
 
 
 @app.get("/", response_class=HTMLResponse)
-async def serve_dashboard():
-    """Serve the Q-ARMOR dashboard."""
+async def serve_landing():
+    """Serve the Q-ARMOR landing page."""
     index_file = FRONTEND_DIR / "index.html"
     if not index_file.exists():
-        raise HTTPException(status_code=404, detail="Dashboard not found")
+        raise HTTPException(status_code=404, detail="Landing page not found")
     return HTMLResponse(content=index_file.read_text())
 
 
 @app.get("/dashboard", response_class=HTMLResponse)
-async def serve_dashboard_alias():
-    """Serve dashboard on /dashboard for landing-page CTAs."""
-    return await serve_dashboard()
+async def serve_dashboard():
+    """Serve the Q-ARMOR dashboard."""
+    dashboard_file = FRONTEND_DIR / "dashboard.html"
+    if not dashboard_file.exists():
+        raise HTTPException(status_code=404, detail="Dashboard not found")
+    return HTMLResponse(content=dashboard_file.read_text())
 
 
 @app.get("/api/health")
@@ -468,76 +861,58 @@ async def run_demo_scan():
 @app.post("/api/scan/domain/{domain}")
 async def scan_domain(domain: str):
     """Scan a real domain for cryptographic configuration."""
-    global _latest_scan
-    from backend.models import ScanResult
+    global _latest_scan, _latest_trimode
     import asyncio
 
     try:
+        domain, _ = _normalize_hostname_input(domain, allow_port=False)
+        scan_opts = _live_scan_options()
+
         # Discovery with timeout — CT logs can be slow
         try:
             assets = await asyncio.wait_for(
-                discover_assets(domain, include_ct=True, include_port_scan=False),
-                timeout=20.0,
+                discover_assets(
+                    domain,
+                    include_ct=scan_opts["include_ct"],
+                    include_port_scan=scan_opts["include_port_scan"],
+                    include_api_crawl=scan_opts["include_api_crawl"],
+                ),
+                timeout=30.0 if LOCAL_FULL_SCAN else 20.0,
             )
         except asyncio.TimeoutError:
             # Fall back to DNS-only if CT takes too long
             logger.warning("CT log timeout for %s, falling back to DNS-only", domain)
-            assets = await asyncio.wait_for(
-                discover_assets(domain, include_ct=False, include_port_scan=False),
-                timeout=10.0,
-            )
+            try:
+                assets = await asyncio.wait_for(
+                    discover_assets(
+                        domain,
+                        include_ct=False,
+                        include_port_scan=scan_opts["include_port_scan"],
+                        include_api_crawl=scan_opts["include_api_crawl"],
+                    ),
+                    timeout=15.0 if LOCAL_FULL_SCAN else 10.0,
+                )
+            except asyncio.TimeoutError:
+                logger.warning("Extended discovery timeout for %s, falling back to DNS-only root scan", domain)
+                assets = await asyncio.wait_for(
+                    discover_assets(
+                        domain,
+                        include_ct=False,
+                        include_port_scan=False,
+                        include_api_crawl=False,
+                    ),
+                    timeout=8.0,
+                )
 
         if not assets:
             raise HTTPException(status_code=404, detail=f"No assets discovered for {domain}")
 
-        # Probe with per-asset timeout to avoid hanging
-        sem = asyncio.Semaphore(10)
-
-        async def scan_single_asset(asset) -> ScanResult:
-            async with sem:
-                try:
-                    fp = await asyncio.wait_for(
-                        probe_tls(asset.hostname, asset.port),
-                        timeout=15.0,
-                    )
-                    q = classify(fp)
-                    return ScanResult(asset=asset, fingerprint=fp, q_score=q)
-                except asyncio.TimeoutError:
-                    return ScanResult(asset=asset, error="probe timeout")
-                except Exception as e:
-                    return ScanResult(asset=asset, error=str(e))
-
-        tasks = [scan_single_asset(asset) for asset in assets[:20]]
-        results = await asyncio.gather(*tasks)
-
-        counts = {s: 0 for s in PQCStatus}
-        total = 0
-        for r in results:
-            if r.q_score:
-                counts[r.q_score.status] += 1
-                total += r.q_score.total
-
-        from backend.scanner.label_issuer import issue_label
-        labels = []
-        for r in results:
-            if r.q_score:
-                label = issue_label(r.asset.hostname, r.asset.port, r.q_score)
-                if label:
-                    labels.append(label)
-
-        from backend.demo_data import _build_remediation_roadmap
-        _latest_scan = ScanSummary(
-            total_assets=len(results),
-            fully_quantum_safe=counts[PQCStatus.FULLY_QUANTUM_SAFE],
-            pqc_transition=counts[PQCStatus.PQC_TRANSITION],
-            quantum_vulnerable=counts[PQCStatus.QUANTUM_VULNERABLE],
-            critically_vulnerable=counts[PQCStatus.CRITICALLY_VULNERABLE],
-            unknown=counts.get(PQCStatus.UNKNOWN, 0),
-            average_q_score=round(total / len(results), 1) if results else 0,
-            results=results,
-            remediation_roadmap=_build_remediation_roadmap(results),
-            labels=labels,
+        fingerprints = await asyncio.wait_for(
+            probe_batch(_select_live_assets(assets, scan_opts["limit"]), concurrency=20, demo=False),
+            timeout=90.0,
         )
+        _latest_trimode = fingerprints
+        _latest_scan = _build_legacy_scan_summary_from_fingerprints(fingerprints)
         return _latest_scan.model_dump(mode="json")
 
     except HTTPException:
@@ -551,6 +926,9 @@ async def scan_domain(domain: str):
 async def scan_single(hostname: str, port: int = 443):
     """Scan a single hostname:port for cryptographic configuration."""
     try:
+        hostname, embedded_port = _normalize_hostname_input(hostname, allow_port=True)
+        if embedded_port:
+            port = embedded_port
         fp = await probe_tls(hostname, port)
         q = classify(fp)
         from backend.models import DiscoveredAsset, ScanResult
@@ -622,8 +1000,20 @@ async def get_labels():
 # ── Phase 2: PQC Assessment Endpoints ───────────────────────────────────────
 
 @app.get("/api/assess")
-async def get_assessment():
+async def get_assessment(mode: str | None = None, domain: str | None = None, refresh: bool = False):
     """Run Phase 2 PQC assessment on the latest scan data."""
+    if mode is not None or domain or refresh:
+        requested_mode = _normalize_pipeline_mode(mode)
+        requested_domain = ""
+        if requested_mode == "live":
+            requested_domain = _normalize_hostname_input(domain or (_latest_pipeline_context.get("domain") or ""), allow_port=False)[0]
+        pipeline_result = await _ensure_latest_pipeline_result(
+            mode=requested_mode,
+            domain=requested_domain or None,
+            force_refresh=refresh,
+        )
+        return JSONResponse(content=_build_pipeline_assessment_batch(list(pipeline_result.get("assets", []))))
+
     if not _latest_scan:
         raise HTTPException(status_code=404, detail="No scan data. Run /api/scan/demo first.")
     batch = analyze_batch(_latest_scan)
@@ -905,11 +1295,18 @@ async def trimode_live_scan(domain: str):
     global _latest_scan, _latest_trimode
 
     try:
-        assets = await discover_assets(domain, demo=False, include_ct=True, include_port_scan=False)
+        scan_opts = _live_scan_options()
+        assets = await discover_assets(
+            domain,
+            demo=False,
+            include_ct=True,
+            include_port_scan=scan_opts["include_port_scan"],
+            include_api_crawl=scan_opts["include_api_crawl"],
+        )
         if not assets:
             raise HTTPException(status_code=404, detail=f"No assets discovered for {domain}")
 
-        fingerprints = await probe_batch(assets[:20], concurrency=20, demo=False)
+        fingerprints = await probe_batch(_select_live_assets(assets, scan_opts["limit"]), concurrency=20, demo=False)
         _latest_trimode = fingerprints
 
         classified = []
@@ -1212,6 +1609,114 @@ async def db_latest_scan():
     return JSONResponse(content=scan)
 
 
+@app.get("/api/scan/latest")
+async def api_scan_latest(mode: str | None = None, domain: str | None = None, refresh: bool = False):
+    """Return the latest stored scan with parsed asset data."""
+    if mode is not None or domain or refresh:
+        requested_mode = _normalize_pipeline_mode(mode)
+        requested_domain = ""
+        if requested_mode == "live":
+            requested_domain = _normalize_hostname_input(domain or (_latest_pipeline_context.get("domain") or ""), allow_port=False)[0]
+        pipeline_result = await _ensure_latest_pipeline_result(
+            mode=requested_mode,
+            domain=requested_domain or None,
+            force_refresh=refresh,
+        )
+        return JSONResponse(content=_latest_scan_payload_from_assets(
+            list(pipeline_result.get("assets", [])),
+            scan_id=pipeline_result.get("scan_id"),
+            mode=pipeline_result.get("mode", requested_mode),
+            domain=requested_domain or "",
+        ))
+
+    latest_scan = db.load_latest_scan()
+    if latest_scan:
+        assets = _parse_scan_results(latest_scan)
+        payload = _latest_scan_payload_from_assets(
+            assets,
+            scan_id=latest_scan.get("id"),
+            mode=latest_scan.get("mode", "demo"),
+            domain=latest_scan.get("domain", ""),
+        )
+        payload["average_q_score"] = latest_scan.get("avg_score", payload["average_q_score"])
+        return JSONResponse(content={**latest_scan, **payload})
+
+    if _latest_pipeline_result:
+        assets = list(_latest_pipeline_result.get("assets", []))
+        return JSONResponse(content=_latest_scan_payload_from_assets(
+            assets,
+            scan_id=_latest_pipeline_result.get("scan_id"),
+            mode=_latest_pipeline_result.get("mode", "demo"),
+            domain=_latest_pipeline_context.get("domain", ""),
+        ))
+
+    raise HTTPException(status_code=404, detail="No scan data available")
+
+
+@app.get("/api/history")
+async def api_history(limit: int = 6):
+    """Return recent scans enriched with parsed assets for charting."""
+    scans = db.list_scans(limit)
+    if scans:
+        ordered = list(reversed(scans))
+        detailed = []
+        for scan in ordered:
+            full_scan = db.load_scan(scan["id"]) or scan
+            assets = _parse_scan_results(full_scan)
+            detailed.append({
+                **full_scan,
+                "assets": assets,
+                "asset_scores": assets,
+                "enterprise_score": int(round(float(full_scan.get("avg_score", 0) or 0) * 10)),
+                "label": f"Scan #{full_scan.get('id', '?')}",
+            })
+
+        latest_mode = str(detailed[-1].get("mode", "demo")).lower() if detailed else "demo"
+        demo_mode = latest_mode == "demo"
+        return JSONResponse(content={
+            "scans": detailed,
+            "demo_mode": demo_mode,
+            "data_notice": _data_notice(demo_mode),
+        })
+
+    summaries = get_historical_scan_summaries()[-limit:]
+    scans_payload = []
+    for summary in summaries:
+        payload = summary.model_dump(mode="json")
+        scans_payload.append({
+            **payload,
+            "label": f"Week {payload.get('week', len(scans_payload) + 1)}",
+            "enterprise_score": int(round(float(payload.get("quantum_safety_score", 0) or 0) * 10)),
+            "assets": [],
+            "asset_scores": [],
+        })
+
+    return JSONResponse(content={
+        "scans": scans_payload,
+        "demo_mode": True,
+        "data_notice": _data_notice(True),
+    })
+
+
+@app.get("/api/compare/latest")
+async def api_compare_latest():
+    """Compare the two most recent scans."""
+    scans = db.list_scans(limit=2)
+    if len(scans) < 2:
+        raise HTTPException(status_code=404, detail="Need at least two scans to compare")
+
+    latest = scans[0]
+    previous = scans[1]
+    result = db.compare_scans(previous["id"], latest["id"])
+    if "error" in result:
+        raise HTTPException(status_code=404, detail=result["error"])
+
+    demo_mode = str(latest.get("mode", "demo")).lower() == "demo"
+    result["demo_mode"] = demo_mode
+    result["data_notice"] = _data_notice(demo_mode)
+    return JSONResponse(content=result)
+
+
 @app.get("/api/db/compare/{scan_a}/{scan_b}")
 async def db_compare_scans(scan_a: int, scan_b: int):
     """Compare two scans and return delta analysis."""
@@ -1348,22 +1853,44 @@ async def phase9_live_pipeline(domain: str):
     import asyncio
 
     try:
+        scan_opts = _live_scan_options()
         # Step 1: Discover assets
         try:
             assets = await asyncio.wait_for(
-                discover_assets(domain, include_ct=True, include_port_scan=False),
-                timeout=20.0,
+                discover_assets(
+                    domain,
+                    include_ct=True,
+                    include_port_scan=scan_opts["include_port_scan"],
+                    include_api_crawl=scan_opts["include_api_crawl"],
+                ),
+                timeout=30.0 if LOCAL_FULL_SCAN else 20.0,
             )
         except asyncio.TimeoutError:
-            assets = await asyncio.wait_for(
-                discover_assets(domain, include_ct=False, include_port_scan=False),
-                timeout=10.0,
-            )
+            try:
+                assets = await asyncio.wait_for(
+                    discover_assets(
+                        domain,
+                        include_ct=False,
+                        include_port_scan=scan_opts["include_port_scan"],
+                        include_api_crawl=scan_opts["include_api_crawl"],
+                    ),
+                    timeout=15.0 if LOCAL_FULL_SCAN else 10.0,
+                )
+            except asyncio.TimeoutError:
+                assets = await asyncio.wait_for(
+                    discover_assets(
+                        domain,
+                        include_ct=False,
+                        include_port_scan=False,
+                        include_api_crawl=False,
+                    ),
+                    timeout=8.0,
+                )
         if not assets:
             raise HTTPException(status_code=404, detail=f"No assets discovered for {domain}")
 
         # Step 2: Tri-mode probe
-        fingerprints = await probe_batch(assets[:20], concurrency=20, demo=False)
+        fingerprints = await probe_batch(_select_live_assets(assets, scan_opts["limit"]), concurrency=20, demo=False)
 
         # Step 3: Classify each
         current_assets = []
@@ -1576,6 +2103,17 @@ async def api_cyber_rating(mode: str = "demo", domain: str | None = None):
     rating["demo_mode"] = demo_mode
     rating["data_notice"] = _data_notice(demo_mode)
     return JSONResponse(content=rating)
+
+
+@app.get("/api/cbom/latest")
+async def api_cbom_latest(mode: str = "demo", domain: str | None = None):
+    """Return the latest CBOM generated by the unified pipeline."""
+    pipeline_result = await _ensure_latest_pipeline_result(mode=mode, domain=domain)
+    demo_mode = pipeline_result.get("mode") == "demo"
+    cbom = dict(pipeline_result.get("cbom", {}))
+    cbom["demo_mode"] = demo_mode
+    cbom["data_notice"] = _data_notice(demo_mode)
+    return JSONResponse(content=cbom)
 
 
 @app.get("/api/pqc/heatmap")
