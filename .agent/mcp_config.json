@@ -15,8 +15,13 @@
                 "shadcn@latest",
                 "mcp"
             ]
+        },
+        "stitch": {
+            "serverUrl": "https://stitch.googleapis.com/mcp",
+            "headers": {
+                "X-Goog-Api-Key": "AQ.Ab8RN6IJPh968I16rsenKWEvHCjgGwozCI9U5fr58q6aNs8jDQ"
+            }
         }
-        //other mcp servers
     }
 }
 

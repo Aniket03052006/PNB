@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Certificates | Q-Armor Institutional</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;700;800;900&amp;family=Inter:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              "on-secondary-fixed": "#241a00",
+              "surface-tint": "#b02751",
+              "outline-variant": "#dfbfc3",
+              "on-tertiary-fixed-variant": "#474747",
+              "on-primary-fixed-variant": "#8f063a",
+              "surface-container-highest": "#e2e2e2",
+              "error-container": "#ffdad6",
+              "tertiary-fixed-dim": "#c8c6c6",
+              "surface-container-high": "#e8e8e8",
+              "surface-container": "#eeeeee",
+              "error": "#ba1a1a",
+              "on-secondary-container": "#6d5500",
+              "inverse-surface": "#2f3131",
+              "secondary-container": "#fec800",
+              "on-tertiary": "#ffffff",
+              "surface": "#f9f9f9",
+              "inverse-primary": "#ffb2bf",
+              "tertiary": "#3b3b3b",
+              "on-tertiary-container": "#c7c5c5",
+              "on-error": "#ffffff",
+              "on-tertiary-fixed": "#1b1c1c",
+              "on-error-container": "#93000a",
+              "tertiary-container": "#535252",
+              "on-surface-variant": "#584144",
+              "surface-container-lowest": "#ffffff",
+              "inverse-on-surface": "#f1f1f1",
+              "background": "#f9f9f9",
+              "primary-container": "#9f1945",
+              "on-secondary": "#ffffff",
+              "tertiary-fixed": "#e4e2e1",
+              "primary": "#7b0030",
+              "on-secondary-fixed-variant": "#594400",
+              "secondary-fixed-dim": "#f3c000",
+              "secondary-fixed": "#ffdf91",
+              "secondary": "#755b00",
+              "primary-fixed": "#ffd9de",
+              "on-surface": "#1a1c1c",
+              "surface-container-low": "#f3f3f3",
+              "surface-bright": "#f9f9f9",
+              "primary-fixed-dim": "#ffb2bf",
+              "surface-variant": "#e2e2e2",
+              "on-primary": "#ffffff",
+              "on-background": "#1a1c1c",
+              "outline": "#8b7074",
+              "on-primary-fixed": "#3f0015",
+              "on-primary-container": "#ffb1be",
+              "surface-dim": "#dadada"
+            },
+            fontFamily: {
+              "headline": ["Public Sans"],
+              "body": ["Inter"],
+              "label": ["Inter"]
+            },
+            borderRadius: {"DEFAULT": "0.125rem", "lg": "0.25rem", "xl": "0.5rem", "full": "0.75rem"},
+          },
+        },
+      }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+            vertical-align: middle;
+        }
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.8);
+            backdrop-filter: blur(20px);
+        }
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f9f9f9;
+        }
+        h1, h2, h3 {
+            font-family: 'Public Sans', sans-serif;
+        }
+    </style>
+</head>
+<body class="text-on-surface">
+<!-- TopNavBar Shell -->
+<header class="fixed top-0 left-0 w-full z-50 flex justify-between items-center px-8 h-16 bg-white/80 dark:bg-[#7B0030]/10 backdrop-blur-md shadow-[0px_12px_32px_rgba(26,28,28,0.06)] border-b border-[#DFBFC3]/15">
+<div class="flex items-center gap-8">
+<span class="text-lg font-black tracking-tighter text-[#7B0030] dark:text-[#FEC800]">Q-Armor Institutional</span>
+<nav class="hidden md:flex gap-6 items-center">
+<a class="text-slate-500 dark:text-slate-400 hover:text-[#7B0030] transition-colors font-['Public_Sans'] tracking-tight font-bold text-sm uppercase" href="#">Dashboard</a>
+<a class="text-slate-500 dark:text-slate-400 hover:text-[#7B0030] transition-colors font-['Public_Sans'] tracking-tight font-bold text-sm uppercase" href="#">Inventory</a>
+<a class="text-slate-500 dark:text-slate-400 hover:text-[#7B0030] transition-colors font-['Public_Sans'] tracking-tight font-bold text-sm uppercase" href="#">Heatmap</a>
+<a class="text-slate-500 dark:text-slate-400 hover:text-[#7B0030] transition-colors font-['Public_Sans'] tracking-tight font-bold text-sm uppercase" href="#">CBOM</a>
+<a class="text-[#7B0030] dark:text-[#FEC800] border-b-2 border-[#FEC800] pb-1 font-bold font-['Public_Sans'] tracking-tight text-sm uppercase" href="#">Certificates</a>
+<a class="text-slate-500 dark:text-slate-400 hover:text-[#7B0030] transition-colors font-['Public_Sans'] tracking-tight font-bold text-sm uppercase" href="#">Logs</a>
+</nav>
+</div>
+<div class="flex items-center gap-4">
+<button class="p-2 hover:bg-[#F3F3F3] rounded-full transition-colors">
+<span class="material-symbols-outlined text-[#7B0030]" data-icon="account_balance">account_balance</span>
+</button>
+<button class="p-2 hover:bg-[#F3F3F3] rounded-full transition-colors">
+<span class="material-symbols-outlined text-[#7B0030]" data-icon="shield_person">shield_person</span>
+</button>
+<button class="p-2 hover:bg-[#F3F3F3] rounded-full transition-colors">
+<span class="material-symbols-outlined text-[#7B0030]" data-icon="settings">settings</span>
+</button>
+<div class="w-8 h-8 rounded-full bg-primary-container overflow-hidden ml-2 border border-outline-variant">
+<img alt="Institutional user avatar" class="w-full h-full object-cover" data-alt="Close up professional portrait of a man" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCn5LINpViq_ZtFIuGgMy_AcnVbEX0xxMqXLLP_dZOvLkmyuBCEeKp8LocJYbchqzoTgfFBlJf80FnypwVHLnLdZYYgHVcuUczTzPAx8RQyQjPyJBC2Q_cP5FSJ3FVi7mgi9kGRzB_bOR05TtNmEisoPse4Mx9In5a8fTLkbaybi1sOW3srgdrossjxcjx-wOL-Up79Km3OWJm38bzI-_O4pLg46EkfjPIOFr34bt3G9ECSve4hSw1a1gAiCVvczSoEga9iCzR5Yyvp"/>
+</div>
+</div>
+</header>
+<!-- SideNavBar Shell -->
+<aside class="fixed left-0 top-0 h-full w-64 flex flex-col pt-20 pb-8 bg-[#F3F3F3] border-r border-[#DFBFC3]/10 z-40">
+<div class="px-6 mb-10">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 bg-primary flex items-center justify-center rounded-lg shadow-lg">
+<span class="material-symbols-outlined text-white" data-icon="verified" style="font-variation-settings: 'FILL' 1;">verified</span>
+</div>
+<div>
+<h2 class="text-sm font-bold text-[#7B0030] font-['Inter'] tracking-wide uppercase">Imperial Heritage</h2>
+<p class="text-[10px] text-on-surface-variant uppercase tracking-widest font-medium">Post-Quantum Intelligence</p>
+</div>
+</div>
+</div>
+<nav class="flex-1 px-2 space-y-1">
+<a class="flex items-center gap-3 px-4 py-3 text-slate-600 hover:translate-x-1 transition-transform font-['Inter'] text-xs font-semibold tracking-wide uppercase" href="#">
+<span class="material-symbols-outlined" data-icon="dashboard">dashboard</span> Dashboard
+            </a>
+<a class="flex items-center gap-3 px-4 py-3 text-slate-600 hover:translate-x-1 transition-transform font-['Inter'] text-xs font-semibold tracking-wide uppercase" href="#">
+<span class="material-symbols-outlined" data-icon="inventory_2">inventory_2</span> Inventory
+            </a>
+<a class="flex items-center gap-3 px-4 py-3 text-slate-600 hover:translate-x-1 transition-transform font-['Inter'] text-xs font-semibold tracking-wide uppercase" href="#">
+<span class="material-symbols-outlined" data-icon="grid_view">grid_view</span> Heatmap
+            </a>
+<a class="flex items-center gap-3 px-4 py-3 text-slate-600 hover:translate-x-1 transition-transform font-['Inter'] text-xs font-semibold tracking-wide uppercase" href="#">
+<span class="material-symbols-outlined" data-icon="account_tree">account_tree</span> CBOM
+            </a>
+<a class="flex items-center gap-3 px-4 py-3 bg-[#FFFFFF] text-[#7B0030] rounded-r-full shadow-sm font-['Inter'] text-xs font-semibold tracking-wide uppercase border-l-4 border-[#7B0030]" href="#">
+<span class="material-symbols-outlined" data-icon="verified" style="font-variation-settings: 'FILL' 1;">verified</span> Certificates
+            </a>
+<a class="flex items-center gap-3 px-4 py-3 text-slate-600 hover:translate-x-1 transition-transform font-['Inter'] text-xs font-semibold tracking-wide uppercase" href="#">
+<span class="material-symbols-outlined" data-icon="history_edu">history_edu</span> Logs
+            </a>
+</nav>
+<div class="px-4 mt-auto">
+<button class="w-full bg-secondary-container text-on-secondary-container py-3 rounded-xl font-bold text-[10px] tracking-[0.2em] shadow-lg hover:brightness-105 active:scale-95 transition-all">
+                GENERATE ATTESTATION
+            </button>
+<div class="mt-8 pt-6 border-t border-[#DFBFC3]/20 space-y-4">
+<a class="flex items-center gap-3 px-4 text-slate-500 font-['Inter'] text-[10px] font-bold tracking-widest uppercase" href="#">
+<span class="material-symbols-outlined text-sm" data-icon="lan">lan</span> System Status
+                </a>
+<a class="flex items-center gap-3 px-4 text-slate-500 font-['Inter'] text-[10px] font-bold tracking-widest uppercase" href="#">
+<span class="material-symbols-outlined text-sm" data-icon="help_center">help_center</span> Support
+                </a>
+</div>
+</div>
+</aside>
+<!-- Main Content Canvas -->
+<main class="ml-64 pt-24 px-12 pb-16">
+<!-- Heritage Header -->
+<header class="mb-16 flex justify-between items-end">
+<div class="max-w-2xl">
+<span class="text-primary font-bold tracking-widest text-xs uppercase mb-2 block">Institutional Compliance Registry</span>
+<h1 class="text-5xl font-black text-on-surface tracking-tighter leading-none mb-6">Certification &amp; Labels</h1>
+<p class="text-on-surface-variant text-lg leading-relaxed max-w-xl">
+                    Official ledger of post-quantum cryptographic readiness. Manage tiered security labels, active asset certifications, and historical audit logs for institutional sovereignty.
+                </p>
+</div>
+<button class="flex items-center gap-3 bg-primary text-white px-8 py-4 rounded-xl shadow-xl hover:shadow-2xl transition-all font-bold tracking-tight active:scale-95">
+<span class="material-symbols-outlined" data-icon="add_circle">add_circle</span>
+                Generate New Certificate
+            </button>
+</header>
+<!-- Label Registry: Bento Grid Style -->
+<section class="mb-24">
+<h3 class="text-xs font-bold tracking-[0.3em] uppercase text-on-surface-variant mb-8 px-1">Label Registry</h3>
+<div class="grid grid-cols-12 gap-6">
+<!-- Platinum/Gold Tier -->
+<div class="col-span-12 lg:col-span-5 bg-surface-container-lowest rounded-xl p-8 shadow-sm flex flex-col justify-between border-l-4 border-[#FEC800] relative overflow-hidden group">
+<div class="absolute -top-12 -right-12 w-48 h-48 bg-secondary-container/10 rounded-full blur-3xl group-hover:scale-110 transition-transform"></div>
+<div>
+<div class="flex items-center justify-between mb-8">
+<span class="material-symbols-outlined text-[#755B00] text-5xl" data-icon="verified_user" style="font-variation-settings: 'FILL' 1;">verified_user</span>
+<span class="px-3 py-1 bg-secondary-container/20 text-[#755B00] rounded-full text-[10px] font-black tracking-widest">PLATINUM</span>
+</div>
+<h4 class="text-3xl font-extrabold text-[#755B00] tracking-tight mb-2">Fully Quantum Safe</h4>
+<p class="text-on-surface-variant text-sm leading-relaxed">Cryptographic assets secured using NIST-approved post-quantum algorithms with full entropy audit and hardware-root trust.</p>
+</div>
+<div class="mt-12 flex items-baseline gap-2">
+<span class="text-4xl font-black text-on-surface tracking-tighter">142</span>
+<span class="text-xs font-bold text-on-surface-variant uppercase tracking-widest">Active Assets</span>
+</div>
+</div>
+<!-- Silver Tier -->
+<div class="col-span-12 md:col-span-6 lg:col-span-4 bg-surface-container-low rounded-xl p-8 flex flex-col justify-between border-l-4 border-slate-400 group relative">
+<div>
+<div class="flex items-center justify-between mb-8">
+<span class="material-symbols-outlined text-slate-500 text-4xl" data-icon="shield">shield</span>
+<span class="px-3 py-1 bg-slate-200 text-slate-600 rounded-full text-[10px] font-black tracking-widest">SILVER</span>
+</div>
+<h4 class="text-2xl font-bold text-on-surface tracking-tight mb-2">PQC Ready</h4>
+<p class="text-on-surface-variant text-sm leading-relaxed">Hybrid encryption protocols active. Traditional RSA/ECC augmented with quantum-resistant keys for future migration.</p>
+</div>
+<div class="mt-12 flex items-baseline gap-2">
+<span class="text-3xl font-black text-on-surface tracking-tighter">891</span>
+<span class="text-xs font-bold text-on-surface-variant uppercase tracking-widest">Active Assets</span>
+</div>
+</div>
+<!-- Red Tier -->
+<div class="col-span-12 md:col-span-6 lg:col-span-3 bg-surface-container rounded-xl p-8 flex flex-col justify-between border-l-4 border-error group relative">
+<div>
+<div class="flex items-center justify-between mb-8">
+<span class="material-symbols-outlined text-error text-4xl" data-icon="warning" style="font-variation-settings: 'FILL' 1;">warning</span>
+<span class="px-3 py-1 bg-error-container text-error rounded-full text-[10px] font-black tracking-widest uppercase">Legacy</span>
+</div>
+<h4 class="text-2xl font-bold text-error tracking-tight mb-2">Non-Compliant</h4>
+<p class="text-on-surface-variant text-sm leading-relaxed">Assets utilizing legacy cryptography vulnerable to Store Now, Decrypt Later (SNDL) attacks.</p>
+</div>
+<div class="mt-12 flex items-baseline gap-2">
+<span class="text-3xl font-black text-error tracking-tighter">24</span>
+<span class="text-xs font-bold text-on-surface-variant uppercase tracking-widest">Risk Entities</span>
+</div>
+</div>
+</div>
+</section>
+<!-- Official Registry Table: Bank Ledger Style -->
+<section class="bg-surface-container-lowest rounded-xl shadow-[0px_12px_32px_rgba(26,28,28,0.06)] overflow-hidden">
+<div class="p-8 border-b border-surface-container flex justify-between items-center">
+<div>
+<h3 class="text-xl font-extrabold tracking-tight text-on-surface">Issued Certificates Ledger</h3>
+<p class="text-xs text-on-surface-variant uppercase tracking-widest mt-1">Authorized Q-Armor Attestations</p>
+</div>
+<div class="flex gap-4">
+<div class="relative">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant text-lg" data-icon="search">search</span>
+<input class="pl-10 pr-4 py-2 bg-surface-container-low rounded-lg text-sm border-none focus:ring-2 focus:ring-primary/40 w-64 transition-all" placeholder="Filter assets..." type="text"/>
+</div>
+<button class="p-2 bg-surface-container-low rounded-lg hover:bg-surface-container transition-colors">
+<span class="material-symbols-outlined" data-icon="filter_list">filter_list</span>
+</button>
+</div>
+</div>
+<div class="overflow-x-auto">
+<table class="w-full text-left border-collapse">
+<thead class="bg-surface-container-low/50">
+<tr>
+<th class="px-8 py-5 text-[10px] font-black tracking-[0.2em] text-on-surface-variant uppercase">Certificate ID</th>
+<th class="px-8 py-5 text-[10px] font-black tracking-[0.2em] text-on-surface-variant uppercase">Asset Name</th>
+<th class="px-8 py-5 text-[10px] font-black tracking-[0.2em] text-on-surface-variant uppercase text-center">Issued</th>
+<th class="px-8 py-5 text-[10px] font-black tracking-[0.2em] text-on-surface-variant uppercase text-center">Expiry</th>
+<th class="px-8 py-5 text-[10px] font-black tracking-[0.2em] text-on-surface-variant uppercase text-center">Status</th>
+<th class="px-8 py-5 text-[10px] font-black tracking-[0.2em] text-on-surface-variant uppercase text-right">Actions</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-surface-container">
+<!-- Row 1 -->
+<tr class="hover:bg-surface-container-low/30 transition-colors">
+<td class="px-8 py-6 font-mono text-xs text-primary font-bold">QA-2024-8849-PX</td>
+<td class="px-8 py-6">
+<div class="flex items-center gap-3">
+<div class="w-8 h-8 rounded-lg bg-secondary-container/20 flex items-center justify-center text-[#755B00]">
+<span class="material-symbols-outlined text-lg" data-icon="database">database</span>
+</div>
+<div>
+<div class="text-sm font-bold text-on-surface">Mainframe Core Alpha</div>
+<div class="text-[10px] text-on-surface-variant font-medium">Crypto-Agile Storage</div>
+</div>
+</div>
+</td>
+<td class="px-8 py-6 text-center text-sm font-medium text-on-surface-variant">Oct 12, 2023</td>
+<td class="px-8 py-6 text-center text-sm font-medium text-on-surface-variant">Oct 12, 2026</td>
+<td class="px-8 py-6 text-center">
+<span class="px-3 py-1 bg-emerald-50 text-emerald-700 rounded-full text-[10px] font-bold tracking-widest uppercase border border-emerald-100">Active</span>
+</td>
+<td class="px-8 py-6 text-right">
+<button class="text-on-surface-variant hover:text-primary transition-colors">
+<span class="material-symbols-outlined" data-icon="visibility">visibility</span>
+</button>
+<button class="ml-4 text-on-surface-variant hover:text-primary transition-colors">
+<span class="material-symbols-outlined" data-icon="download">download</span>
+</button>
+</td>
+</tr>
+<!-- Row 2 -->
+<tr class="hover:bg-surface-container-low/30 transition-colors">
+<td class="px-8 py-6 font-mono text-xs text-primary font-bold">QA-2024-1120-RT</td>
+<td class="px-8 py-6">
+<div class="flex items-center gap-3">
+<div class="w-8 h-8 rounded-lg bg-primary-container/10 flex items-center justify-center text-primary">
+<span class="material-symbols-outlined text-lg" data-icon="cloud">cloud</span>
+</div>
+<div>
+<div class="text-sm font-bold text-on-surface">Azure-East-Sec-01</div>
+<div class="text-[10px] text-on-surface-variant font-medium">Virtual Private Cloud</div>
+</div>
+</div>
+</td>
+<td class="px-8 py-6 text-center text-sm font-medium text-on-surface-variant">Jan 05, 2024</td>
+<td class="px-8 py-6 text-center text-sm font-medium text-on-surface-variant">Jan 05, 2027</td>
+<td class="px-8 py-6 text-center">
+<span class="px-3 py-1 bg-emerald-50 text-emerald-700 rounded-full text-[10px] font-bold tracking-widest uppercase border border-emerald-100">Active</span>
+</td>
+<td class="px-8 py-6 text-right">
+<button class="text-on-surface-variant hover:text-primary transition-colors">
+<span class="material-symbols-outlined" data-icon="visibility">visibility</span>
+</button>
+<button class="ml-4 text-on-surface-variant hover:text-primary transition-colors">
+<span class="material-symbols-outlined" data-icon="download">download</span>
+</button>
+</td>
+</tr>
+<!-- Row 3 -->
+<tr class="hover:bg-surface-container-low/30 transition-colors">
+<td class="px-8 py-6 font-mono text-xs text-primary font-bold">QA-2023-9912-LM</td>
+<td class="px-8 py-6">
+<div class="flex items-center gap-3">
+<div class="w-8 h-8 rounded-lg bg-surface-container flex items-center justify-center text-on-surface-variant">
+<span class="material-symbols-outlined text-lg" data-icon="router">router</span>
+</div>
+<div>
+<div class="text-sm font-bold text-on-surface text-on-surface-variant/60">Legacy Gateway 04</div>
+<div class="text-[10px] text-on-surface-variant font-medium">BGP Perimeter</div>
+</div>
+</div>
+</td>
+<td class="px-8 py-6 text-center text-sm font-medium text-on-surface-variant">Nov 20, 2022</td>
+<td class="px-8 py-6 text-center text-sm font-medium text-on-surface-variant">Expired</td>
+<td class="px-8 py-6 text-center">
+<span class="px-3 py-1 bg-error-container/40 text-error rounded-full text-[10px] font-bold tracking-widest uppercase border border-error/10">Revoked</span>
+</td>
+<td class="px-8 py-6 text-right">
+<button class="text-on-surface-variant hover:text-primary transition-colors">
+<span class="material-symbols-outlined" data-icon="history">history</span>
+</button>
+<button class="ml-4 text-primary hover:text-primary-container transition-colors">
+<span class="material-symbols-outlined" data-icon="refresh">refresh</span>
+</button>
+</td>
+</tr>
+<!-- Row 4 -->
+<tr class="hover:bg-surface-container-low/30 transition-colors">
+<td class="px-8 py-6 font-mono text-xs text-primary font-bold">QA-2024-5003-QS</td>
+<td class="px-8 py-6">
+<div class="flex items-center gap-3">
+<div class="w-8 h-8 rounded-lg bg-secondary-container/20 flex items-center justify-center text-[#755B00]">
+<span class="material-symbols-outlined text-lg" data-icon="security">security</span>
+</div>
+<div>
+<div class="text-sm font-bold text-on-surface">HSM-Cluster-Zurich</div>
+<div class="text-[10px] text-on-surface-variant font-medium">Hardware Security Module</div>
+</div>
+</div>
+</td>
+<td class="px-8 py-6 text-center text-sm font-medium text-on-surface-variant">Mar 15, 2024</td>
+<td class="px-8 py-6 text-center text-sm font-medium text-on-surface-variant">Mar 15, 2030</td>
+<td class="px-8 py-6 text-center">
+<span class="px-3 py-1 bg-emerald-50 text-emerald-700 rounded-full text-[10px] font-bold tracking-widest uppercase border border-emerald-100">Active</span>
+</td>
+<td class="px-8 py-6 text-right">
+<button class="text-on-surface-variant hover:text-primary transition-colors">
+<span class="material-symbols-outlined" data-icon="visibility">visibility</span>
+</button>
+<button class="ml-4 text-on-surface-variant hover:text-primary transition-colors">
+<span class="material-symbols-outlined" data-icon="download">download</span>
+</button>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+<div class="p-6 bg-surface-container-low/30 border-t border-surface-container flex items-center justify-between">
+<p class="text-[10px] font-bold tracking-widest text-on-surface-variant uppercase">Displaying 1-12 of 1,057 Certificates</p>
+<div class="flex gap-1">
+<button class="w-8 h-8 flex items-center justify-center rounded border border-outline-variant hover:bg-white transition-colors">
+<span class="material-symbols-outlined text-sm" data-icon="chevron_left">chevron_left</span>
+</button>
+<button class="w-8 h-8 flex items-center justify-center rounded border border-primary bg-primary text-white font-bold text-xs">1</button>
+<button class="w-8 h-8 flex items-center justify-center rounded border border-outline-variant hover:bg-white transition-colors text-xs font-bold text-on-surface-variant">2</button>
+<button class="w-8 h-8 flex items-center justify-center rounded border border-outline-variant hover:bg-white transition-colors text-xs font-bold text-on-surface-variant">3</button>
+<button class="w-8 h-8 flex items-center justify-center rounded border border-outline-variant hover:bg-white transition-colors">
+<span class="material-symbols-outlined text-sm" data-icon="chevron_right">chevron_right</span>
+</button>
+</div>
+</div>
+</section>
+<!-- Signature Component: Heritage Banner -->
+<section class="mt-24 rounded-2xl overflow-hidden shadow-2xl relative">
+<div class="bg-gradient-to-br from-[#7B0030] to-[#9F1945] px-12 py-16 flex items-center justify-between">
+<div class="max-w-2xl relative z-10">
+<h2 class="font-['Public_Sans'] text-4xl font-black text-[#FEC800] tracking-tight leading-tight mb-4">PQC Attestation Compliance</h2>
+<p class="text-white/80 text-lg leading-relaxed">
+                        The Q-Armor Heritage standard requires quarterly attestation for all Tier 1 infrastructure. Automated scanning detected <span class="font-bold text-[#FEC800]">12 new assets</span> pending institutional labeling.
+                    </p>
+<div class="mt-8 flex gap-6">
+<button class="bg-[#FEC800] text-[#755B00] px-8 py-3 rounded-lg font-bold tracking-widest text-xs uppercase hover:brightness-105 shadow-xl transition-all">Start Batch Audit</button>
+<button class="border-2 border-white/30 text-white px-8 py-3 rounded-lg font-bold tracking-widest text-xs uppercase hover:bg-white/10 transition-all">Review Policy</button>
+</div>
+</div>
+<div class="absolute right-0 top-0 bottom-0 w-1/3 opacity-20 pointer-events-none">
+<div class="h-full w-full bg-cover bg-center" data-alt="Abstract futuristic cryptographic lock pattern" style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuD81Klgqnka-xOAItS_rd4ThYbxV2sML-Dep0qUQFkJLN1OjRfk4zz-RJfJkCds1Dqj-pFT3bwCYkVXLOKZZpAkGDtta1awaeNRyZSzd7MTlgWcbYc-kVU9zjSIN4XSVEYFy99_OfftmSQMmrFC4K8Ej2SuGuBNuQrfyLWcDpfEuLiBDX05UNCzuljd5HNKO0-phTz70gYRSpr_g1-cgkpt7bFvYW9GQ57pLz3VQaVQf3tgJai_KOqlhNSWDHebr1FNS627hp4YHvxB');"></div>
+</div>
+</div>
+</section>
+</main>
+<!-- Mobile BottomNavBar (Hidden on desktop) -->
+<nav class="md:hidden fixed bottom-0 left-0 w-full h-16 bg-white border-t border-surface-container flex justify-around items-center z-50">
+<button class="flex flex-col items-center text-slate-400">
+<span class="material-symbols-outlined" data-icon="dashboard">dashboard</span>
+<span class="text-[8px] font-bold uppercase mt-1">Dash</span>
+</button>
+<button class="flex flex-col items-center text-slate-400">
+<span class="material-symbols-outlined" data-icon="inventory_2">inventory_2</span>
+<span class="text-[8px] font-bold uppercase mt-1">Inv</span>
+</button>
+<button class="flex flex-col items-center text-[#7B0030]">
+<span class="material-symbols-outlined" data-icon="verified" style="font-variation-settings: 'FILL' 1;">verified</span>
+<span class="text-[8px] font-bold uppercase mt-1">Certs</span>
+</button>
+<button class="flex flex-col items-center text-slate-400">
+<span class="material-symbols-outlined" data-icon="settings">settings</span>
+<span class="text-[8px] font-bold uppercase mt-1">Sets</span>
+</button>
+</nav>
+</body></html>

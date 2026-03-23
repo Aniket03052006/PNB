@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Q-Armor | Institutional Attestation</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;700;800;900&amp;family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              "on-secondary-fixed": "#241a00",
+              "surface-tint": "#b02751",
+              "outline-variant": "#dfbfc3",
+              "on-tertiary-fixed-variant": "#474747",
+              "on-primary-fixed-variant": "#8f063a",
+              "surface-container-highest": "#e2e2e2",
+              "error-container": "#ffdad6",
+              "tertiary-fixed-dim": "#c8c6c6",
+              "surface-container-high": "#e8e8e8",
+              "surface-container": "#eeeeee",
+              "error": "#ba1a1a",
+              "on-secondary-container": "#6d5500",
+              "inverse-surface": "#2f3131",
+              "secondary-container": "#fec800",
+              "on-tertiary": "#ffffff",
+              "surface": "#f9f9f9",
+              "inverse-primary": "#ffb2bf",
+              "tertiary": "#3b3b3b",
+              "on-tertiary-container": "#c7c5c5",
+              "on-error": "#ffffff",
+              "on-tertiary-fixed": "#1b1c1c",
+              "on-error-container": "#93000a",
+              "tertiary-container": "#535252",
+              "on-surface-variant": "#584144",
+              "surface-container-lowest": "#ffffff",
+              "inverse-on-surface": "#f1f1f1",
+              "background": "#f9f9f9",
+              "primary-container": "#9f1945",
+              "on-secondary": "#ffffff",
+              "tertiary-fixed": "#e4e2e1",
+              "primary": "#7b0030",
+              "on-secondary-fixed-variant": "#594400",
+              "secondary-fixed-dim": "#f3c000",
+              "secondary-fixed": "#ffdf91",
+              "secondary": "#755b00",
+              "primary-fixed": "#ffd9de",
+              "on-surface": "#1a1c1c",
+              "surface-container-low": "#f3f3f3",
+              "surface-bright": "#f9f9f9",
+              "primary-fixed-dim": "#ffb2bf",
+              "surface-variant": "#e2e2e2",
+              "on-primary": "#ffffff",
+              "on-background": "#1a1c1c",
+              "outline": "#8b7074",
+              "on-primary-fixed": "#3f0015",
+              "on-primary-container": "#ffb1be",
+              "surface-dim": "#dadada"
+            },
+            fontFamily: {
+              "headline": ["Public Sans"],
+              "body": ["Inter"],
+              "label": ["Inter"]
+            },
+            borderRadius: {"DEFAULT": "0.125rem", "lg": "0.25rem", "xl": "0.5rem", "full": "0.75rem"},
+          },
+        },
+      }
+    </script>
+<style>
+      .material-symbols-outlined {
+        font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+      }
+      .heritage-gradient {
+        background: linear-gradient(135deg, #7B0030 0%, #9F1945 100%);
+      }
+      .glass-nav {
+        background: rgba(255, 255, 255, 0.8);
+        backdrop-filter: blur(20px);
+      }
+      @media (prefers-color-scheme: dark) {
+        .glass-nav {
+          background: rgba(123, 0, 48, 0.1);
+        }
+      }
+    </style>
+</head>
+<body class="bg-surface font-body text-on-surface antialiased">
+<!-- Top Navigation Shell -->
+<nav class="fixed top-0 left-0 w-full z-50 flex justify-between items-center px-8 h-16 glass-nav shadow-[0px_12px_32px_rgba(26,28,28,0.06)] border-b border-outline-variant/15">
+<div class="flex items-center gap-8">
+<span class="text-lg font-black tracking-tighter text-primary">Q-Armor Institutional</span>
+<div class="hidden md:flex items-center gap-6">
+<a class="text-slate-500 hover:text-primary transition-colors font-headline tracking-tight font-bold text-sm uppercase" href="#">Dashboard</a>
+<a class="text-slate-500 hover:text-primary transition-colors font-headline tracking-tight font-bold text-sm uppercase" href="#">Inventory</a>
+<a class="text-slate-500 hover:text-primary transition-colors font-headline tracking-tight font-bold text-sm uppercase" href="#">Heatmap</a>
+<a class="text-slate-500 hover:text-primary transition-colors font-headline tracking-tight font-bold text-sm uppercase" href="#">CBOM</a>
+<a class="text-primary border-b-2 border-secondary-container pb-1 font-headline tracking-tight font-bold text-sm uppercase" href="#">Certificates</a>
+<a class="text-slate-500 hover:text-primary transition-colors font-headline tracking-tight font-bold text-sm uppercase" href="#">Logs</a>
+</div>
+</div>
+<div class="flex items-center gap-4">
+<button class="p-2 hover:bg-surface-container rounded-full transition-colors">
+<span class="material-symbols-outlined text-primary">account_balance</span>
+</button>
+<button class="p-2 hover:bg-surface-container rounded-full transition-colors">
+<span class="material-symbols-outlined text-primary">shield_person</span>
+</button>
+<button class="p-2 hover:bg-surface-container rounded-full transition-colors">
+<span class="material-symbols-outlined text-primary">settings</span>
+</button>
+<div class="w-8 h-8 rounded-full bg-primary-container flex items-center justify-center text-[10px] text-white font-bold">
+                AU
+            </div>
+</div>
+</nav>
+<!-- Main Content Canvas -->
+<main class="pt-24 pb-16 px-8 max-w-[1400px] mx-auto grid grid-cols-12 gap-8">
+<!-- Sidebar: Attestation Metadata -->
+<aside class="col-span-12 lg:col-span-3 space-y-6">
+<div class="bg-surface-container-low p-6 rounded-xl space-y-8">
+<div>
+<h3 class="font-headline font-bold text-xs uppercase tracking-widest text-on-surface-variant mb-4">Attestation Metadata</h3>
+<div class="space-y-4">
+<div class="flex flex-col">
+<span class="text-[10px] font-bold text-primary uppercase">Issue Node</span>
+<span class="text-sm font-semibold">LON-Q-ALPHA-09</span>
+</div>
+<div class="flex flex-col">
+<span class="text-[10px] font-bold text-primary uppercase">Timestamp</span>
+<span class="text-sm font-semibold">2024-05-22 14:02:11 UTC</span>
+</div>
+<div class="flex flex-col">
+<span class="text-[10px] font-bold text-primary uppercase">PQC Framework Version</span>
+<span class="text-sm font-semibold">Kyber-1024 / Dilithium-V3</span>
+</div>
+<div class="flex flex-col">
+<span class="text-[10px] font-bold text-primary uppercase">Compliance Level</span>
+<span class="text-sm font-semibold text-secondary">Tier 1 Sovereign</span>
+</div>
+</div>
+</div>
+<div class="pt-6 border-t border-outline-variant/30">
+<button class="w-full bg-secondary-container text-on-secondary-container font-headline font-bold text-xs py-3 px-4 rounded-xl shadow-sm hover:scale-[0.98] transition-transform flex items-center justify-center gap-2">
+<span class="material-symbols-outlined text-sm">verified</span>
+                        VERIFY SIGNATURE
+                    </button>
+</div>
+<div class="pt-6">
+<div class="bg-surface-container-highest p-4 rounded-lg flex items-start gap-3">
+<span class="material-symbols-outlined text-primary" style="font-variation-settings: 'FILL' 1;">info</span>
+<p class="text-[11px] leading-relaxed text-on-surface-variant italic">
+                            This document serves as a legally binding cryptographic proof of post-quantum readiness for the specified institutional assets.
+                        </p>
+</div>
+</div>
+</div>
+</aside>
+<!-- Primary Document View -->
+<section class="col-span-12 lg:col-span-9">
+<!-- Heritage Banner -->
+<div class="heritage-gradient rounded-t-xl p-12 relative overflow-hidden">
+<div class="relative z-10 flex justify-between items-start">
+<div class="max-w-2xl">
+<h1 class="font-headline font-black text-4xl text-secondary-fixed tracking-tight leading-none mb-4">Institutional Attestation of Cryptographic Compliance</h1>
+<p class="text-primary-fixed/80 font-medium text-lg">Sovereign Asset Protection Framework v4.2</p>
+</div>
+<div class="hidden md:block">
+<span class="material-symbols-outlined text-7xl text-secondary-fixed/20" style="font-variation-settings: 'wght' 200;">policy</span>
+</div>
+</div>
+<!-- Abstract Decorative Pattern -->
+<div class="absolute right-0 bottom-0 opacity-10 pointer-events-none">
+<svg fill="none" height="400" viewbox="0 0 400 400" width="400" xmlns="http://www.w3.org/2000/svg">
+<circle cx="200" cy="200" r="150" stroke="white" stroke-dasharray="10 10" stroke-width="2"></circle>
+<circle cx="200" cy="200" r="100" stroke="white" stroke-width="1"></circle>
+<path d="M200 50V350M50 200H350" stroke="white" stroke-width="0.5"></path>
+</svg>
+</div>
+</div>
+<!-- Certificate Body -->
+<div class="bg-surface-container-lowest p-12 rounded-b-xl shadow-[0px_12px_32px_rgba(26,28,28,0.06)] space-y-12">
+<!-- Statement of Fact -->
+<div class="max-w-3xl">
+<p class="text-on-surface text-lg leading-relaxed font-body">
+                        The <span class="font-bold text-primary">Q-Armor Cryptographic Engine</span> hereby confirms that all private keys, communication channels, and identity clusters within the specified institutional node have been rotated to NIST-standardized Post-Quantum algorithms. This attestation warrants that the underlying architecture is resilient against <span class="italic">Shor's Algorithm</span> and equivalent quantum computational threats.
+                    </p>
+</div>
+<!-- Digital Artifacts Bento -->
+<div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+<!-- JSON Blob -->
+<div class="bg-surface p-6 rounded-xl border border-outline-variant/10 space-y-4">
+<div class="flex items-center justify-between">
+<h4 class="font-headline font-bold text-xs uppercase tracking-widest text-primary">Signed JSON Artifact</h4>
+<span class="material-symbols-outlined text-sm text-slate-400">code</span>
+</div>
+<div class="bg-on-surface p-4 rounded-lg overflow-x-auto max-h-48">
+<pre class="text-[10px] text-primary-fixed font-mono">{
+  "header": {
+    "alg": "Dilithium3",
+    "typ": "ATTESTATION",
+    "kid": "NODE_ALPHA_09"
+  },
+  "payload": {
+    "issuer": "Q-Armor-Authority",
+    "sub": "Heritage-Asset-Vault-01",
+    "compliance_status": "CERTIFIED",
+    "exp": 1716424931
+  },
+  "pqc_integrity_proof": "8f2a...c91e"
+}</pre>
+</div>
+</div>
+<!-- Signature Hash -->
+<div class="bg-surface p-6 rounded-xl border border-outline-variant/10 flex flex-col justify-between">
+<div class="space-y-4">
+<div class="flex items-center justify-between">
+<h4 class="font-headline font-bold text-xs uppercase tracking-widest text-primary">Cryptographic Signature Hash</h4>
+<span class="material-symbols-outlined text-sm text-slate-400" style="font-variation-settings: 'FILL' 1;">fingerprint</span>
+</div>
+<div class="break-all font-mono text-sm font-bold text-on-surface bg-surface-container p-4 rounded-lg">
+                                4f9e1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a
+                            </div>
+</div>
+<div class="mt-4 flex items-center gap-2 text-primary font-bold text-[10px] uppercase">
+<span class="material-symbols-outlined text-xs">verified_user</span>
+                            SHA-256 Verified Artifact
+                        </div>
+</div>
+</div>
+<!-- Signatory Section -->
+<div class="flex flex-col md:flex-row justify-between items-end gap-8 pt-12 border-t border-outline-variant/20">
+<div class="flex items-center gap-6">
+<!-- System Node Seal -->
+<div class="w-24 h-24 rounded-full border-4 border-secondary-container/40 flex items-center justify-center relative bg-white shadow-inner">
+<div class="absolute inset-2 border border-primary/20 rounded-full flex items-center justify-center">
+<span class="material-symbols-outlined text-primary text-4xl" style="font-variation-settings: 'wght' 300;">hub</span>
+</div>
+<div class="absolute -bottom-2 bg-primary text-white text-[8px] font-bold px-2 py-0.5 rounded">AUTHENTIC</div>
+</div>
+<div>
+<p class="text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-1">System Node Seal</p>
+<p class="font-headline font-extrabold text-primary">IMPERIAL-ALPHA-GHOST</p>
+</div>
+</div>
+<div class="text-right space-y-4">
+<div class="flex flex-col items-end">
+<p class="font-['Georgia'] italic text-2xl text-on-surface/70 mb-2">Aurelius Sterling</p>
+<div class="h-px w-48 bg-outline-variant"></div>
+<p class="text-[10px] font-bold text-primary uppercase mt-1 tracking-widest">Chief Security Curator</p>
+</div>
+<p class="text-[10px] text-slate-400">Digital ID: Q-CERT-9921-SC-001</p>
+</div>
+</div>
+<!-- Footer Footnote -->
+<div class="pt-8 flex justify-between items-center text-[10px] text-slate-400 font-bold uppercase tracking-tighter">
+<span>Document ID: QC-2024-X99L-7712</span>
+<span class="flex items-center gap-1">
+<span class="w-1 h-1 rounded-full bg-secondary"></span>
+                        Quantum Resilience Confirmed
+                    </span>
+</div>
+</div>
+</section>
+</main>
+<!-- Contextual FAB Suppression (Hiding FAB as per rules for Details/Certificate page) -->
+</body></html>

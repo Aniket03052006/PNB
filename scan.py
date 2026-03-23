@@ -249,6 +249,7 @@ def _print_pipeline_table(
     table.add_column("Q-Score", justify="right", min_width=8)
     table.add_column("Status", min_width=22)
     table.add_column("Negotiation Policy", justify="center", min_width=22)
+    table.add_column("PQC Support", justify="center", min_width=12)
 
     def _policy_tier(hostname: str) -> str | None:
         policy = negotiation_policies.get(hostname)
@@ -264,6 +265,9 @@ def _print_pipeline_table(
         status = str(a.get("status", "UNKNOWN"))
         style = STATUS_COLORS.get(status, "")
 
+        pqc_support = a.get("pqc_support", False)
+        pqc_mark = "[bold green]✔[/bold green]" if pqc_support else "[bold red]✘[/bold red]"
+
         table.add_row(
             f"{hostname}:{port}",
             str(a.get("tls_version", "—")),
@@ -272,6 +276,7 @@ def _print_pipeline_table(
             f"[{style}]{int(a.get('worst_case_score', 0))}/100[/{style}]",
             f"[{style}]{status}[/{style}]",
             _format_negotiation_tier(_policy_tier(hostname)),
+            pqc_mark,
         )
 
     console.print()

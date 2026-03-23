@@ -6,6 +6,8 @@
 
 **A production-quality Post-Quantum Cryptography (PQC) readiness scanner for internet-facing assets**
 
+## Software Requirements Specification (SRS)
+
 [![Python 3.10+](https://img.shields.io/badge/Python-3.10+-blue.svg)](https://python.org)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.115-009688.svg)](https://fastapi.tiangolo.com)
 [![NIST FIPS 203/204/205](https://img.shields.io/badge/NIST-FIPS%20203%2F204%2F205-critical.svg)](https://csrc.nist.gov)
@@ -32,8 +34,19 @@
 - [3. Specific Requirements](#3-specific-requirements)
   - [3.1 Functional Requirements](#31-functional-requirements)
   - [3.2 External Interface Requirements](#32-external-interface-requirements)
+        - [3.2.1 User Interfaces](#321-user-interfaces)
+        - [3.2.2 Hardware Interfaces](#322-hardware-interfaces)
+        - [3.2.3 Software / Communication Interfaces](#323-software--communication-interfaces)
   - [3.3 System Features](#33-system-features)
   - [3.4 Non-Functional Requirements](#34-non-functional-requirements)
+        - [3.4.1 Performance Requirements](#341-performance-requirements)
+        - [3.4.2 Software Quality Attributes](#342-software-quality-attributes)
+        - [3.4.3 Other Non-Functional Requirements](#343-other-non-functional-requirements)
+- [4. Technological Requirements](#4-technological-requirements)
+    - [4.1 Technologies Used in Development of the Web Application](#41-technologies-used-in-development-of-the-web-application)
+    - [4.2 IDE (Integrated Development Environment)](#42-ide-integrated-development-environment)
+    - [4.3 Database Management Software](#43-database-management-software)
+- [5. Security Requirements](#5-security-requirements)
 - [Architecture & Diagrams](#architecture--diagrams)
   - [Enterprise-Wide Architecture](#enterprise-wide-architecture)
   - [Data Flow Diagrams (DFD)](#data-flow-diagrams-dfd)
@@ -536,6 +549,69 @@ To detect hidden downgrade vulnerabilities and ensure comprehensive cryptographi
 | **Error Handling** | HTTP exceptions with descriptive messages; CLI exits with code 1 on total scan failure or CI gate breach |
 | **Concurrency** | Async/await pattern for parallel TLS probing; ASGI server with hot-reload for development |
 | **Documentation** | All public API functions have comprehensive docstrings with parameter/return type annotations |
+
+---
+
+## 4. Technological Requirements
+
+### 4.1 Technologies Used in Development of the Web Application
+
+| Layer | Technology | Purpose |
+|------|------------|---------|
+| **Frontend** | HTML5, CSS3, JavaScript (ES6+) | Dashboard rendering, charts, UI interaction, API integration |
+| **Frontend Hosting** | Vercel | Static hosting, edge delivery, API rewrite routing to backend |
+| **Backend API** | FastAPI, Uvicorn | REST endpoints, JSON responses, async request handling |
+| **Programming Language** | Python 3.12.3 | Core application logic, scanning pipeline, API runtime |
+| **Crypto / Parsing** | OpenSSL, `cryptography` | TLS negotiation analysis, certificate parsing, digital signatures |
+| **Data / Persistence** | SQLite, JSON, CycloneDX 1.7 | Scan history, asset score persistence, CBOM generation |
+| **Testing / Tooling** | pytest, rich | Automated validation and CLI output formatting |
+| **Backend Hosting** | Railway | Production deployment of the FastAPI service |
+
+### 4.2 IDE (Integrated Development Environment)
+
+The project is developed and maintained primarily in **Visual Studio Code** with Python tooling for linting, debugging, terminal execution, and repository management.
+
+Recommended VS Code extensions and tooling:
+
+- Python extension for interpreter management, debugging, and test discovery
+- Pylance for language intelligence and type analysis
+- Jupyter support when interactive experimentation is needed
+- Git integration for source control and deployment workflow
+
+Any modern Python-capable IDE can be used, but the repository and current workflow are structured around VS Code.
+
+### 4.3 Database Management Software
+
+Q-ARMOR uses **SQLite** as its database management software.
+
+| Property | Value |
+|----------|-------|
+| **Database Engine** | SQLite |
+| **Storage Mode** | WAL (Write-Ahead Logging) |
+| **Primary File** | `data/scanner.db` |
+| **Usage** | Scan history, asset scores, labels, alerts |
+| **Why Chosen** | Lightweight, serverless, zero-admin, suitable for single-service deployment |
+
+SQLite is appropriate for the current deployment model because the application runs as a single FastAPI service and benefits from simple persistent storage without requiring a separate database server.
+
+---
+
+## 5. Security Requirements
+
+The system SHALL satisfy the following security requirements:
+
+| ID | Requirement |
+|----|------------|
+| **SR-1** | The system SHALL avoid PQC false positives by deriving PQC posture from negotiated server parameters, not client capability assumptions. |
+| **SR-2** | The system SHALL mark incomplete or failed scans as `UNKNOWN` instead of inventing cryptographic posture. |
+| **SR-3** | The system SHALL support HTTPS-based integrations for Slack, Teams, CT logs, and browser/API communication. |
+| **SR-4** | The system SHALL digitally sign attestation documents using Ed25519 and support verification of those signatures. |
+| **SR-5** | The system SHALL restrict cross-origin API access through configurable CORS settings in deployment. |
+| **SR-6** | The system SHALL set baseline HTTP security headers for frontend delivery, including `X-Content-Type-Options`, `X-Frame-Options`, and `Referrer-Policy`. |
+| **SR-7** | The system SHALL support secure transport analysis using SNI-aware probing and validated certificate parsing. |
+| **SR-8** | The system SHALL avoid storing user credentials or secrets in the dashboard frontend. |
+| **SR-9** | The system SHALL maintain append-only label registry behavior for traceability, with revoke operations recorded rather than silently overwritten. |
+| **SR-10** | The system SHALL provide deployment controls for production safety, including scan limits, compression thresholds, and explicit frontend origin configuration. |
 
 ---
 

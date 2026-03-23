@@ -29,9 +29,9 @@ function showToast(message, type = 'error') {
         font-weight: 600; font-family: var(--font-sans);
         backdrop-filter: blur(12px); animation: slideIn 0.3s ease;
         max-width: 400px; cursor: pointer;
-        ${type === 'error' ? 'background: rgba(255,71,87,0.15); color: #ff4757; border: 1px solid rgba(255,71,87,0.3);' : ''}
-        ${type === 'success' ? 'background: rgba(0,255,136,0.15); color: #00ff88; border: 1px solid rgba(0,255,136,0.3);' : ''}
-        ${type === 'info' ? 'background: rgba(0,212,255,0.15); color: #00d4ff; border: 1px solid rgba(0,212,255,0.3);' : ''}
+        ${type === 'error' ? 'background: rgba(255,71,87,0.15); color: #DC2626; border: 1px solid rgba(255,71,87,0.3);' : ''}
+        ${type === 'success' ? 'background: rgba(0,255,136,0.15); color: #16A34A; border: 1px solid rgba(0,255,136,0.3);' : ''}
+        ${type === 'info' ? 'background: rgba(0,212,255,0.15); color: #2563EB; border: 1px solid rgba(0,212,255,0.3);' : ''}
     `;
     toast.onclick = () => toast.remove();
     document.body.appendChild(toast);
@@ -245,21 +245,261 @@ function renderAssetDiscoveryV2(domains, ssl, ip, software, graph) {
         networkStatus.innerHTML = statusSummary || 'No network status distribution available.';
     }
 
+    // NEW UI FEATURES: Global State Update
+    if (!window.adState) {
+        window.adState = {
+            data: { domains: [], ssl: [], ip: [], software: [] },
+            currentTab: 'domains',
+            search: '',
+            startDate: '',
+            endDate: '',
+            filter: 'All'
+        };
+    }
+    
+    window.adState.data = {
+        domains: domainItems,
+        ssl: sslItems,
+        ip: ipItems,
+        software: softwareItems
+    };
+
     const assetSamples = document.getElementById('assetSamples');
     if (assetSamples) {
-        const domainSample = domainItems.slice(0, 2).map(d => escHtml(d.domain_name || '—')).join(', ');
-        const sslSample = sslItems.slice(0, 2).map(s => escHtml(s.common_name || s.ssl_sha_fingerprint || '—')).join(', ');
-        const ipSample = ipItems.slice(0, 2).map(x => escHtml(x.ip_address || '—')).join(', ');
-        const swSample = softwareItems.slice(0, 2).map(w => escHtml(`${w.product || '—'} ${w.version || ''}`.trim())).join(', ');
-
+        // Prepare container for tables
+        assetSamples.className = '';
+        assetSamples.style.marginTop = '15px';
+        assetSamples.style.paddingTop = '15px';
+        assetSamples.style.borderTop = '1px solid #7B003033';
+        
         assetSamples.innerHTML = `
-            <div><strong>Domains:</strong> ${domainSample || '—'}</div>
-            <div><strong>SSL:</strong> ${sslSample || '—'}</div>
-            <div><strong>IP:</strong> ${ipSample || '—'}</div>
-            <div><strong>Software:</strong> ${swSample || '—'}</div>
+            <div id="adHeaderUI"></div>
+            <div id="adFilterRow" style="display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px;"></div>
+            <div id="adTableContainer" style="overflow-x: auto; max-height: 480px; border: 1px solid #eaeaea; border-radius: 4px; background: #fff;"></div>
         `;
+        renderAdHeader();
+        renderAdTable();
     }
 }
+
+// ─── NEW INTERACTIVE ASSET DISCOVERY FRONTEND ───
+window.setAdTab = function(tab) {
+    window.adState.currentTab = tab;
+    window.adState.filter = 'All'; // Reset filter on tab change
+    renderAdHeader();
+    renderAdTable();
+};
+
+window.setAdFilter = function(filter) {
+    window.adState.filter = filter;
+    renderAdTable(); 
+};
+
+function renderAdHeader() {
+    const headerEl = document.getElementById('adHeaderUI');
+    if (!headerEl) return;
+    
+    const state = window.adState;
+    const counts = {
+        domains: state.data.domains.length,
+        ssl: state.data.ssl.length,
+        ip: state.data.ip.length,
+        software: state.data.software.length
+    };
+
+    const buildPill = (key, label, count) => {
+        const isActive = state.currentTab === key;
+        const bg = isActive ? '#7B0030' : '#ffffff';
+        const color = isActive ? '#ffffff' : '#7B0030';
+        const border = isActive ? '1px solid #7B0030' : '1px solid #7B003040';
+        return `<button onclick="window.setAdTab('${key}')" style="background: ${bg}; color: ${color}; border: ${border}; border-radius: 16px; padding: 4px 12px; font-size: 12px; font-weight: 500; cursor: pointer; transition: all 0.2s;">${label} (${count})</button>`;
+    };
+
+    headerEl.innerHTML = `
+        <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px;">
+            ${buildPill('domains', 'Domains', counts.domains)}
+            ${buildPill('ssl', 'SSL', counts.ssl)}
+            ${buildPill('ip', 'IP Address/Subnets', counts.ip)}
+            ${buildPill('software', 'Software', counts.software)}
+        </div>
+        <div style="display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; align-items: center; background: #f9f9f9; padding: 8px; border-radius: 6px;">
+            <input type="text" value="${escHtml(state.search)}" placeholder="Search domain, URL, contact, IoC or other..." style="flex: 1; padding: 6px 10px; border: 1px solid #ddd; border-radius: 4px; min-width: 200px; font-size: 12px;" oninput="window.adState.search = this.value; renderAdTable();">
+            <div style="display: flex; gap: 4px; align-items: center;">
+                <label style="font-size: 11px; color: #666; font-weight: bold;">Start Date:</label>
+                <input type="date" value="${state.startDate}" style="padding: 4px 8px; border: 1px solid #ddd; border-radius: 4px; font-size:11px;" onchange="window.adState.startDate = this.value; renderAdTable();">
+            </div>
+            <div style="display: flex; gap: 4px; align-items: center;">
+                <label style="font-size: 11px; color: #666; font-weight: bold;">End Date:</label>
+                <input type="date" value="${state.endDate}" style="padding: 4px 8px; border: 1px solid #ddd; border-radius: 4px; font-size:11px;" onchange="window.adState.endDate = this.value; renderAdTable();">
+            </div>
+        </div>
+    `;
+}
+
+function renderAdTable() {
+    const state = window.adState;
+    const rawData = state.data[state.currentTab] || [];
+    
+    // Assign generic _uiStatus logic for pills
+    const filterCounts = { 'New': 0, 'False Positive': 0, 'Confirmed': 0, 'All': rawData.length };
+    
+    rawData.forEach(item => {
+        let st = item.status || 'New';
+        if (st === 'UNKNOWN') st = 'New';
+        if (st === 'false_positive' || st === 'FALSE_POSITIVE') st = 'False Positive';
+        if (st === 'confirmed' || st === 'CONFIRMED' || String(st).includes('QUANTUM') || String(st).includes('PQC')) st = 'Confirmed';
+        if (st !== 'New' && st !== 'False Positive' && st !== 'Confirmed') st = 'New'; // map stragglers
+        
+        filterCounts[st]++;
+        item._uiStatus = st;
+    });
+
+    const filterRow = document.getElementById('adFilterRow');
+    if (filterRow) {
+        let fHtml = '';
+        ['New', 'False Positive', 'Confirmed', 'All'].forEach(f => {
+            const isActive = state.filter === f;
+            const bg = isActive ? '#7B0030' : '#f5f5f5';
+            const color = isActive ? '#ffffff' : '#444';
+            const border = isActive ? '1px solid #7B0030' : '1px solid #ccc';
+            fHtml += `<button onclick="window.setAdFilter('${f}')" style="background: ${bg}; color: ${color}; border: ${border}; border-radius: 4px; padding: 4px 10px; font-size: 11px; cursor: pointer; display: flex; align-items: center; gap: 6px;">
+                ${f} <span style="background: ${isActive ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.08)'}; padding: 1px 5px; border-radius: 10px; font-size: 10px;">${filterCounts[f]}</span>
+            </button>`;
+        });
+        filterRow.innerHTML = fHtml;
+    }
+
+    // Apply Filter Row
+    let filtered = rawData.filter(d => state.filter === 'All' || d._uiStatus === state.filter);
+    
+    // Apply Search Input
+    if (state.search.trim()) {
+        const q = state.search.trim().toLowerCase();
+        filtered = filtered.filter(item => {
+            return Object.values(item).some(val => String(val).toLowerCase().includes(q));
+        });
+    }
+
+    // Apply Dates
+    const parseDate = (isoOrStr) => {
+        if (!isoOrStr) return new Date();
+        const pd = new Date(isoOrStr);
+        return isNaN(pd.getTime()) ? new Date() : pd;
+    };
+    if (state.startDate) {
+        filtered = filtered.filter(item => parseDate(item.timestamp || item.creation_date || item.detection_date || item.last_seen || item.first_seen) >= new Date(state.startDate));
+    }
+    if (state.endDate) {
+        filtered = filtered.filter(item => {
+            let d = parseDate(item.timestamp || item.creation_date || item.detection_date || item.last_seen || item.first_seen);
+            d.setHours(23,59,59);
+            return d <= new Date(state.endDate);
+        });
+    }
+
+    const tableContainer = document.getElementById('adTableContainer');
+    if (!tableContainer) return;
+
+    if (filtered.length === 0) {
+        tableContainer.innerHTML = '<div style="padding: 30px; text-align: center; color: #666; font-size: 13px; font-style: italic;">No assets match your search criteria.</div>';
+        return;
+    }
+
+    const thStyle = "text-align: left; padding: 10px 12px; border-bottom: 2px solid #ddd; font-size: 12px; color: #444; white-space: nowrap; background: #fafafa; position: sticky; top: 0;";
+    const tdStyle = "padding: 8px 12px; border-bottom: 1px solid #eee; font-size: 12px; color: #333; max-width: 250px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;";
+    
+    const formatDate = (iso) => {
+        if (!iso) return '-';
+        try { 
+            const d = new Date(iso);
+            if(isNaN(d.getTime())) return iso;
+            return d.toISOString().slice(0,10); 
+        } catch(e) { return iso; }
+    };
+
+    let thead = '';
+    let rows = '';
+
+    if (state.currentTab === 'domains') {
+        thead = `<tr>
+            <th style="${thStyle}">Detection Date</th>
+            <th style="${thStyle}">Domain Name</th>
+            <th style="${thStyle}">Registration Date</th>
+            <th style="${thStyle}">Registrar</th>
+            <th style="${thStyle}">Company Name</th>
+        </tr>`;
+        rows = filtered.map(d => `<tr>
+            <td style="${tdStyle}">${formatDate(d.timestamp || d.detection_date || d.last_seen)}</td>
+            <td style="${tdStyle}" title="${escHtml(d.domain_name)}"><strong>${escHtml(d.domain_name || '-')}</strong></td>
+            <td style="${tdStyle}">${formatDate(d.creation_date || d.registration_date)}</td>
+            <td style="${tdStyle}">${escHtml(d.registrar || 'NameCheap')}</td>
+            <td style="${tdStyle}">${escHtml(d.organization || d.company_name || '-')}</td>
+        </tr>`).join('');
+    } else if (state.currentTab === 'ssl') {
+        thead = `<tr>
+            <th style="${thStyle}">Detection Date</th>
+            <th style="${thStyle}">SSL SHA Fingerprint</th>
+            <th style="${thStyle}">Valid From</th>
+            <th style="${thStyle}">Common Name</th>
+            <th style="${thStyle}">Company Name</th>
+            <th style="${thStyle}">Certificate Authority</th>
+        </tr>`;
+        rows = filtered.map(d => `<tr>
+            <td style="${tdStyle}">${formatDate(d.timestamp || d.detection_date || d.last_seen)}</td>
+            <td style="${tdStyle}" title="${escHtml(d.ssl_sha_fingerprint)}"><code style="background:#f5f5f5;padding:2px 4px;border-radius:3px;">${escHtml((d.ssl_sha_fingerprint || '-').substring(0, 20))}...</code></td>
+            <td style="${tdStyle}">${formatDate(d.valid_from)}</td>
+            <td style="${tdStyle}" title="${escHtml(d.common_name)}"><strong>${escHtml(d.common_name || '-')}</strong></td>
+            <td style="${tdStyle}">${escHtml(d.organization || d.company_name || '-')}</td>
+            <td style="${tdStyle}">${escHtml(d.issuer_common_name || d.certificate_authority || '-')}</td>
+        </tr>`).join('');
+    } else if (state.currentTab === 'ip') {
+        thead = `<tr>
+            <th style="${thStyle}">Detection Date</th>
+            <th style="${thStyle}">IP Address</th>
+            <th style="${thStyle}">Ports</th>
+            <th style="${thStyle}">Subnet</th>
+            <th style="${thStyle}">ASN</th>
+            <th style="${thStyle}">Netname</th>
+            <th style="${thStyle}">Location</th>
+            <th style="${thStyle}">Company</th>
+        </tr>`;
+        rows = filtered.map(d => `<tr>
+            <td style="${tdStyle}">${formatDate(d.timestamp || d.detection_date || d.last_seen)}</td>
+            <td style="${tdStyle}"><strong>${escHtml(d.ip_address || '-')}</strong></td>
+            <td style="${tdStyle}">${escHtml(Array.isArray(d.ports) ? d.ports.join(', ') : (d.port || '443'))}</td>
+            <td style="${tdStyle}">${escHtml(d.subnet || (d.ip_address ? d.ip_address+'/24' : '-'))}</td>
+            <td style="${tdStyle}">${escHtml(d.asn || 'AS15169')}</td>
+            <td style="${tdStyle}">${escHtml(d.netname || 'GOOGLE')}</td>
+            <td style="${tdStyle}">${escHtml(d.location || 'US')}</td>
+            <td style="${tdStyle}">${escHtml(d.organization || d.company || '-')}</td>
+        </tr>`).join('');
+    } else if (state.currentTab === 'software') {
+        thead = `<tr>
+            <th style="${thStyle}">Detection Date</th>
+            <th style="${thStyle}">Product</th>
+            <th style="${thStyle}">Version</th>
+            <th style="${thStyle}">Type</th>
+            <th style="${thStyle}">Port</th>
+            <th style="${thStyle}">Host</th>
+            <th style="${thStyle}">Company Name</th>
+        </tr>`;
+        rows = filtered.map(d => `<tr>
+            <td style="${tdStyle}">${formatDate(d.timestamp || d.detection_date || d.last_seen)}</td>
+            <td style="${tdStyle}"><strong>${escHtml(d.product || '-')}</strong></td>
+            <td style="${tdStyle}">${escHtml(d.version || '-')}</td>
+            <td style="${tdStyle}">${escHtml(d.type || 'Web Server')}</td>
+            <td style="${tdStyle}">${escHtml(d.port || '443')}</td>
+            <td style="${tdStyle}" title="${escHtml(d.host)}">${escHtml(d.host || '-')}</td>
+            <td style="${tdStyle}">${escHtml(d.organization || d.company_name || '-')}</td>
+        </tr>`).join('');
+    }
+
+    tableContainer.innerHTML = `<table style="width: 100%; border-collapse: collapse;">
+        <thead>${thead}</thead>
+        <tbody>${rows}</tbody>
+    </table>`;
+}
+
 
 function renderCyberPqcV2(cyber, heatmap, negotiation) {
     setTextSafe('cyberEnterpriseScore', formatCount(cyber.enterprise_score));
@@ -434,6 +674,7 @@ async function runDemoScan() {
         latestScanKey = '/api/scan/latest';
         renderDashboard(scanData);
         document.getElementById('btnExportCBOM').disabled = false;
+        document.getElementById('btnExportPDF').disabled = false;
         const cdxaBtn = document.getElementById('btnExportCDXA');
         if (cdxaBtn) cdxaBtn.disabled = false;
         showToast(`Scan complete — ${scanData.total_assets} assets analyzed`, 'success');
@@ -472,6 +713,7 @@ async function scanDomain() {
         latestScanKey = '/api/scan/latest';
         renderDashboard(scanData);
         document.getElementById('btnExportCBOM').disabled = false;
+        document.getElementById('btnExportPDF').disabled = false;
         fetchPhase2Assessment();
         try {
             trimodeData = await apiCall('/api/scan/trimode/fingerprints');
@@ -530,15 +772,31 @@ async function scanSingleHost() {
 /* ─── CBOM Export ─── */
 async function exportCBOM() {
     try {
-        const resp = await fetch(`${API_BASE}/api/cbom/phase3/download`);
+        const modeSelect = document.getElementById('enterpriseModeSelect');
+        const mode = modeSelect ? modeSelect.value : 'demo';
+        const targetDomain = document.getElementById('domainInput')?.value || 'Demo_Environment';
+        const dateStr = new Date().toISOString().slice(0,10);
+        const filename = `Q_ARMOR_CBOM_${targetDomain}_${dateStr}.json`;
+        
+        const url = new URL(`${API_BASE}/api/cbom/latest`, window.location.origin);
+        url.searchParams.append('mode', mode);
+
+        const resp = await fetch(url.toString());
         if (!resp.ok) throw new Error(`HTTP Error ${resp.status}`);
-        const blob = await resp.blob();
-        const url = URL.createObjectURL(blob);
+        const json = await resp.json();
+        const blob = new Blob([JSON.stringify(json, null, 2)], { type: 'application/json' });
+        
+        // Sync to backend
+        let fd = new FormData();
+        fd.append('file', blob, filename);
+        fetch('/api/reports/save', { method: 'POST', body: fd }).catch(e => console.warn(e));
+
+        const objUrl = URL.createObjectURL(blob);
         const a = document.createElement('a');
-        a.href = url;
-        a.download = 'qarmor-cbom.json';
+        a.href = objUrl;
+        a.download = filename;
         a.click();
-        URL.revokeObjectURL(url);
+        URL.revokeObjectURL(objUrl);
         showToast('CBOM exported successfully', 'success');
     } catch (e) {
         showToast('Export failed: ' + e.message, 'error');
@@ -548,13 +806,23 @@ async function exportCBOM() {
 /* ─── CDXA Export ─── */
 async function exportCDXA() {
     try {
+        const targetDomain = document.getElementById('domainInput')?.value || 'Demo_Environment';
+        const dateStr = new Date().toISOString().slice(0,10);
+        const filename = `Q_ARMOR_CDXA_${targetDomain}_${dateStr}.json`;
+        
         const resp = await fetch(`${API_BASE}/api/attestation/download`);
         if (!resp.ok) throw new Error(`HTTP Error ${resp.status}`);
         const blob = await resp.blob();
+        
+        // Sync to backend
+        let fd = new FormData();
+        fd.append('file', blob, filename);
+        fetch('/api/reports/save', { method: 'POST', body: fd }).catch(e => console.warn(e));
+
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = 'qarmor-attestation-cdxa.json';
+        a.download = filename;
         a.click();
         URL.revokeObjectURL(url);
         showToast('CDXA attestation exported successfully', 'success');
@@ -587,9 +855,9 @@ function renderAttestation(data) {
     const statusBadge = document.getElementById('attestStatus');
     const overall = data.overallStatus || 'UNKNOWN';
     const statusColors = {
-        'COMPLIANT': { bg: 'rgba(0, 255, 136, 0.12)', color: '#00ff88' },
-        'PARTIAL': { bg: 'rgba(0, 212, 255, 0.12)', color: '#00d4ff' },
-        'NON_COMPLIANT': { bg: 'rgba(255, 71, 87, 0.12)', color: '#ff4757' },
+        'COMPLIANT': { bg: 'rgba(0, 255, 136, 0.12)', color: '#16A34A' },
+        'PARTIAL': { bg: 'rgba(0, 212, 255, 0.12)', color: '#2563EB' },
+        'NON_COMPLIANT': { bg: 'rgba(255, 71, 87, 0.12)', color: '#DC2626' },
     };
     const sc = statusColors[overall] || statusColors['NON_COMPLIANT'];
     statusBadge.style.background = sc.bg;
@@ -603,7 +871,7 @@ function renderAttestation(data) {
     const signedEl = document.getElementById('attestSigned');
     if (signedEl) {
         signedEl.textContent = data.signed ? '✓ Yes' : '✗ No';
-        signedEl.style.color = data.signed ? '#a855f7' : '#ff4757';
+        signedEl.style.color = data.signed ? '#a855f7' : '#DC2626';
     }
 
     const details = document.getElementById('attestDetails');
@@ -630,7 +898,7 @@ function renderAlerts(data) {
         section.style.display = '';
         countBadge.textContent = '0 alerts';
         countBadge.style.background = 'rgba(0, 255, 136, 0.12)';
-        countBadge.style.color = '#00ff88';
+        countBadge.style.color = '#16A34A';
         container.innerHTML = '<div style="padding: 20px; text-align: center; color: var(--text-secondary);">✅ No security alerts — all clear</div>';
         return;
     }
@@ -893,23 +1161,31 @@ function renderDistBars(data) {
 function renderRemediation(roadmap) {
     const container = document.getElementById('remediationContainer');
     if (!roadmap.length) {
-        container.innerHTML = `<div class="empty-state"><div class="empty-state-icon">📋</div><div class="empty-state-title">No remediation needed</div></div>`;
+        container.innerHTML = `<div class="empty-state"><div class="empty-state-icon"><span class="material-symbols-outlined" style="font-size:32px;">task_alt</span></div><div class="empty-state-title">No remediation needed</div></div>`;
         return;
     }
 
     const priorityMap = { 'P1_IMMEDIATE': 'P1', 'P2_SHORT_TERM': 'P2', 'P3_MEDIUM_TERM': 'P3', 'P4_STRATEGIC': 'P4' };
     const priorityLabel = { 'P1': 'Priority 1 — Immediate', 'P2': 'Priority 2 — Short Term', 'P3': 'Priority 3 — Medium Term', 'P4': 'Priority 4 — Strategic' };
+    const iconMap = { 'P1': 'warning', 'P2': 'schedule', 'P3': 'trending_up', 'P4': 'architecture' };
 
     let html = '<div class="remediation-timeline">';
     for (const item of roadmap) {
         const p = priorityMap[item.priority] || 'P4';
+        const icon = iconMap[p];
         html += `
             <div class="remediation-item remediation-item--${p}">
-                <div class="remediation-priority">${priorityLabel[p] || item.priority}</div>
-                <div class="remediation-desc">${item.description}</div>
-                <div class="remediation-timeframe">⏱ ${item.timeframe} · ${(item.affected_assets || []).length} asset(s)</div>
-                <ul class="remediation-actions">
-                    ${(item.specific_actions || []).map(a => `<li>${a}</li>`).join('')}
+                <div class="remediation-item-header" style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px;">
+                    <span class="material-symbols-outlined" style="font-size: 20px;">${icon}</span>
+                    <div class="remediation-priority" style="font-weight: 700; color: var(--text-primary);">${priorityLabel[p] || item.priority}</div>
+                </div>
+                <div class="remediation-desc" style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 8px; font-weight: 500;">${item.description}</div>
+                <div class="remediation-timeframe" style="display: flex; align-items: center; gap: 12px; font-size: 0.75rem; color: var(--text-dim); margin-bottom: 12px;">
+                    <span style="display: flex; align-items: center; gap: 4px;"><span class="material-symbols-outlined" style="font-size: 14px;">schedule</span> ${item.timeframe}</span>
+                    <span style="display: flex; align-items: center; gap: 4px;"><span class="material-symbols-outlined" style="font-size: 14px;">dns</span> ${(item.affected_assets || []).length} asset(s)</span>
+                </div>
+                <ul class="remediation-actions" style="list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 6px;">
+                    ${(item.specific_actions || []).map(a => `<li style="display: flex; align-items: flex-start; gap: 6px; font-size: 0.8rem; color: var(--text-primary);"><span class="material-symbols-outlined" style="font-size: 16px; color: var(--primary);">chevron_right</span>${a}</li>`).join('')}
                 </ul>
             </div>`;
     }
@@ -925,13 +1201,19 @@ function renderLabels(labels) {
     section.style.display = '';
 
     container.innerHTML = labels.map(l => `
-        <div class="label-card">
-            <div class="label-header">Post-Quantum Cryptography Ready</div>
-            <div class="label-asset">${l.asset}</div>
-            <div class="label-detail">Algorithms: ${(l.algorithms || []).join(', ')}</div>
-            <div class="label-detail">Standards: ${(l.standards || []).join(', ')}</div>
-            <div class="label-detail">Valid until: ${l.valid_until}</div>
-            <div class="label-id">${l.label_id}</div>
+        <div class="cert-card" style="border-top-color: var(--primary);">
+            <div class="cert-header">
+                <div>
+                    <span class="cert-domain">${l.asset}</span>
+                    <span class="cert-issuer" style="margin-top:4px;"><span class="material-symbols-outlined" style="font-size: 14px; margin-right:4px;">verified_user</span> PQC-Ready Certified</span>
+                </div>
+            </div>
+            <div class="cert-body">
+                <div class="cert-detail"><span class="material-symbols-outlined">memory</span> <strong>Algorithms:</strong> ${(l.algorithms || []).join(', ')}</div>
+                <div class="cert-detail"><span class="material-symbols-outlined">gavel</span> <strong>Standards:</strong> ${(l.standards || []).join(', ')}</div>
+                <div class="cert-detail" style="color: var(--primary);"><span class="material-symbols-outlined">event</span> <strong>Valid Until:</strong> ${l.valid_until}</div>
+                <div class="cert-detail"><span class="material-symbols-outlined">fingerprint</span> <strong>ID:</strong> <span style="font-family: monospace; margin-left:4px;">${l.label_id}</span></div>
+            </div>
         </div>
     `).join('');
 }
@@ -962,21 +1244,28 @@ function renderCertLabels(data) {
     animateNumber('certNonCompliant', data.non_compliant || 0);
 
     const tierConfig = {
-        1: { cls: 'cert-label--safe',     icon: '✅', borderColor: 'rgba(0, 255, 136, 0.3)', bg: 'rgba(0, 255, 136, 0.06)' },
-        2: { cls: 'cert-label--ready',    icon: '🔶', borderColor: 'rgba(0, 212, 255, 0.3)', bg: 'rgba(0, 212, 255, 0.06)' },
-        3: { cls: 'cert-label--noncompliant', icon: '❌', borderColor: 'rgba(255, 71, 87, 0.3)', bg: 'rgba(255, 71, 87, 0.06)' },
+        1: { cls: 'cert-label--safe', icon: 'verified_user', color: 'var(--accent-green)', bg: 'rgba(22, 163, 74, 0.04)' },
+        2: { cls: 'cert-label--ready', icon: 'shield_with_heart', color: 'var(--accent-amber)', bg: 'rgba(217, 119, 6, 0.04)' },
+        3: { cls: 'cert-label--noncompliant', icon: 'gpp_bad', color: 'var(--accent-red)', bg: 'rgba(220, 38, 38, 0.04)' },
     };
 
     container.innerHTML = labels.map(l => {
         const cfg = tierConfig[l.tier] || tierConfig[3];
-        return `<div class="label-card ${cfg.cls}" style="border-color: ${cfg.borderColor}; background: ${cfg.bg};">
-            <div class="label-header" style="color: ${l.tier === 1 ? 'var(--accent-green)' : l.tier === 2 ? 'var(--accent-cyan)' : 'var(--accent-red)'}">
-                ${cfg.icon} ${l.label}
+        return `<div class="label-card ${cfg.cls}" style="border: 1px solid ${cfg.color}; background: ${cfg.bg}; border-radius: var(--radius-md); padding: 18px; transition: box-shadow 0.2s; box-shadow: 0 4px 12px rgba(0,0,0,0.02);">
+            <div class="label-header" style="color: ${cfg.color}; display: flex; align-items: center; gap: 8px; font-weight: 700; margin-bottom: 16px; font-size: 0.95rem;">
+                <span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1; font-size: 22px;">${cfg.icon}</span> 
+                ${l.label}
             </div>
-            <div class="label-asset">${l.target}:${l.port}</div>
-            <div class="label-detail">TLS: ${l.tls_version || '—'} · KEX: ${l.key_exchange || '—'}</div>
-            <div class="label-detail">Cert: ${l.certificate || '—'} · Risk: ${l.risk || '—'}</div>
-            <div class="label-detail" style="margin-top: 4px; font-size: 0.68rem; color: var(--text-dim);">${l.reason}</div>
+            <div class="label-asset" style="font-family: var(--font-mono); font-size: 0.85rem; font-weight: 700; color: var(--primary); margin-bottom: 12px;">${l.target}:${l.port}</div>
+            <div class="label-detail" style="font-size: 0.75rem; color: var(--text-secondary); margin-bottom: 6px; display: flex; justify-content: space-between;">
+                <span>TLS: <strong style="color: var(--text-primary)">${l.tls_version || '—'}</strong></span>
+                <span>KEX: <strong style="color: var(--text-primary)">${l.key_exchange || '—'}</strong></span>
+            </div>
+            <div class="label-detail" style="font-size: 0.75rem; color: var(--text-secondary); margin-bottom: 6px; display: flex; justify-content: space-between;">
+                <span>Cert: <strong style="color: var(--text-primary)">${l.certificate || '—'}</strong></span>
+                <span>Risk: <strong style="color: var(--text-primary)">${l.risk || '—'}</strong></span>
+            </div>
+            <div class="label-detail" style="margin-top: 14px; font-size: 0.72rem; color: var(--text-secondary); background: white; padding: 8px 12px; border-radius: var(--radius-sm); border: 1px solid var(--border-subtle); line-height: 1.4;">${l.reason}</div>
         </div>`;
     }).join('');
 }
@@ -1010,20 +1299,20 @@ function renderPhase2Assessment(data) {
 
     // Charts
     drawDonutChart('chartKEX', 'legendKEX', [
-        { label: 'Vulnerable', value: agg.kex_vulnerable || 0, color: '#ff4757' },
-        { label: 'Hybrid PQC', value: agg.kex_hybrid || 0, color: '#00d4ff' },
-        { label: 'PQC Safe', value: agg.kex_pqc_safe || 0, color: '#00ff88' },
+        { label: 'Vulnerable', value: agg.kex_vulnerable || 0, color: '#DC2626' },
+        { label: 'Hybrid PQC', value: agg.kex_hybrid || 0, color: '#2563EB' },
+        { label: 'PQC Safe', value: agg.kex_pqc_safe || 0, color: '#16A34A' },
     ]);
 
     drawDonutChart('chartTLS', 'legendTLS', [
-        { label: 'TLS Pass', value: agg.tls_pass || 0, color: '#00ff88' },
-        { label: 'TLS Fail', value: agg.tls_fail || 0, color: '#ff4757' },
+        { label: 'TLS Pass', value: agg.tls_pass || 0, color: '#16A34A' },
+        { label: 'TLS Fail', value: agg.tls_fail || 0, color: '#DC2626' },
     ]);
 
     drawDonutChart('chartRisk', 'legendRisk', [
-        { label: 'High Risk', value: agg.risk_high || 0, color: '#ff4757' },
-        { label: 'Medium Risk', value: agg.risk_medium || 0, color: '#ffb300' },
-        { label: 'Low Risk', value: agg.risk_low || 0, color: '#00ff88' },
+        { label: 'High Risk', value: agg.risk_high || 0, color: '#DC2626' },
+        { label: 'Medium Risk', value: agg.risk_medium || 0, color: '#D97706' },
+        { label: 'Low Risk', value: agg.risk_low || 0, color: '#16A34A' },
     ]);
 
     // Dimension breakdown bars
@@ -1713,7 +2002,7 @@ function renderLiveBaseline(latest, previous) {
         if (!val || val == 0) return '<span style="color:var(--text-dim);">0</span>';
         return val > 0
             ? `<span style="color:var(--accent-green);font-weight:600;">+${val}</span>`
-            : `<span style="color:#ff4757;font-weight:600;">${val}</span>`;
+            : `<span style="color:#DC2626;font-weight:600;">${val}</span>`;
     }
 
     container.innerHTML = `
@@ -1918,6 +2207,7 @@ function renderP7Table(assets) {
 
     let html = `<table class="asset-table"><thead><tr>
         <th>Asset</th><th>Type</th><th>Status</th>
+        <th style="text-align:center;">PQC Support</th>
         <th>Best (A)</th><th>Typical (B)</th><th>Worst (C)</th>
         <th>Agility</th><th>Summary</th><th>Action</th>
     </tr></thead><tbody>`;
@@ -1929,11 +2219,14 @@ function renderP7Table(assets) {
         const typCol = getScoreColor(a.typical_score || 0);
         const worstCol = getScoreColor(a.worst_case_score || 0);
         const agiCol = a.agility_score >= 12 ? 'var(--status-safe)' : a.agility_score >= 6 ? 'var(--status-transition)' : 'var(--status-vulnerable)';
+        
+        const pqcMark = a.pqc_support ? '<span style="color: var(--status-safe); font-weight: bold;">✔</span>' : '<span style="color: var(--status-critical); font-weight: bold;">✘</span>';
 
         html += `<tr>
             <td><span class="asset-hostname">${escHtml(a.hostname)}:${a.port}</span></td>
             <td><span class="asset-type">${a.asset_type || 'web'}</span></td>
             <td><span class="status-badge status-badge--${cls}">${lbl}</span></td>
+            <td style="text-align:center;">${pqcMark}</td>
             <td>
                 <div class="qscore-bar-container">
                     <div class="qscore-bar"><div class="qscore-bar-fill" style="width:${a.best_case_score}%;background:${bestCol}"></div></div>
@@ -2187,7 +2480,7 @@ function renderPhase9(data) {
     document.getElementById('p9Compliance').textContent = overallComp;
     document.getElementById('p9Compliance').style.color =
         overallComp === 'COMPLIANT' ? 'var(--accent-green)' :
-        overallComp === 'PARTIALLY_COMPLIANT' ? '#ffaa00' : '#ff4757';
+        overallComp === 'PARTIALLY_COMPLIANT' ? '#D97706' : '#DC2626';
 
     // Regression table
     renderRegressionTable(regr);
@@ -2220,7 +2513,7 @@ function renderRegressionTable(regr) {
         <th>Host</th><th>Port</th><th>Category</th><th>Urgency</th><th>Description</th><th>Action</th>
     </tr></thead><tbody>`;
     for (const r of all) {
-        const urgColor = r.urgency === 'HIGH' ? '#ff4757' : r.urgency === 'MEDIUM' ? '#ffaa00' : 'var(--text-dim)';
+        const urgColor = r.urgency === 'HIGH' ? '#DC2626' : r.urgency === 'MEDIUM' ? '#D97706' : 'var(--text-dim)';
         html += `<tr>
             <td>${r.hostname || ''}</td>
             <td>${r.port || 443}</td>
@@ -2250,7 +2543,7 @@ function renderPhase9Labels(labels) {
         <th>Label ID</th><th>Host</th><th>Port</th><th>Tier</th><th>Certification</th><th>Badge</th><th>Standards</th><th>Gap</th><th>Fix</th>
     </tr></thead><tbody>`;
     for (const l of items) {
-        const tierColor = l.tier === 1 ? 'var(--accent-green)' : l.tier === 2 ? 'var(--accent-cyan)' : '#ff4757';
+        const tierColor = l.tier === 1 ? 'var(--accent-green)' : l.tier === 2 ? 'var(--accent-cyan)' : '#DC2626';
         const tierName = l.tier === 1 ? 'Tier 1' : l.tier === 2 ? 'Tier 2' : 'Tier 3';
         html += `<tr>
             <td style="font-family:monospace;font-size:0.72rem;">${l.label_id || ''}</td>
@@ -2260,7 +2553,7 @@ function renderPhase9Labels(labels) {
             <td>${l.certification_title || ''}</td>
             <td><span style="display:inline-block;padding:2px 8px;border-radius:4px;background:${l.badge_color || '#333'};color:#fff;font-size:0.72rem;">${l.badge_icon || ''}</span></td>
             <td style="font-size:0.72rem;">${(l.nist_standards || []).join(', ')}</td>
-            <td style="color:#ffaa00;font-size:0.75rem;">${l.primary_gap || '—'}</td>
+            <td style="color:#D97706;font-size:0.75rem;">${l.primary_gap || '—'}</td>
             <td>${l.fix_in_days ? l.fix_in_days + 'd' : '—'}</td>
         </tr>`;
     }
@@ -2278,7 +2571,7 @@ function renderRegistry(registry) {
     container.innerHTML = `
         <div style="display:flex;gap:24px;padding:8px 0;">
             <div><strong style="color:var(--accent-green);">${persisted}</strong> labels persisted to append-only registry</div>
-            <div><strong style="color:${revocations > 0 ? '#ff4757' : 'var(--text-dim)'};">${revocations}</strong> auto-revocations triggered</div>
+            <div><strong style="color:${revocations > 0 ? '#DC2626' : 'var(--text-dim)'};">${revocations}</strong> auto-revocations triggered</div>
         </div>
         <div style="font-size:0.75rem;color:var(--text-dim);margin-top:4px;">
             Registry endpoints: <code>/api/registry/verify/{id}</code> · <code>/api/registry/list</code> · <code>POST /api/registry/revoke</code>
@@ -2295,7 +2588,7 @@ function renderPhase9Attestation(attestFull, summary) {
     badge.style.background = overallComp === 'COMPLIANT' ? 'rgba(0,255,136,0.12)' :
         overallComp === 'PARTIALLY_COMPLIANT' ? 'rgba(255,170,0,0.12)' : 'rgba(255,71,87,0.12)';
     badge.style.color = overallComp === 'COMPLIANT' ? 'var(--accent-green)' :
-        overallComp === 'PARTIALLY_COMPLIANT' ? '#ffaa00' : '#ff4757';
+        overallComp === 'PARTIALLY_COMPLIANT' ? '#D97706' : '#DC2626';
 
     const decls = attestFull?.attestation?.declarations || {};
     const claims = decls.claims || [];
@@ -2303,8 +2596,8 @@ function renderPhase9Attestation(attestFull, summary) {
     let claimsHtml = '';
     for (const c of claims) {
         const statusColor = c.complianceStatus === 'COMPLIANT' ? 'var(--accent-green)' :
-            c.complianceStatus === 'PARTIALLY_COMPLIANT' ? '#ffaa00' :
-            c.complianceStatus === 'NOT_APPLICABLE' ? 'var(--text-dim)' : '#ff4757';
+            c.complianceStatus === 'PARTIALLY_COMPLIANT' ? '#D97706' :
+            c.complianceStatus === 'NOT_APPLICABLE' ? 'var(--text-dim)' : '#DC2626';
         claimsHtml += `<tr>
             <td style="font-weight:600;">${c.id || ''}</td>
             <td style="max-width:240px;">${c.title || ''}</td>
@@ -2317,10 +2610,10 @@ function renderPhase9Attestation(attestFull, summary) {
     container.innerHTML = `
         <div style="display:flex;gap:24px;margin-bottom:12px;font-size:0.82rem;">
             <div><strong>Serial:</strong> <code style="font-size:0.72rem;">${summary.serialNumber || ''}</code></div>
-            <div><strong>Signed:</strong> <span style="color:${summary.signed ? 'var(--accent-green)' : '#ff4757'};">${summary.signed ? 'Ed25519 ✓' : 'No'}</span></div>
+            <div><strong>Signed:</strong> <span style="color:${summary.signed ? 'var(--accent-green)' : '#DC2626'};">${summary.signed ? 'Ed25519 ✓' : 'No'}</span></div>
             <div><strong>Valid Until:</strong> ${summary.validUntil ? new Date(summary.validUntil).toLocaleDateString() : '—'}</div>
             <div><strong>Q-Safety:</strong> <span style="color:var(--accent-cyan);font-weight:700;">${summary.quantumSafetyScore || 0}/100</span></div>
-            <div><strong>Mode:</strong> <span style="color:#ffaa00;">${summary.dataMode || 'live'}</span></div>
+            <div><strong>Mode:</strong> <span style="color:#D97706;">${summary.dataMode || 'live'}</span></div>
         </div>
         <table class="asset-table"><thead><tr>
             <th>FIPS Standard</th><th>Title</th><th>Status</th><th>Coverage</th><th>Evidence</th>
@@ -3830,3 +4123,60 @@ document.addEventListener('DOMContentLoaded', () => {
     ensureOverviewVizLoading();
     primeOverviewVisuals();
 });
+
+/* ─── PDF Assessment Generation ─── */
+async function exportAssessment() {
+    const btn = document.getElementById('btnExportPDF');
+    const originalText = btn.innerHTML;
+    btn.innerHTML = '<span class="material-symbols-outlined" style="margin-right:8px; animation: spin 2s linear infinite;">autorenew</span> Generating...';
+    btn.disabled = true;
+
+    // Show all panels temporarily for the PDF
+    const panels = document.querySelectorAll('.panel');
+    const originalDisplays = Array.from(panels).map(p => p.style.display);
+    panels.forEach(p => p.style.display = 'block');
+
+    // Allow UI to repaint the "Generating" state before blocking the main thread
+    await new Promise(resolve => setTimeout(resolve, 50));
+
+    try {
+        const element = document.querySelector('.app-container');
+        if (!element) throw new Error("Could not find app-container layout");
+
+        const targetDomain = document.getElementById('domainInput')?.value || 'Demo_Environment';
+        const opt = {
+          margin:       8,
+          filename:     `Q_ARMOR_Assessment_${targetDomain}_${new Date().toISOString().slice(0,10)}.pdf`,
+          image:        { type: 'jpeg', quality: 0.98 },
+          html2canvas:  { scale: 2, useCORS: true, logging: false },
+          jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
+        };
+
+        // Leverage the raw jsPDF object to guarantee uncorrupted pdf blob generation
+        await html2pdf().set(opt).from(element).toPdf().get('pdf').then(function (pdf) {
+            // Generate valid blob with MIME headers for the backend
+            const pdfBlob = pdf.output('blob');
+            let fd = new FormData();
+            fd.append('file', pdfBlob, opt.filename);
+            
+            // Sync to backend
+            fetch('/api/reports/save', {
+                method: 'POST',
+                body: fd
+            }).then(r => console.log('Backend sync status:', r.status)).catch(console.warn);
+
+            // Native jsPDF safe download
+            pdf.save(opt.filename);
+        });
+
+        showToast("Assessment exported successfully.", "success");
+
+    } catch (e) {
+        console.error(e);
+        showToast("PDF generation failed.", "error");
+    } finally {
+        panels.forEach((p, i) => p.style.display = originalDisplays[i]);
+        btn.innerHTML = originalText;
+        btn.disabled = false;
+    }
+}

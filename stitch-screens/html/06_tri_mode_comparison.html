@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+
+<html lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Sovereign Q-Risk | Tri-Mode Comparison</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;700;800;900&amp;family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          colors: {
+            "secondary-container": "#fec800",
+            "on-secondary": "#ffffff",
+            "tertiary-container": "#535252",
+            "inverse-surface": "#2f3131",
+            "outline": "#8b7074",
+            "on-tertiary-container": "#c7c5c5",
+            "on-tertiary": "#ffffff",
+            "inverse-primary": "#ffb2bf",
+            "error-container": "#ffdad6",
+            "secondary": "#755b00",
+            "background": "#f9f9f9",
+            "surface-container-highest": "#e2e2e2",
+            "surface-tint": "#b02751",
+            "on-tertiary-fixed": "#1b1c1c",
+            "primary-container": "#9f1945",
+            "on-tertiary-fixed-variant": "#474747",
+            "primary-fixed-dim": "#ffb2bf",
+            "surface-container-low": "#f3f3f3",
+            "surface": "#f9f9f9",
+            "primary-fixed": "#ffd9de",
+            "on-secondary-fixed-variant": "#594400",
+            "on-error-container": "#93000a",
+            "on-surface-variant": "#584144",
+            "outline-variant": "#dfbfc3",
+            "on-surface": "#1a1c1c",
+            "on-error": "#ffffff",
+            "surface-container-lowest": "#ffffff",
+            "on-background": "#1a1c1c",
+            "surface-variant": "#e2e2e2",
+            "on-secondary-fixed": "#241a00",
+            "error": "#ba1a1a",
+            "primary": "#7b0030",
+            "on-secondary-container": "#6d5500",
+            "surface-container": "#eeeeee",
+            "secondary-fixed": "#ffdf91",
+            "tertiary-fixed": "#e4e2e1",
+            "on-primary-container": "#ffb1be",
+            "inverse-on-surface": "#f1f1f1",
+            "tertiary": "#3b3b3b",
+            "secondary-fixed-dim": "#f3c000",
+            "on-primary-fixed": "#3f0015",
+            "on-primary-fixed-variant": "#8f063a",
+            "on-primary": "#ffffff",
+            "surface-dim": "#dadada",
+            "surface-container-high": "#e8e8e8",
+            "surface-bright": "#f9f9f9",
+            "tertiary-fixed-dim": "#c8c6c6"
+          },
+          fontFamily: {
+            "headline": ["Public Sans"],
+            "body": ["Inter"],
+            "label": ["Inter"]
+          },
+          borderRadius: {"DEFAULT": "0.125rem", "lg": "0.25rem", "xl": "0.5rem", "full": "0.75rem"},
+        },
+      },
+    }
+  </script>
+<style>
+    .material-symbols-outlined {
+      font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+    }
+    body { font-family: 'Inter', sans-serif; }
+    h1, h2, h3 { font-family: 'Public Sans', sans-serif; }
+  </style>
+</head>
+<body class="bg-background text-on-background antialiased">
+<!-- TopAppBar -->
+<header class="fixed top-0 left-0 w-full flex justify-between items-center px-8 h-16 bg-white/80 backdrop-blur-xl border-b border-[#DFBFC3]/15 z-50 shadow-[0px_12px_32px_rgba(26,28,28,0.06)]">
+<div class="flex items-center gap-4">
+<span class="text-[#7B0030] font-black tracking-tighter text-2xl">Sovereign Q-Risk</span>
+</div>
+<div class="hidden md:flex items-center gap-8">
+<nav class="flex gap-6">
+<a class="text-slate-500 font-medium hover:text-[#9F1945] transition-colors" href="#">Dashboard</a>
+<a class="text-[#7B0030] border-b-2 border-[#7B0030] pb-1 font-bold" href="#">Asset Inventory</a>
+<a class="text-slate-500 font-medium hover:text-[#9F1945] transition-colors" href="#">Risk Engine</a>
+</nav>
+<div class="flex items-center gap-3 ml-4 border-l border-outline-variant/30 pl-6">
+<span class="material-symbols-outlined text-on-surface-variant cursor-pointer">notifications</span>
+<span class="material-symbols-outlined text-on-surface-variant cursor-pointer">settings</span>
+<div class="w-8 h-8 rounded-full bg-surface-container-highest overflow-hidden">
+<img alt="User Profile" data-alt="Abstract circular user profile placeholder" src="https://lh3.googleusercontent.com/aida-public/AB6AXuC4DuHErhYVXCz04kDJQZ3Qy_MNU3eumhUVAwQPCjkjhdEfgpxQPJL0ZlTvLolcSGxIKR222pbmwRN59HoA9FtYJy07hJnUQl-T5Yscxdms3ZPTgpbtgbnI1RVDhqwE65rM4QsICjBCLj8NeblEV0nCFULp1s9PnmVNyanyr8V1ENCXu1XC8kTBUThxy3Zt9SoRFh56WJ7ee3lsstLF81ZkqVkVGePwSax0yc8BqbWLwBLgR9falPSsqjMj0LfHF8DeApUQV3wKYVWh"/>
+</div>
+</div>
+</div>
+</header>
+<!-- SideNavBar -->
+<aside class="fixed left-0 top-16 h-[calc(100vh-64px)] w-64 bg-[#F3F3F3] border-r border-[#DFBFC3]/15 flex flex-col p-4 gap-2 z-40">
+<div class="mb-6 px-2">
+<p class="text-[#7B0030] font-bold text-lg leading-tight">Sovereign Curator</p>
+<p class="text-xs text-on-surface-variant uppercase tracking-widest font-semibold opacity-70">PQ-Risk Intelligence</p>
+</div>
+<nav class="flex-1 space-y-1">
+<a class="flex items-center gap-3 p-3 text-slate-600 hover:bg-slate-200/50 hover:translate-x-1 transition-all rounded-lg" href="#">
+<span class="material-symbols-outlined">dashboard</span>
+<span class="font-medium text-sm">Dashboard</span>
+</a>
+<a class="flex items-center gap-3 p-3 bg-white text-[#7B0030] rounded-lg shadow-sm font-bold" href="#">
+<span class="material-symbols-outlined">inventory_2</span>
+<span class="font-medium text-sm">Asset Inventory</span>
+</a>
+<a class="flex items-center gap-3 p-3 text-slate-600 hover:bg-slate-200/50 hover:translate-x-1 transition-all rounded-lg" href="#">
+<span class="material-symbols-outlined">security</span>
+<span class="font-medium text-sm">Risk Engine</span>
+</a>
+<a class="flex items-center gap-3 p-3 text-slate-600 hover:bg-slate-200/50 hover:translate-x-1 transition-all rounded-lg" href="#">
+<span class="material-symbols-outlined">account_tree</span>
+<span class="font-medium text-sm">CBOM Explorer</span>
+</a>
+<a class="flex items-center gap-3 p-3 text-slate-600 hover:bg-slate-200/50 hover:translate-x-1 transition-all rounded-lg" href="#">
+<span class="material-symbols-outlined">policy</span>
+<span class="font-medium text-sm">Policy Manager</span>
+</a>
+<a class="flex items-center gap-3 p-3 text-slate-600 hover:bg-slate-200/50 hover:translate-x-1 transition-all rounded-lg" href="#">
+<span class="material-symbols-outlined">receipt_long</span>
+<span class="font-medium text-sm">Audit Logs</span>
+</a>
+</nav>
+<div class="pt-4 mt-4 border-t border-outline-variant/20">
+<button class="w-full bg-[#7B0030] text-white py-2.5 rounded-xl font-bold text-sm shadow-md active:scale-[0.99] transition-all">
+        Run Scan
+      </button>
+<div class="mt-4 space-y-1">
+<a class="flex items-center gap-3 p-2 text-slate-500 text-sm hover:text-primary transition-colors" href="#">
+<span class="material-symbols-outlined text-lg">menu_book</span>
+<span>Documentation</span>
+</a>
+<a class="flex items-center gap-3 p-2 text-slate-500 text-sm hover:text-primary transition-colors" href="#">
+<span class="material-symbols-outlined text-lg">contact_support</span>
+<span>Support</span>
+</a>
+</div>
+</div>
+</aside>
+<!-- Main Content -->
+<main class="ml-64 mt-16 p-8 min-h-screen">
+<!-- Asset Header -->
+<div class="mb-12 flex flex-col md:flex-row md:items-end justify-between gap-6">
+<div class="space-y-2">
+<div class="flex items-center gap-2 text-primary font-bold tracking-tight">
+<span class="material-symbols-outlined text-sm">lan</span>
+<span class="text-sm uppercase tracking-widest">Asset Analysis</span>
+</div>
+<h1 class="text-4xl font-extrabold tracking-tight text-on-surface">vault-01.primary.qarmor.com</h1>
+<p class="text-on-surface-variant font-medium">Strategic Infrastructure Node | Criticality: Tier 1 High</p>
+</div>
+<div class="flex gap-4">
+<div class="bg-surface-container-lowest px-6 py-3 rounded-xl shadow-sm border border-outline-variant/10">
+<p class="text-[10px] uppercase tracking-tighter text-on-surface-variant font-bold mb-1">Global Q-Score</p>
+<div class="flex items-center gap-2">
+<span class="text-2xl font-black text-primary">842</span>
+<span class="text-xs font-bold text-secondary px-2 py-0.5 bg-secondary-container rounded-full">RESILIENT</span>
+</div>
+</div>
+</div>
+</div>
+<!-- Tri-Mode Comparison Columns -->
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-12">
+<!-- Column 1: PQC Client Behavior -->
+<div class="flex flex-col bg-surface-container-lowest rounded-xl overflow-hidden shadow-[0px_12px_32px_rgba(26,28,28,0.06)] group">
+<div class="bg-gradient-to-br from-primary to-primary-container p-6 text-white relative overflow-hidden">
+<div class="relative z-10">
+<h3 class="font-bold text-lg mb-1 flex items-center gap-2">
+<span class="material-symbols-outlined text-secondary-container" style="font-variation-settings: 'FILL' 1;">auto_awesome</span>
+              PQC Client Behavior
+            </h3>
+<p class="text-primary-fixed text-xs font-medium uppercase tracking-widest opacity-80">The Future: Quantum-Safe</p>
+</div>
+<div class="absolute -right-4 -bottom-4 opacity-10">
+<span class="material-symbols-outlined text-9xl">verified_user</span>
+</div>
+</div>
+<div class="p-8 space-y-8 flex-1">
+<div class="space-y-1">
+<label class="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">TLS Version</label>
+<p class="text-lg font-bold">TLS 1.3 + PQ Hybrid</p>
+</div>
+<div class="space-y-1">
+<label class="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">Cipher Suite</label>
+<p class="text-md font-medium font-mono text-primary bg-primary-fixed/20 px-2 py-1 rounded inline-block">AEAD-AES256-GCM</p>
+</div>
+<div class="space-y-1">
+<label class="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">Key Exchange Mechanism</label>
+<div class="flex items-center gap-2">
+<p class="text-lg font-black text-on-surface">ML-KEM-768</p>
+<span class="text-[10px] bg-secondary-container text-on-secondary-container px-1.5 py-0.5 font-black rounded italic">KYBER</span>
+</div>
+</div>
+<div class="pt-6 border-t border-outline-variant/10">
+<div class="flex items-center gap-3">
+<div class="w-12 h-12 rounded-full bg-secondary-container/20 flex items-center justify-center text-secondary">
+<span class="material-symbols-outlined text-3xl" style="font-variation-settings: 'FILL' 1;">check_circle</span>
+</div>
+<div>
+<p class="font-bold text-on-surface">Result: SUCCESS</p>
+<p class="text-xs text-on-surface-variant">Post-Quantum Cryptography enabled. Fully resilient to "Harvest Now, Decrypt Later" attacks.</p>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Column 2: TLS 1.3 Client Behavior -->
+<div class="flex flex-col bg-surface-container-lowest rounded-xl overflow-hidden shadow-sm border border-outline-variant/10">
+<div class="bg-surface-container-highest p-6 text-on-surface relative overflow-hidden">
+<div class="relative z-10">
+<h3 class="font-bold text-lg mb-1 flex items-center gap-2 text-on-surface">
+<span class="material-symbols-outlined text-primary">schedule</span>
+              TLS 1.3 Client Behavior
+            </h3>
+<p class="text-on-surface-variant text-xs font-medium uppercase tracking-widest opacity-80">The Present: Standard Modern</p>
+</div>
+</div>
+<div class="p-8 space-y-8 flex-1">
+<div class="space-y-1">
+<label class="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">TLS Version</label>
+<p class="text-lg font-bold">TLS 1.3</p>
+</div>
+<div class="space-y-1">
+<label class="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">Cipher Suite</label>
+<p class="text-md font-medium font-mono text-on-surface bg-surface-container-high px-2 py-1 rounded inline-block">TLS_AES_256_GCM_SHA384</p>
+</div>
+<div class="space-y-1">
+<label class="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">Key Exchange Mechanism</label>
+<p class="text-lg font-bold text-on-surface">X25519 (ECDHE)</p>
+</div>
+<div class="pt-6 border-t border-outline-variant/10">
+<div class="flex items-center gap-3">
+<div class="w-12 h-12 rounded-full bg-secondary-container/40 flex items-center justify-center text-secondary">
+<span class="material-symbols-outlined text-3xl" style="font-variation-settings: 'FILL' 1;">warning</span>
+</div>
+<div>
+<p class="font-bold text-on-surface">Result: WARNING</p>
+<p class="text-xs text-on-surface-variant">Strong against classical threats, but vulnerable to future CRQC decryption. Mitigation recommended.</p>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Column 3: TLS 1.2 Client Behavior -->
+<div class="flex flex-col bg-surface-container-lowest rounded-xl overflow-hidden shadow-sm border border-outline-variant/10">
+<div class="bg-surface-container-high/50 p-6 text-on-surface relative overflow-hidden">
+<div class="relative z-10">
+<h3 class="font-bold text-lg mb-1 flex items-center gap-2 text-on-surface">
+<span class="material-symbols-outlined text-on-surface-variant">history</span>
+              TLS 1.2 Client Behavior
+            </h3>
+<p class="text-on-surface-variant text-xs font-medium uppercase tracking-widest opacity-80">The Legacy: Obsolescence</p>
+</div>
+</div>
+<div class="p-8 space-y-8 flex-1">
+<div class="space-y-1">
+<label class="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">TLS Version</label>
+<p class="text-lg font-bold text-on-surface-variant">TLS 1.2 (Legacy Fallback)</p>
+</div>
+<div class="space-y-1">
+<label class="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">Cipher Suite</label>
+<p class="text-md font-medium font-mono text-error bg-error-container/30 px-2 py-1 rounded inline-block">RSA-AES256-SHA256</p>
+</div>
+<div class="space-y-1">
+<label class="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">Key Exchange Mechanism</label>
+<p class="text-lg font-bold text-on-surface-variant">RSA 4096 / ECDHE-P256</p>
+</div>
+<div class="pt-6 border-t border-outline-variant/10">
+<div class="flex items-center gap-3">
+<div class="w-12 h-12 rounded-full bg-error-container/50 flex items-center justify-center text-error">
+<span class="material-symbols-outlined text-3xl" style="font-variation-settings: 'FILL' 1;">report</span>
+</div>
+<div>
+<p class="font-bold text-error">Result: CRITICAL</p>
+<p class="text-xs text-on-surface-variant">Significant risk profile. Non-PFS ciphers detected. Vulnerable to Shor's algorithm and retroactive decryption.</p>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Risk Breakdown & Remediation Panels -->
+<div class="grid grid-cols-1 md:grid-cols-2 gap-8 items-start">
+<!-- Risk Breakdown -->
+<section class="bg-surface-container-lowest p-8 rounded-xl shadow-sm border border-outline-variant/10">
+<div class="flex justify-between items-center mb-8">
+<h2 class="text-xl font-extrabold tracking-tight text-on-surface">Metric Scoring: Q-Score</h2>
+<span class="material-symbols-outlined text-primary">analytics</span>
+</div>
+<div class="space-y-8">
+<div class="space-y-3">
+<div class="flex justify-between text-sm">
+<span class="font-bold text-on-surface">Quantum Vulnerability Index</span>
+<span class="text-primary font-black">92/100</span>
+</div>
+<div class="w-full bg-surface-container h-3 rounded-full overflow-hidden">
+<div class="bg-primary h-full rounded-full" style="width: 92%"></div>
+</div>
+</div>
+<div class="space-y-3">
+<div class="flex justify-between text-sm">
+<span class="font-bold text-on-surface">Perfect Forward Secrecy (PFS) Health</span>
+<span class="text-secondary font-black">68/100</span>
+</div>
+<div class="w-full bg-surface-container h-3 rounded-full overflow-hidden">
+<div class="bg-secondary h-full rounded-full" style="width: 68%"></div>
+</div>
+</div>
+<div class="space-y-3">
+<div class="flex justify-between text-sm">
+<span class="font-bold text-on-surface">Compliance Drift (FIPS-203/NIST)</span>
+<span class="text-on-surface-variant font-black">12%</span>
+</div>
+<div class="w-full bg-surface-container h-3 rounded-full overflow-hidden">
+<div class="bg-on-surface-variant h-full rounded-full" style="width: 12%"></div>
+</div>
+</div>
+</div>
+<div class="mt-10 p-4 bg-primary/5 rounded-lg border-l-4 border-primary">
+<p class="text-xs font-bold uppercase tracking-widest text-primary mb-1">Expert Insight</p>
+<p class="text-sm italic text-on-surface-variant">"Asset <strong>vault-01</strong> is currently vulnerable to retroactive decryption of its TLS 1.2 traffic. Q-Armor's differentiation lies in its ability to force ML-KEM negotiation even for legacy clients via institutional proxying."</p>
+</div>
+</section>
+<!-- Remediation Panel -->
+<section class="bg-surface-container-low p-8 rounded-xl border border-outline-variant/20">
+<h2 class="text-xl font-extrabold tracking-tight text-on-surface mb-6">Remediation Roadmap</h2>
+<div class="space-y-4">
+<div class="flex items-start gap-4 p-4 bg-white rounded-lg border border-outline-variant/10 shadow-sm transition-transform hover:-translate-y-1">
+<div class="p-2 bg-secondary-container/20 rounded-lg text-secondary">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">rocket_launch</span>
+</div>
+<div>
+<p class="font-bold text-on-surface">Path 1: Native ML-KEM Migration</p>
+<p class="text-xs text-on-surface-variant mb-2">Upgrade OpenSSL/BoringSSL headers to support NIST-standard Kyber 768 implementation.</p>
+<button class="text-[10px] font-black uppercase tracking-widest text-primary hover:underline">View Config Patch</button>
+</div>
+</div>
+<div class="flex items-start gap-4 p-4 bg-white rounded-lg border border-outline-variant/10 shadow-sm transition-transform hover:-translate-y-1">
+<div class="p-2 bg-primary/10 rounded-lg text-primary">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">shield_person</span>
+</div>
+<div>
+<p class="font-bold text-on-surface">Path 2: Q-Armor Tunneling</p>
+<p class="text-xs text-on-surface-variant mb-2">Enforce a Post-Quantum wrapper around TLS 1.2/1.3 flows using sovereign key management.</p>
+<button class="text-[10px] font-black uppercase tracking-widest text-primary hover:underline">Activate Shield</button>
+</div>
+</div>
+<div class="flex items-start gap-4 p-4 bg-white/50 rounded-lg border border-dashed border-outline-variant/40">
+<div class="p-2 bg-surface-container-highest rounded-lg text-on-surface-variant opacity-50">
+<span class="material-symbols-outlined">rule</span>
+</div>
+<div>
+<p class="font-bold text-on-surface-variant opacity-60">Path 3: Decommission RSA</p>
+<p class="text-xs text-on-surface-variant opacity-60">Phase out all RSA-based certificates in favor of Dilithium (ML-DSA) signing.</p>
+</div>
+</div>
+</div>
+<div class="mt-8">
+<button class="w-full bg-secondary-container text-on-secondary-container py-4 rounded-xl font-black text-sm shadow-lg hover:shadow-xl transition-all flex items-center justify-center gap-2">
+            INITIATE PQC MIGRATION
+            <span class="material-symbols-outlined">trending_flat</span>
+</button>
+</div>
+</section>
+</div>
+<!-- Signature Bottom Branding -->
+<div class="mt-24 mb-8 pt-8 border-t border-outline-variant/10 flex flex-col items-center">
+<div class="flex items-center gap-2 text-on-surface-variant opacity-50 font-bold tracking-tighter mb-4">
+<span class="material-symbols-outlined text-sm">verified</span>
+<span class="text-xs uppercase">Sovereign Q-Risk Analysis Engine v4.2 | PQC Ready</span>
+</div>
+<div class="bg-gradient-to-r from-transparent via-[#DFBFC3]/20 to-transparent h-[1px] w-1/3"></div>
+</div>
+</main>
+<!-- Mobile Bottom Nav (Filter Applied) -->
+<div class="md:hidden fixed bottom-0 left-0 w-full bg-white h-16 flex justify-around items-center border-t border-outline-variant/15 z-50">
+<span class="material-symbols-outlined text-primary">dashboard</span>
+<span class="material-symbols-outlined text-slate-400">inventory_2</span>
+<span class="material-symbols-outlined text-slate-400">security</span>
+<span class="material-symbols-outlined text-slate-400">person</span>
+</div>
+</body></html>

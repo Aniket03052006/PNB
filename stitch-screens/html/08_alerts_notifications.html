@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;600;700;800&amp;family=Inter:wght@400;500;600&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "surface-tint": "#b02751",
+                        "secondary-fixed-dim": "#f3c000",
+                        "inverse-primary": "#ffb2bf",
+                        "outline": "#8b7074",
+                        "primary": "#7b0030",
+                        "secondary": "#755b00",
+                        "outline-variant": "#dfbfc3",
+                        "on-secondary-fixed-variant": "#594400",
+                        "inverse-on-surface": "#f1f1f1",
+                        "surface-bright": "#f9f9f9",
+                        "on-tertiary-fixed": "#1b1c1c",
+                        "secondary-fixed": "#ffdf91",
+                        "on-primary-fixed-variant": "#8f063a",
+                        "on-surface": "#1a1c1c",
+                        "on-surface-variant": "#584144",
+                        "surface-dim": "#dadada",
+                        "primary-fixed-dim": "#ffb2bf",
+                        "on-secondary": "#ffffff",
+                        "surface-variant": "#e2e2e2",
+                        "surface-container-lowest": "#ffffff",
+                        "primary-fixed": "#ffd9de",
+                        "tertiary-fixed": "#e4e2e1",
+                        "on-secondary-fixed": "#241a00",
+                        "primary-container": "#9f1945",
+                        "surface-container-highest": "#e2e2e2",
+                        "tertiary-fixed-dim": "#c8c6c6",
+                        "surface-container": "#eeeeee",
+                        "on-secondary-container": "#6d5500",
+                        "surface": "#f9f9f9",
+                        "on-tertiary-container": "#c7c5c5",
+                        "surface-container-low": "#f3f3f3",
+                        "on-error": "#ffffff",
+                        "inverse-surface": "#2f3131",
+                        "on-primary": "#ffffff",
+                        "error-container": "#ffdad6",
+                        "on-error-container": "#93000a",
+                        "surface-container-high": "#e8e8e8",
+                        "on-primary-container": "#ffb1be",
+                        "on-background": "#1a1c1c",
+                        "error": "#ba1a1a",
+                        "on-tertiary": "#ffffff",
+                        "on-tertiary-fixed-variant": "#474747",
+                        "on-primary-fixed": "#3f0015",
+                        "tertiary-container": "#535252",
+                        "secondary-container": "#fec800",
+                        "background": "#f9f9f9",
+                        "tertiary": "#3b3b3b"
+                    },
+                    fontFamily: {
+                        "headline": ["Public Sans"],
+                        "body": ["Inter"],
+                        "label": ["Inter"],
+                        "mono": ["JetBrains Mono"]
+                    },
+                    borderRadius: {"DEFAULT": "0.125rem", "lg": "0.25rem", "xl": "0.5rem", "full": "0.75rem"},
+                },
+            },
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .mono-data { font-family: 'JetBrains Mono', monospace; }
+    </style>
+</head>
+<body class="bg-surface font-body text-on-surface">
+<!-- TopAppBar -->
+<header class="bg-white/80 backdrop-blur-md shadow-[0px_12px_32px_rgba(26,28,28,0.06)] docked full-width top-0 z-50 sticky">
+<div class="flex justify-between items-center w-full px-8 py-4">
+<div class="flex items-center gap-8">
+<span class="text-xl font-bold text-[#7B0030] tracking-tighter font-headline">Quantum Sentinel</span>
+<nav class="hidden md:flex items-center gap-6">
+<a class="text-slate-500 hover:text-[#7B0030] font-headline tracking-tight text-sm font-semibold transition-colors" href="#">Dashboard</a>
+<a class="text-[#7B0030] border-b-2 border-[#7B0030] pb-1 font-headline tracking-tight text-sm font-semibold" href="#">Threat Intel</a>
+<a class="text-slate-500 hover:text-[#7B0030] font-headline tracking-tight text-sm font-semibold transition-colors" href="#">Assets</a>
+<a class="text-slate-500 hover:text-[#7B0030] font-headline tracking-tight text-sm font-semibold transition-colors" href="#">Compliance</a>
+</nav>
+</div>
+<div class="flex items-center gap-4">
+<button class="p-2 hover:bg-slate-50 rounded-full transition-colors text-slate-600">
+<span class="material-symbols-outlined">notifications</span>
+</button>
+<button class="p-2 hover:bg-slate-50 rounded-full transition-colors text-slate-600">
+<span class="material-symbols-outlined">settings</span>
+</button>
+<div class="w-8 h-8 rounded-full bg-primary-fixed overflow-hidden border border-outline-variant">
+<img alt="Security Analyst Profile" data-alt="Security Analyst Profile Avatar" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAHYbw0hZzsQj7WlkDjI27h0dAJL7mxqSE6pY4vFZvPi0EN40K0t-Oa3CxRXhaSGyg6ZOqU9MMtWIUg8ermGCQ2VzDm25LncX65s3bJVxcIeeRifBmS0EMUeMiGk9acCO8CHEQcewF601D3WHBwca2cRwupMHX2FMeP0YvPZ0g5enM4kBBgJhaUp9nUI4IG2AOSXbjbAyejSSEyQ94J60erQcf27w3ECpzAJLuR0xN-X8tOPxGwIYLnpWotTufN6zwF87ezRaY9UmoI"/>
+</div>
+</div>
+</div>
+</header>
+<div class="flex">
+<!-- SideNavBar -->
+<aside class="h-screen w-64 fixed left-0 top-0 pt-20 bg-slate-50 border-r-0 flex flex-col py-6 px-4 space-y-2 z-40">
+<div class="px-4 mb-6">
+<div class="flex items-center gap-3 mb-1">
+<span class="material-symbols-outlined text-primary" style="font-variation-settings: 'FILL' 1;">security</span>
+<span class="font-headline font-bold text-[#7B0030]">Risk Intelligence</span>
+</div>
+<p class="text-[10px] text-slate-500 uppercase tracking-widest font-semibold">Post-Quantum Suite</p>
+</div>
+<nav class="flex-1 space-y-1">
+<a class="flex items-center gap-3 px-4 py-3 text-slate-600 hover:bg-slate-100 transition-all duration-300 rounded-l-xl group" href="#">
+<span class="material-symbols-outlined group-hover:pl-1 transition-all">security</span>
+<span class="text-sm font-medium">Overview</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 bg-white text-[#7B0030] rounded-l-xl border-r-4 border-[#7B0030] font-medium shadow-sm" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">warning</span>
+<span class="text-sm font-medium">Live Alerts</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-slate-600 hover:bg-slate-100 transition-all duration-300 rounded-l-xl group" href="#">
+<span class="material-symbols-outlined group-hover:pl-1 transition-all">list_alt</span>
+<span class="text-sm font-medium">Risk Registry</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-slate-600 hover:bg-slate-100 transition-all duration-300 rounded-l-xl group" href="#">
+<span class="material-symbols-outlined group-hover:pl-1 transition-all">lan</span>
+<span class="text-sm font-medium">Quantum Inventory</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-slate-600 hover:bg-slate-100 transition-all duration-300 rounded-l-xl group" href="#">
+<span class="material-symbols-outlined group-hover:pl-1 transition-all">history</span>
+<span class="text-sm font-medium">Audit Logs</span>
+</a>
+</nav>
+<div class="pt-6 border-t border-slate-200 space-y-1">
+<a class="flex items-center gap-3 px-4 py-2 text-slate-500 hover:text-primary transition-colors" href="#">
+<span class="material-symbols-outlined text-sm">help_outline</span>
+<span class="text-xs font-medium">Support</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-2 text-slate-500 hover:text-primary transition-colors" href="#">
+<span class="material-symbols-outlined text-sm">description</span>
+<span class="text-xs font-medium">Documentation</span>
+</a>
+</div>
+<button class="mt-4 w-full py-3 bg-primary text-white rounded-xl font-semibold text-sm shadow-md hover:bg-primary-container transition-all active:scale-95">
+                Generate Report
+            </button>
+</aside>
+<!-- Main Content -->
+<main class="flex-1 ml-64 p-8">
+<!-- Page Header -->
+<div class="mb-10 flex justify-between items-end">
+<div>
+<h1 class="text-4xl font-headline font-extrabold text-primary tracking-tight mb-2">Security Event Monitoring</h1>
+<p class="text-on-surface-variant max-w-2xl leading-relaxed">Active surveillance of Post-Quantum Cryptography (PQC) risks including HNDL intercepts and legacy algorithm downgrades across the global infrastructure.</p>
+</div>
+<div class="flex gap-3">
+<button class="px-6 py-2.5 bg-surface-container-highest text-on-surface font-semibold rounded-xl text-sm border border-outline-variant/20 hover:bg-surface-variant transition-colors">
+                        Filter Parameters
+                    </button>
+<button class="px-6 py-2.5 bg-secondary-container text-on-secondary-container font-bold rounded-xl text-sm shadow-sm hover:opacity-90 transition-opacity">
+                        Emergency Lockdown
+                    </button>
+</div>
+</div>
+<!-- Critical Alerts Overview (Bento Grid) -->
+<section class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-12">
+<div class="col-span-1 p-6 bg-primary-container rounded-xl shadow-sm border-l-4 border-primary">
+<div class="flex justify-between items-start mb-4">
+<span class="text-on-primary-container font-bold text-xs uppercase tracking-widest">P1 CRITICAL</span>
+<span class="material-symbols-outlined text-on-primary-container" style="font-variation-settings: 'FILL' 1;">error</span>
+</div>
+<div class="text-4xl font-headline font-extrabold text-white mb-1">04</div>
+<p class="text-on-primary-container/80 text-xs font-medium">Unresolved High-Impact Events</p>
+</div>
+<div class="col-span-1 p-6 bg-white rounded-xl shadow-[0px_12px_32px_rgba(26,28,28,0.06)] border-l-4 border-secondary-container">
+<div class="flex justify-between items-start mb-4">
+<span class="text-secondary font-bold text-xs uppercase tracking-widest">P2 HIGH RISK</span>
+<span class="material-symbols-outlined text-secondary">warning</span>
+</div>
+<div class="text-4xl font-headline font-extrabold text-on-surface mb-1">12</div>
+<p class="text-on-surface-variant text-xs font-medium">Immediate Remediation Required</p>
+</div>
+<div class="col-span-1 p-6 bg-white rounded-xl shadow-[0px_12px_32px_rgba(26,28,28,0.06)] border-l-4 border-slate-400">
+<div class="flex justify-between items-start mb-4">
+<span class="text-slate-500 font-bold text-xs uppercase tracking-widest">P3 ELEVATED</span>
+<span class="material-symbols-outlined text-slate-500">info</span>
+</div>
+<div class="text-4xl font-headline font-extrabold text-on-surface mb-1">28</div>
+<p class="text-on-surface-variant text-xs font-medium">Standard Monitoring Alerts</p>
+</div>
+<div class="col-span-1 bg-gradient-to-br from-primary to-primary-container p-6 rounded-xl shadow-xl flex flex-col justify-center items-center text-center">
+<span class="material-symbols-outlined text-secondary-container text-4xl mb-2" style="font-variation-settings: 'FILL' 1;">shield_with_heart</span>
+<div class="text-white font-headline font-bold">Threat Index: 72%</div>
+<p class="text-on-primary-container text-[10px] mt-1 uppercase tracking-tighter">Increased HNDL Activity Observed</p>
+</div>
+</section>
+<div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
+<!-- Active Alert Feed -->
+<div class="lg:col-span-8 space-y-4">
+<div class="flex items-center justify-between mb-2">
+<h2 class="text-lg font-headline font-bold text-primary flex items-center gap-2">
+<span class="w-2 h-2 rounded-full bg-red-600 animate-pulse"></span>
+                            Live Threat Velocity
+                        </h2>
+<span class="text-xs text-on-surface-variant italic">Refreshed: 2 mins ago</span>
+</div>
+<!-- Alert Item 1 -->
+<div class="group bg-white rounded-xl shadow-sm border-l-4 border-error p-5 hover:shadow-md transition-all flex items-start gap-4">
+<div class="p-3 bg-error-container/30 rounded-lg">
+<span class="material-symbols-outlined text-error" style="font-variation-settings: 'FILL' 1;">security_update_warning</span>
+</div>
+<div class="flex-1">
+<div class="flex justify-between items-start mb-1">
+<span class="bg-error text-white text-[10px] px-2 py-0.5 rounded font-bold uppercase tracking-wider">CRITICAL</span>
+<span class="text-[11px] font-mono text-on-surface-variant">12:04:12 UTC</span>
+</div>
+<h3 class="font-headline font-bold text-on-surface text-base mb-1">P1: HNDL Threat Detected on Core Finance Node</h3>
+<p class="text-sm text-on-surface-variant mb-3">Persistent traffic capture detected from non-authorized exit node. Potential high-entropy harvest activity in progress.</p>
+<div class="flex items-center gap-4 text-xs">
+<span class="flex items-center gap-1 text-on-surface font-mono bg-surface-container px-2 py-1 rounded">
+<span class="material-symbols-outlined text-[14px]">dns</span> 192.168.4.12
+                                </span>
+<span class="flex items-center gap-1 text-on-surface font-mono bg-surface-container px-2 py-1 rounded">
+<span class="material-symbols-outlined text-[14px]">location_on</span> Frankfurt-DC-04
+                                </span>
+</div>
+</div>
+<div class="flex flex-col gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+<button class="px-4 py-2 bg-primary text-white text-xs font-bold rounded-lg shadow-sm">Remediate</button>
+<button class="px-4 py-2 bg-surface-container-highest text-on-surface text-xs font-semibold rounded-lg">Details</button>
+</div>
+</div>
+<!-- Alert Item 2 -->
+<div class="group bg-white rounded-xl shadow-sm border-l-4 border-secondary-container p-5 hover:shadow-md transition-all flex items-start gap-4">
+<div class="p-3 bg-secondary-container/10 rounded-lg">
+<span class="material-symbols-outlined text-secondary" style="font-variation-settings: 'FILL' 1;">history_edu</span>
+</div>
+<div class="flex-1">
+<div class="flex justify-between items-start mb-1">
+<span class="bg-secondary-container text-on-secondary-container text-[10px] px-2 py-0.5 rounded font-bold uppercase tracking-wider">HIGH RISK</span>
+<span class="text-[11px] font-mono text-on-surface-variant">11:45:00 UTC</span>
+</div>
+<h3 class="font-headline font-bold text-on-surface text-base mb-1">P2: RSA-2048 Downgrade Attempt</h3>
+<p class="text-sm text-on-surface-variant mb-3">Encryption negotiation failed to enforce Kyber-768. Handshake reverted to vulnerable legacy protocol.</p>
+<div class="flex items-center gap-4 text-xs">
+<span class="flex items-center gap-1 text-on-surface font-mono bg-surface-container px-2 py-1 rounded">
+<span class="material-symbols-outlined text-[14px]">public</span> api.internal.quantum
+                                </span>
+</div>
+</div>
+<div class="flex flex-col gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+<button class="px-4 py-2 bg-primary text-white text-xs font-bold rounded-lg shadow-sm">Remediate</button>
+<button class="px-4 py-2 bg-surface-container-highest text-on-surface text-xs font-semibold rounded-lg">Details</button>
+</div>
+</div>
+<!-- Alert Item 3 -->
+<div class="group bg-white rounded-xl shadow-sm border-l-4 border-slate-300 p-5 hover:shadow-md transition-all flex items-start gap-4">
+<div class="p-3 bg-slate-100 rounded-lg">
+<span class="material-symbols-outlined text-slate-500">router</span>
+</div>
+<div class="flex-1">
+<div class="flex justify-between items-start mb-1">
+<span class="bg-slate-500 text-white text-[10px] px-2 py-0.5 rounded font-bold uppercase tracking-wider">MEDIUM</span>
+<span class="text-[11px] font-mono text-on-surface-variant">10:30:15 UTC</span>
+</div>
+<h3 class="font-headline font-bold text-on-surface text-base mb-1">P3: Outdated Cryptographic Library</h3>
+<p class="text-sm text-on-surface-variant mb-3">Endpoint detected using OpenSSL 1.1.1 without PQC extensions. Update recommended during next maintenance window.</p>
+<div class="flex items-center gap-4 text-xs">
+<span class="flex items-center gap-1 text-on-surface font-mono bg-surface-container px-2 py-1 rounded">
+<span class="material-symbols-outlined text-[14px]">devices</span> ENDPOINT-TX-091
+                                </span>
+</div>
+</div>
+<div class="flex flex-col gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+<button class="px-4 py-2 bg-primary text-white text-xs font-bold rounded-lg shadow-sm">Acknowledge</button>
+<button class="px-4 py-2 bg-surface-container-highest text-on-surface text-xs font-semibold rounded-lg">Details</button>
+</div>
+</div>
+<!-- Historical Regression Log (Collapsed style) -->
+<div class="mt-12 bg-surface-container-low rounded-xl p-6">
+<div class="flex items-center justify-between mb-6">
+<h3 class="font-headline font-bold text-primary uppercase tracking-widest text-xs">Historical Regression Log</h3>
+<button class="text-xs text-primary font-bold hover:underline">View All History</button>
+</div>
+<div class="space-y-3">
+<div class="flex items-center justify-between py-2 border-b border-outline-variant/30">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-emerald-600 text-sm">check_circle</span>
+<span class="text-xs font-medium text-on-surface">P1: Node Sync Refactor Completed</span>
+</div>
+<span class="text-[10px] text-on-surface-variant font-mono">24h ago</span>
+</div>
+<div class="flex items-center justify-between py-2 border-b border-outline-variant/30">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-emerald-600 text-sm">check_circle</span>
+<span class="text-xs font-medium text-on-surface">P2: Entropy Exhaustion on Cluster B</span>
+</div>
+<span class="text-[10px] text-on-surface-variant font-mono">2d ago</span>
+</div>
+</div>
+</div>
+</div>
+<!-- Institutional Advisor Sidebar -->
+<div class="lg:col-span-4 space-y-6">
+<div class="bg-white rounded-xl shadow-[0px_12px_32px_rgba(26,28,28,0.06)] overflow-hidden border border-outline-variant/10">
+<div class="bg-primary px-6 py-4 flex items-center gap-3">
+<span class="material-symbols-outlined text-secondary-container">psychology</span>
+<h3 class="text-white font-headline font-bold text-sm">Institutional Advisor</h3>
+</div>
+<div class="p-6">
+<p class="text-xs text-on-surface-variant leading-relaxed mb-4">Current intelligence suggests a 14% increase in <span class="text-primary font-bold">Harvest Now, Decrypt Later</span> activity targeting decentralized financial anchors.</p>
+<div class="space-y-4">
+<div class="p-4 bg-surface-container-low rounded-lg border-l-2 border-secondary">
+<p class="text-[11px] font-bold text-secondary uppercase tracking-wider mb-1">Recommended Action</p>
+<p class="text-xs font-medium text-on-surface leading-snug">Immediately rotate entropy pools for Frankfurt-DC nodes. Enable "Aggressive PQC Handshake" policy.</p>
+</div>
+<div class="p-4 bg-surface-container-low rounded-lg border-l-2 border-primary">
+<p class="text-[11px] font-bold text-primary uppercase tracking-wider mb-1">Threat Context</p>
+<p class="text-xs font-medium text-on-surface leading-snug">The detected exit node (185.x.x.x) is associated with "Obsidian-Lattice" actor group signature.</p>
+</div>
+</div>
+<button class="mt-6 w-full py-2.5 bg-secondary-container text-on-secondary-container font-bold text-xs rounded-lg hover:bg-secondary transition-colors">
+                                View Full Intelligence Dossier
+                            </button>
+</div>
+</div>
+<!-- Risk Metric Card -->
+<div class="bg-white rounded-xl shadow-[0px_12px_32px_rgba(26,28,28,0.06)] p-6">
+<h3 class="font-headline font-bold text-on-surface text-sm mb-4">Infrastructure Fragility</h3>
+<div class="relative h-4 w-full bg-surface-container-highest rounded-full overflow-hidden mb-2">
+<div class="absolute top-0 left-0 h-full bg-primary" style="width: 68%;"></div>
+</div>
+<div class="flex justify-between text-[10px] font-bold uppercase tracking-tighter text-on-surface-variant">
+<span>Legacy Compliance</span>
+<span class="text-primary">68% Vulnerable</span>
+</div>
+<div class="mt-6 pt-6 border-t border-outline-variant/30">
+<div class="flex items-center justify-between mb-2">
+<span class="text-xs text-on-surface-variant">PQC Adoption Rate</span>
+<span class="text-xs font-mono font-bold text-emerald-600">32.4%</span>
+</div>
+<div class="flex items-center justify-between">
+<span class="text-xs text-on-surface-variant">Active Harvest Attempts</span>
+<span class="text-xs font-mono font-bold text-error">1,402 / hr</span>
+</div>
+</div>
+</div>
+<!-- System Health Widget -->
+<div class="bg-surface-container-highest rounded-xl p-4 flex items-center justify-between">
+<div class="flex items-center gap-3">
+<div class="w-3 h-3 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.6)]"></div>
+<span class="text-xs font-bold text-on-surface uppercase tracking-widest">Sentinels Active</span>
+</div>
+<span class="text-[10px] font-mono text-on-surface-variant">v2.0.4-LTS</span>
+</div>
+</div>
+</div>
+</main>
+</div>
+<!-- Floating Action Button - Only for Alerts Context -->
+<button class="fixed bottom-8 right-8 w-14 h-14 bg-primary text-white rounded-full shadow-2xl flex items-center justify-center hover:scale-110 active:scale-95 transition-all z-50 group">
+<span class="material-symbols-outlined text-2xl" style="font-variation-settings: 'FILL' 1;">add_alert</span>
+<span class="absolute right-16 bg-on-surface text-white text-[10px] py-1 px-3 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">Broadcast Emergency Notification</span>
+</button>
+</body></html>

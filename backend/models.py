@@ -89,6 +89,7 @@ class ProbeProfile(BaseModel):
     signature_algorithm: str | None = None
     public_key_type: str | None = None
     public_key_bits: int | None = None
+    hsts_enabled: bool = False
     certificate_serial: str | None = None
     error: str | None = None
 
@@ -162,6 +163,7 @@ class ClassifiedAsset(BaseModel):
     recommended_action: str = ""      # Single recommended next step
     agility_score: int = 0            # 0-15
     agility_details: list[dict] = Field(default_factory=list)
+    pqc_support: bool = False         # True if PQC natively supported or TLS 1.3+ robust
 
 
 class ScanResult(BaseModel):

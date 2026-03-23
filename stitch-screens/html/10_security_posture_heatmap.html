@@ -1,0 +1,437 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Q-Armor Institutional | Security Posture Heatmap</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;700;800;900&amp;family=Inter:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "on-secondary-fixed": "#241a00",
+                        "surface-tint": "#b02751",
+                        "outline-variant": "#dfbfc3",
+                        "on-tertiary-fixed-variant": "#474747",
+                        "on-primary-fixed-variant": "#8f063a",
+                        "surface-container-highest": "#e2e2e2",
+                        "error-container": "#ffdad6",
+                        "tertiary-fixed-dim": "#c8c6c6",
+                        "surface-container-high": "#e8e8e8",
+                        "surface-container": "#eeeeee",
+                        "error": "#ba1a1a",
+                        "on-secondary-container": "#6d5500",
+                        "inverse-surface": "#2f3131",
+                        "secondary-container": "#fec800",
+                        "on-tertiary": "#ffffff",
+                        "surface": "#f9f9f9",
+                        "inverse-primary": "#ffb2bf",
+                        "tertiary": "#3b3b3b",
+                        "on-tertiary-container": "#c7c5c5",
+                        "on-error": "#ffffff",
+                        "on-tertiary-fixed": "#1b1c1c",
+                        "on-error-container": "#93000a",
+                        "tertiary-container": "#535252",
+                        "on-surface-variant": "#584144",
+                        "surface-container-lowest": "#ffffff",
+                        "inverse-on-surface": "#f1f1f1",
+                        "background": "#f9f9f9",
+                        "primary-container": "#9f1945",
+                        "on-secondary": "#ffffff",
+                        "tertiary-fixed": "#e4e2e1",
+                        "primary": "#7b0030",
+                        "on-secondary-fixed-variant": "#594400",
+                        "secondary-fixed-dim": "#f3c000",
+                        "secondary-fixed": "#ffdf91",
+                        "secondary": "#755b00",
+                        "primary-fixed": "#ffd9de",
+                        "on-surface": "#1a1c1c",
+                        "surface-container-low": "#f3f3f3",
+                        "surface-bright": "#f9f9f9",
+                        "primary-fixed-dim": "#ffb2bf",
+                        "surface-variant": "#e2e2e2",
+                        "on-primary": "#ffffff",
+                        "on-background": "#1a1c1c",
+                        "outline": "#8b7074",
+                        "on-primary-fixed": "#3f0015",
+                        "on-primary-container": "#ffb1be",
+                        "surface-dim": "#dadada"
+                    },
+                    fontFamily: {
+                        "headline": ["Public Sans"],
+                        "body": ["Inter"],
+                        "label": ["Inter"]
+                    },
+                    borderRadius: {"DEFAULT": "0.125rem", "lg": "0.25rem", "xl": "0.5rem", "full": "0.75rem"},
+                },
+            },
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+            display: inline-block;
+            line-height: 1;
+            text-transform: none;
+            letter-spacing: normal;
+            word-wrap: normal;
+            white-space: nowrap;
+            direction: ltr;
+        }
+        body { font-family: 'Inter', sans-serif; }
+        h1, h2, h3, .headline { font-family: 'Public Sans', sans-serif; }
+        .heatmap-grid { grid-template-columns: 40px 1fr 1fr 1fr; grid-template-rows: 1fr 1fr 1fr 40px; }
+    </style>
+</head>
+<body class="bg-surface text-on-surface min-h-screen">
+<!-- TopNavBar Shell -->
+<nav class="fixed top-0 left-0 w-full z-50 flex justify-between items-center px-8 h-16 bg-white/80 dark:bg-[#7B0030]/10 backdrop-blur-md shadow-[0px_12px_32px_rgba(26,28,28,0.06)] border-b border-[#DFBFC3]/15">
+<div class="flex items-center gap-8">
+<span class="text-lg font-black tracking-tighter text-[#7B0030] dark:text-[#FEC800]">Q-Armor Institutional</span>
+<div class="hidden md:flex items-center gap-6">
+<a class="text-slate-500 dark:text-slate-400 hover:text-[#7B0030] transition-colors font-['Public_Sans'] tracking-tight font-bold text-sm uppercase" href="#">Dashboard</a>
+<a class="text-slate-500 dark:text-slate-400 hover:text-[#7B0030] transition-colors font-['Public_Sans'] tracking-tight font-bold text-sm uppercase" href="#">Inventory</a>
+<a class="text-[#7B0030] dark:text-[#FEC800] border-b-2 border-[#FEC800] pb-1 font-bold font-['Public_Sans'] tracking-tight text-sm uppercase" href="#">Heatmap</a>
+<a class="text-slate-500 dark:text-slate-400 hover:text-[#7B0030] transition-colors font-['Public_Sans'] tracking-tight font-bold text-sm uppercase" href="#">CBOM</a>
+<a class="text-slate-500 dark:text-slate-400 hover:text-[#7B0030] transition-colors font-['Public_Sans'] tracking-tight font-bold text-sm uppercase" href="#">Certificates</a>
+<a class="text-slate-500 dark:text-slate-400 hover:text-[#7B0030] transition-colors font-['Public_Sans'] tracking-tight font-bold text-sm uppercase" href="#">Logs</a>
+</div>
+</div>
+<div class="flex items-center gap-4">
+<button class="p-2 hover:bg-[#F3F3F3] dark:hover:bg-[#9F1945]/20 rounded-full transition-colors">
+<span class="material-symbols-outlined text-[#7B0030] dark:text-[#9F1945]" data-icon="account_balance">account_balance</span>
+</button>
+<button class="p-2 hover:bg-[#F3F3F3] dark:hover:bg-[#9F1945]/20 rounded-full transition-colors">
+<span class="material-symbols-outlined text-[#7B0030] dark:text-[#9F1945]" data-icon="shield_person">shield_person</span>
+</button>
+<button class="p-2 hover:bg-[#F3F3F3] dark:hover:bg-[#9F1945]/20 rounded-full transition-colors">
+<span class="material-symbols-outlined text-[#7B0030] dark:text-[#9F1945]" data-icon="settings">settings</span>
+</button>
+</div>
+</nav>
+<!-- SideNavBar Shell -->
+<aside class="fixed left-0 top-0 h-full w-64 flex flex-col pt-20 pb-8 bg-[#F3F3F3] dark:bg-[#1A1C1C] border-r border-[#DFBFC3]/10 hidden lg:flex">
+<div class="px-6 mb-8">
+<div class="flex items-center gap-3 mb-2">
+<div class="w-8 h-8 bg-primary rounded-sm flex items-center justify-center">
+<span class="material-symbols-outlined text-white text-sm" data-icon="security">security</span>
+</div>
+<div>
+<h3 class="text-sm font-bold text-[#7B0030] leading-none">Imperial Heritage</h3>
+<p class="text-[10px] text-slate-500 uppercase tracking-tighter">Post-Quantum Intelligence</p>
+</div>
+</div>
+</div>
+<nav class="flex-1 space-y-1">
+<a class="flex items-center gap-3 px-4 py-3 text-slate-600 dark:text-slate-400 hover:translate-x-1 transition-transform font-['Inter'] text-xs font-semibold tracking-wide uppercase" href="#">
+<span class="material-symbols-outlined" data-icon="dashboard">dashboard</span>
+                Dashboard
+            </a>
+<a class="flex items-center gap-3 px-4 py-3 text-slate-600 dark:text-slate-400 hover:translate-x-1 transition-transform font-['Inter'] text-xs font-semibold tracking-wide uppercase" href="#">
+<span class="material-symbols-outlined" data-icon="inventory_2">inventory_2</span>
+                Inventory
+            </a>
+<a class="flex items-center gap-3 px-4 py-3 bg-[#FFFFFF] dark:bg-[#7B0030] text-[#7B0030] dark:text-white rounded-r-full shadow-sm font-['Inter'] text-xs font-semibold tracking-wide uppercase" href="#">
+<span class="material-symbols-outlined" data-icon="grid_view">grid_view</span>
+                Heatmap
+            </a>
+<a class="flex items-center gap-3 px-4 py-3 text-slate-600 dark:text-slate-400 hover:translate-x-1 transition-transform font-['Inter'] text-xs font-semibold tracking-wide uppercase" href="#">
+<span class="material-symbols-outlined" data-icon="account_tree">account_tree</span>
+                CBOM
+            </a>
+<a class="flex items-center gap-3 px-4 py-3 text-slate-600 dark:text-slate-400 hover:translate-x-1 transition-transform font-['Inter'] text-xs font-semibold tracking-wide uppercase" href="#">
+<span class="material-symbols-outlined" data-icon="verified">verified</span>
+                Certificates
+            </a>
+<a class="flex items-center gap-3 px-4 py-3 text-slate-600 dark:text-slate-400 hover:translate-x-1 transition-transform font-['Inter'] text-xs font-semibold tracking-wide uppercase" href="#">
+<span class="material-symbols-outlined" data-icon="history_edu">history_edu</span>
+                Logs
+            </a>
+</nav>
+<div class="px-4 mt-auto space-y-4">
+<button class="w-full py-3 bg-secondary-container text-on-secondary-container font-bold text-[10px] tracking-widest uppercase rounded-xl hover:bg-secondary transition-colors">
+                GENERATE ATTESTATION
+            </button>
+<div class="pt-4 border-t border-[#DFBFC3]/20">
+<a class="flex items-center gap-3 px-4 py-2 text-slate-500 hover:text-primary transition-colors font-['Inter'] text-[10px] font-bold uppercase tracking-widest" href="#">
+<span class="material-symbols-outlined text-sm" data-icon="lan">lan</span>
+                    System Status
+                </a>
+<a class="flex items-center gap-3 px-4 py-2 text-slate-500 hover:text-primary transition-colors font-['Inter'] text-[10px] font-bold uppercase tracking-widest" href="#">
+<span class="material-symbols-outlined text-sm" data-icon="help_center">help_center</span>
+                    Support
+                </a>
+</div>
+</div>
+</aside>
+<!-- Main Content Canvas -->
+<main class="lg:ml-64 pt-20 px-8 pb-12">
+<!-- Header Section -->
+<header class="mb-12 flex flex-col md:flex-row md:items-end justify-between gap-6">
+<div class="max-w-2xl">
+<h1 class="text-4xl font-extrabold tracking-tighter text-primary mb-2">Security Posture Heatmap</h1>
+<p class="text-on-surface-variant font-body leading-relaxed">Cross-matrix analysis of cryptographic negotiation strength versus post-quantum migration readiness. Use this grid to prioritize institutional remediation efforts.</p>
+</div>
+<div class="flex gap-4">
+<div class="bg-surface-container-low px-6 py-3 rounded-xl flex items-center gap-4">
+<div class="text-right">
+<p class="text-[10px] uppercase tracking-widest text-slate-500 font-bold">Last Scanned</p>
+<p class="text-sm font-bold text-primary">04 OCT 2023 14:22</p>
+</div>
+<span class="material-symbols-outlined text-primary" data-icon="sync">sync</span>
+</div>
+</div>
+</header>
+<div class="grid grid-cols-1 xl:grid-cols-12 gap-8 items-start">
+<!-- Left: 3x3 Heatmap Grid -->
+<section class="xl:col-span-8 bg-surface-container-lowest p-8 rounded-xl shadow-[0px_12px_32px_rgba(26,28,28,0.06)]">
+<div class="mb-8 flex items-center justify-between">
+<h2 class="text-xl font-bold text-primary flex items-center gap-2">
+<span class="material-symbols-outlined" data-icon="grid_4x4">grid_4x4</span>
+                        Risk Matrix Analysis
+                    </h2>
+<div class="flex gap-4">
+<div class="flex items-center gap-2">
+<div class="w-3 h-3 rounded-full bg-emerald-500"></div>
+<span class="text-[10px] font-bold uppercase tracking-widest text-slate-500">Secure</span>
+</div>
+<div class="flex items-center gap-2">
+<div class="w-3 h-3 rounded-full bg-secondary-container"></div>
+<span class="text-[10px] font-bold uppercase tracking-widest text-slate-500">Transition</span>
+</div>
+<div class="flex items-center gap-2">
+<div class="w-3 h-3 rounded-full bg-error"></div>
+<span class="text-[10px] font-bold uppercase tracking-widest text-slate-500">Critical</span>
+</div>
+</div>
+</div>
+<div class="relative">
+<!-- Y-Axis Label -->
+<div class="absolute -left-16 top-1/2 -translate-y-1/2 -rotate-90 text-[10px] font-black uppercase tracking-[0.3em] text-slate-400 whitespace-nowrap">
+                        Negotiation Strength
+                    </div>
+<div class="grid heatmap-grid gap-4">
+<!-- Y-Axis Labels -->
+<div class="flex flex-col justify-around py-4 h-full text-[10px] font-bold text-slate-500 uppercase">
+<div class="h-1/3 flex items-center justify-end pr-2">Strong</div>
+<div class="h-1/3 flex items-center justify-end pr-2">Medium</div>
+<div class="h-1/3 flex items-center justify-end pr-2">Weak</div>
+</div>
+<!-- Grid Cells -->
+<!-- Row 1 (Strong) -->
+<div class="group relative aspect-square bg-emerald-500/10 border-2 border-emerald-500/20 rounded-xl p-6 hover:bg-emerald-500/20 transition-all cursor-pointer">
+<div class="flex justify-between items-start">
+<span class="text-4xl font-black text-emerald-600">42</span>
+<span class="material-symbols-outlined text-emerald-600" data-icon="check_circle">check_circle</span>
+</div>
+<p class="absolute bottom-4 left-6 text-[10px] font-bold text-emerald-700 uppercase tracking-widest">PQC Optimized</p>
+</div>
+<div class="group relative aspect-square bg-emerald-500/5 border-2 border-emerald-500/10 rounded-xl p-6 hover:bg-emerald-500/15 transition-all cursor-pointer">
+<div class="flex justify-between items-start">
+<span class="text-4xl font-black text-emerald-600/60">128</span>
+<span class="material-symbols-outlined text-emerald-600/60" data-icon="shield">shield</span>
+</div>
+<p class="absolute bottom-4 left-6 text-[10px] font-bold text-emerald-700/60 uppercase tracking-widest">Hybrid Flow</p>
+</div>
+<div class="group relative aspect-square bg-secondary-container/10 border-2 border-secondary-container/20 rounded-xl p-6 hover:bg-secondary-container/20 transition-all cursor-pointer">
+<div class="flex justify-between items-start">
+<span class="text-4xl font-black text-secondary">312</span>
+<span class="material-symbols-outlined text-secondary" data-icon="warning">warning</span>
+</div>
+<p class="absolute bottom-4 left-6 text-[10px] font-bold text-secondary uppercase tracking-widest">Hardened Legacy</p>
+</div>
+<!-- Row 2 (Medium) -->
+<div class="group relative aspect-square bg-emerald-500/5 border-2 border-emerald-500/10 rounded-xl p-6 hover:bg-emerald-500/15 transition-all cursor-pointer">
+<div class="flex justify-between items-start">
+<span class="text-4xl font-black text-emerald-600/60">15</span>
+<span class="material-symbols-outlined text-emerald-600/60" data-icon="pending">pending</span>
+</div>
+<p class="absolute bottom-4 left-6 text-[10px] font-bold text-emerald-700/60 uppercase tracking-widest">PQC Lab</p>
+</div>
+<div class="group relative aspect-square bg-secondary-container/5 border-2 border-secondary-container/10 rounded-xl p-6 hover:bg-secondary-container/15 transition-all cursor-pointer">
+<div class="flex justify-between items-start">
+<span class="text-4xl font-black text-secondary/60">582</span>
+<span class="material-symbols-outlined text-secondary/60" data-icon="published_with_changes">published_with_changes</span>
+</div>
+<p class="absolute bottom-4 left-6 text-[10px] font-bold text-secondary/60 uppercase tracking-widest">Migrating</p>
+</div>
+<div class="group relative aspect-square bg-error/5 border-2 border-error/10 rounded-xl p-6 hover:bg-error/15 transition-all cursor-pointer">
+<div class="flex justify-between items-start">
+<span class="text-4xl font-black text-error/60">94</span>
+<span class="material-symbols-outlined text-error/60" data-icon="error_outline">error_outline</span>
+</div>
+<p class="absolute bottom-4 left-6 text-[10px] font-bold text-error/60 uppercase tracking-widest">Non-Compliant</p>
+</div>
+<!-- Row 3 (Weak) -->
+<div class="group relative aspect-square bg-secondary-container/10 border-2 border-secondary-container/20 rounded-xl p-6 hover:bg-secondary-container/20 transition-all cursor-pointer">
+<div class="flex justify-between items-start">
+<span class="text-4xl font-black text-secondary">2</span>
+<span class="material-symbols-outlined text-secondary" data-icon="bug_report">bug_report</span>
+</div>
+<p class="absolute bottom-4 left-6 text-[10px] font-bold text-secondary uppercase tracking-widest">Protocol Mismatch</p>
+</div>
+<div class="group relative aspect-square bg-error/5 border-2 border-error/10 rounded-xl p-6 hover:bg-error/15 transition-all cursor-pointer">
+<div class="flex justify-between items-start">
+<span class="text-4xl font-black text-error/60">48</span>
+<span class="material-symbols-outlined text-error/60" data-icon="priority_high">priority_high</span>
+</div>
+<p class="absolute bottom-4 left-6 text-[10px] font-bold text-error/60 uppercase tracking-widest">Risk Exposure</p>
+</div>
+<div class="group relative aspect-square bg-error/20 border-2 border-error/40 rounded-xl p-6 hover:bg-error/30 transition-all cursor-pointer">
+<div class="flex justify-between items-start">
+<span class="text-4xl font-black text-error">12</span>
+<span class="material-symbols-outlined text-error" data-icon="dangerous" style="font-variation-settings: 'FILL' 1;">dangerous</span>
+</div>
+<p class="absolute bottom-4 left-6 text-[10px] font-bold text-error uppercase tracking-widest">Immediate Patch</p>
+</div>
+<!-- Spacer for corner -->
+<div></div>
+<!-- X-Axis Labels -->
+<div class="flex items-center justify-center text-[10px] font-bold text-slate-500 uppercase">PQC Ready</div>
+<div class="flex items-center justify-center text-[10px] font-bold text-slate-500 uppercase">Transition</div>
+<div class="flex items-center justify-center text-[10px] font-bold text-slate-500 uppercase">Legacy</div>
+</div>
+<!-- X-Axis Label -->
+<div class="mt-4 flex justify-center text-[10px] font-black uppercase tracking-[0.3em] text-slate-400">
+                        PQC Readiness Level
+                    </div>
+</div>
+<!-- Asset Preview List (Triggered by click) -->
+<div class="mt-12 p-6 bg-surface-container rounded-xl">
+<div class="flex items-center justify-between mb-4">
+<h3 class="font-bold text-sm text-primary uppercase tracking-widest">Asset Details: <span class="text-error">Immediate Patch Quadrant</span></h3>
+<button class="text-[10px] font-bold text-slate-500 hover:text-primary transition-colors">EXPORT LIST</button>
+</div>
+<div class="space-y-3">
+<div class="flex items-center justify-between p-4 bg-white/50 rounded-lg hover:bg-white transition-colors">
+<div class="flex items-center gap-4">
+<span class="material-symbols-outlined text-error text-lg" data-icon="hub">hub</span>
+<div>
+<p class="text-sm font-bold text-on-surface leading-none">core-gateway-alpha-04</p>
+<p class="text-[10px] text-slate-500">RSA-2048 / TLS 1.1 Legacy Tunnel</p>
+</div>
+</div>
+<span class="text-[10px] font-mono text-error-container bg-error px-2 py-1 rounded">CRITICAL</span>
+</div>
+<div class="flex items-center justify-between p-4 bg-white/50 rounded-lg hover:bg-white transition-colors">
+<div class="flex items-center gap-4">
+<span class="material-symbols-outlined text-error text-lg" data-icon="dns">dns</span>
+<div>
+<p class="text-sm font-bold text-on-surface leading-none">auth-db-mirror-lon</p>
+<p class="text-[10px] text-slate-500">ECC-P256 / Outdated Cipher Suite</p>
+</div>
+</div>
+<span class="text-[10px] font-mono text-error-container bg-error px-2 py-1 rounded">CRITICAL</span>
+</div>
+<div class="flex items-center justify-center py-2">
+<button class="text-[10px] font-bold text-primary uppercase tracking-widest hover:underline">View 10 More Assets</button>
+</div>
+</div>
+</div>
+</section>
+<!-- Right: Institutional Exposure Summary -->
+<aside class="xl:col-span-4 space-y-6">
+<!-- Total Assets Card -->
+<div class="bg-primary p-8 rounded-xl text-white relative overflow-hidden">
+<div class="relative z-10">
+<h3 class="text-xs font-bold uppercase tracking-[0.2em] opacity-80 mb-6">Total Assets Scanned</h3>
+<div class="flex items-baseline gap-2 mb-2">
+<span class="text-6xl font-black tracking-tighter">1,237</span>
+<span class="text-secondary-container font-bold">+12.4%</span>
+</div>
+<p class="text-sm opacity-70">Institutional wide network coverage including global edge nodes and internal cloud clusters.</p>
+</div>
+<!-- Background Pattern Decor -->
+<div class="absolute -right-12 -bottom-12 w-48 h-48 bg-white/10 rounded-full blur-3xl"></div>
+</div>
+<!-- Critical Clusters Bento Card -->
+<div class="bg-surface-container-lowest p-6 rounded-xl shadow-[0px_4px_16px_rgba(26,28,28,0.04)]">
+<h3 class="text-xs font-black text-slate-400 uppercase tracking-widest mb-6">Critical Clusters</h3>
+<div class="space-y-6">
+<div>
+<div class="flex justify-between items-end mb-2">
+<span class="text-sm font-bold text-primary">Financial Edge Gateways</span>
+<span class="text-[10px] font-bold text-error">78% RISK</span>
+</div>
+<div class="w-full h-1.5 bg-surface-container rounded-full overflow-hidden">
+<div class="h-full bg-error w-[78%]"></div>
+</div>
+</div>
+<div>
+<div class="flex justify-between items-end mb-2">
+<span class="text-sm font-bold text-primary">Internal Authentication</span>
+<span class="text-[10px] font-bold text-secondary">32% RISK</span>
+</div>
+<div class="w-full h-1.5 bg-surface-container rounded-full overflow-hidden">
+<div class="h-full bg-secondary-container w-[32%]"></div>
+</div>
+</div>
+<div>
+<div class="flex justify-between items-end mb-2">
+<span class="text-sm font-bold text-primary">Cloud Infrastructure</span>
+<span class="text-[10px] font-bold text-emerald-500">12% RISK</span>
+</div>
+<div class="w-full h-1.5 bg-surface-container rounded-full overflow-hidden">
+<div class="h-full bg-emerald-500 w-[12%]"></div>
+</div>
+</div>
+</div>
+</div>
+<!-- Heritage Callout -->
+<div class="bg-gradient-to-br from-primary to-primary-container p-6 rounded-xl text-secondary-container border-l-4 border-secondary-container shadow-xl">
+<div class="flex items-start gap-4">
+<span class="material-symbols-outlined text-3xl" data-icon="gavel" style="font-variation-settings: 'FILL' 1;">gavel</span>
+<div>
+<h4 class="font-headline font-bold text-lg leading-tight mb-2">Institutional Mandate</h4>
+<p class="text-sm text-white/80 leading-snug">All 'Legacy' assets must be transitioned to Hybrid PQC flows by Q4 fiscal period to maintain compliance with the Sovereign Cybersecurity Act.</p>
+</div>
+</div>
+</div>
+<!-- Recent Activity/Logs Snippet -->
+<div class="p-6 bg-surface-container-low rounded-xl">
+<h3 class="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] mb-4">Post-Quantum Log</h3>
+<div class="space-y-4">
+<div class="flex gap-3">
+<div class="w-1 bg-secondary-container h-8 rounded-full"></div>
+<div>
+<p class="text-xs font-bold text-primary">Migration Started: node-772</p>
+<p class="text-[10px] text-slate-400">Successfully integrated ML-KEM-768</p>
+</div>
+</div>
+<div class="flex gap-3">
+<div class="w-1 bg-error h-8 rounded-full"></div>
+<div>
+<p class="text-xs font-bold text-primary">Protocol Failure: edge-009</p>
+<p class="text-[10px] text-slate-400">Incompatible legacy handshake detected</p>
+</div>
+</div>
+</div>
+</div>
+</aside>
+</div>
+</main>
+<!-- BottomNavBar for Mobile -->
+<nav class="md:hidden fixed bottom-0 left-0 w-full bg-white/95 backdrop-blur-md flex justify-around items-center h-16 border-t border-[#DFBFC3]/20 z-50">
+<button class="flex flex-col items-center gap-1 text-slate-400">
+<span class="material-symbols-outlined" data-icon="dashboard">dashboard</span>
+<span class="text-[8px] font-bold uppercase">Home</span>
+</button>
+<button class="flex flex-col items-center gap-1 text-primary">
+<span class="material-symbols-outlined" data-icon="grid_view" style="font-variation-settings: 'FILL' 1;">grid_view</span>
+<span class="text-[8px] font-bold uppercase">Heatmap</span>
+</button>
+<button class="flex flex-col items-center gap-1 text-slate-400">
+<span class="material-symbols-outlined" data-icon="inventory_2">inventory_2</span>
+<span class="text-[8px] font-bold uppercase">Assets</span>
+</button>
+<button class="flex flex-col items-center gap-1 text-slate-400">
+<span class="material-symbols-outlined" data-icon="settings">settings</span>
+<span class="text-[8px] font-bold uppercase">Settings</span>
+</button>
+</nav>
+</body></html>

@@ -18,4 +18,5 @@ requests>=2.31.0              # Webhook notifications (Slack/Teams)
 
 # ── Production Deployment ────────────────────────────────────────────
 gunicorn>=22.0.0              # Production WSGI/ASGI server (optional)
+python-multipart==0.0.22      # Required for FastAPI form parsing
 

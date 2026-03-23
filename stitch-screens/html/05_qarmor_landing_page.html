@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Q-Armor | Post-Quantum Risk Intelligence</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;700;800;900&amp;family=Inter:wght@300;400;500;600&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              "on-surface": "#1a1c1c",
+              "surface-dim": "#dadada",
+              "surface-bright": "#f9f9f9",
+              "error": "#ba1a1a",
+              "on-tertiary-fixed-variant": "#474747",
+              "secondary-fixed": "#ffdf91",
+              "on-secondary-container": "#6d5500",
+              "on-error": "#ffffff",
+              "tertiary-fixed-dim": "#c8c6c6",
+              "tertiary-fixed": "#e4e2e1",
+              "outline-variant": "#dfbfc3",
+              "primary-fixed-dim": "#ffb2bf",
+              "surface-container-lowest": "#ffffff",
+              "surface-container": "#eeeeee",
+              "on-error-container": "#93000a",
+              "secondary": "#755b00",
+              "secondary-fixed-dim": "#f3c000",
+              "on-tertiary-container": "#c7c5c5",
+              "secondary-container": "#fec800",
+              "on-background": "#1a1c1c",
+              "on-surface-variant": "#584144",
+              "on-secondary": "#ffffff",
+              "inverse-surface": "#2f3131",
+              "on-tertiary": "#ffffff",
+              "primary-container": "#9f1945",
+              "inverse-primary": "#ffb2bf",
+              "error-container": "#ffdad6",
+              "on-secondary-fixed": "#241a00",
+              "on-primary-container": "#ffb1be",
+              "primary-fixed": "#ffd9de",
+              "on-secondary-fixed-variant": "#594400",
+              "surface": "#f9f9f9",
+              "on-tertiary-fixed": "#1b1c1c",
+              "tertiary-container": "#535252",
+              "on-primary-fixed-variant": "#8f063a",
+              "surface-container-highest": "#e2e2e2",
+              "background": "#f9f9f9",
+              "surface-container-low": "#f3f3f3",
+              "on-primary": "#ffffff",
+              "primary": "#7b0030",
+              "inverse-on-surface": "#f1f1f1",
+              "surface-tint": "#b02751",
+              "outline": "#8b7074",
+              "surface-container-high": "#e8e8e8",
+              "tertiary": "#3b3b3b",
+              "on-primary-fixed": "#3f0015",
+              "surface-variant": "#e2e2e2"
+            },
+            fontFamily: {
+              "headline": ["Public Sans"],
+              "body": ["Inter"],
+              "label": ["Inter"]
+            },
+            borderRadius: {"DEFAULT": "0.125rem", "lg": "0.25rem", "xl": "0.5rem", "full": "0.75rem"},
+          },
+        },
+      }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        body { font-family: 'Inter', sans-serif; }
+        h1, h2, h3 { font-family: 'Public Sans', sans-serif; }
+    </style>
+</head>
+<body class="bg-surface text-on-surface">
+<!-- TopAppBar -->
+<header class="bg-white/80 dark:bg-slate-950/80 backdrop-blur-xl docked full-width top-0 sticky z-50 shadow-[0px_12px_32px_rgba(26,28,28,0.06)] dark:shadow-none transition-all">
+<div class="flex justify-between items-center w-full px-8 py-4 max-w-[1920px] mx-auto">
+<div class="flex items-center gap-8">
+<span class="text-2xl font-black tracking-tighter text-[#7B0030] dark:text-[#9F1945]">Q-Armor</span>
+<nav class="hidden md:flex items-center space-x-8">
+<a class="text-[#7B0030] dark:text-[#9F1945] font-bold border-b-2 border-[#7B0030] dark:border-[#9F1945] pb-1" href="#">Dashboard</a>
+<a class="text-slate-600 dark:text-slate-400 font-medium hover:text-[#7B0030] dark:hover:text-[#9F1945] transition-colors" href="#">Risk Intelligence</a>
+<a class="text-slate-600 dark:text-slate-400 font-medium hover:text-[#7B0030] dark:hover:text-[#9F1945] transition-colors" href="#">Migration</a>
+<a class="text-slate-600 dark:text-slate-400 font-medium hover:text-[#7B0030] dark:hover:text-[#9F1945] transition-colors" href="#">Compliance</a>
+<a class="text-slate-600 dark:text-slate-400 font-medium hover:text-[#7B0030] dark:hover:text-[#9F1945] transition-colors" href="#">Settings</a>
+</nav>
+</div>
+<div class="flex items-center space-x-4">
+<div class="hidden lg:flex items-center bg-surface-container rounded-full px-4 py-2 mr-4">
+<span class="material-symbols-outlined text-slate-500 mr-2">search</span>
+<input class="bg-transparent border-none focus:ring-0 text-sm w-48" placeholder="Search Quantum Assets..." type="text"/>
+</div>
+<button class="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-all scale-95 duration-200 ease-in-out">
+<span class="material-symbols-outlined text-slate-600">notifications</span>
+</button>
+<button class="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-all scale-95 duration-200 ease-in-out">
+<span class="material-symbols-outlined text-slate-600">account_balance</span>
+</button>
+<div class="w-10 h-10 rounded-full bg-primary-container flex items-center justify-center text-white overflow-hidden ml-2">
+<img alt="Chief Information Security Officer Profile" data-alt="Close up portrait of a professional male executive" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBK-01eljQh5nf34JMbAuoRi26dGbJNFmozoGcuEcglJ9HZ3fEiePhUSJlurf3rrDum6AewOjUG-yzwYHStDi7ZAu60nGFGjdRviSkGpPpKeBsEx4GbogAjOexph8itexyGvW1-j2fwsCEtlbOA6Wk9AggRb2UPDzN1XXzY7CLk1YzY5LDj3OlcUNAUdCfzd1M8yLKOhKQKkaSJRHn6Y9-zmXKnAJ0-BMGiuy0KN8maoGD5ywg0Hk68aKhLq7JAXLcDsB_k7oBMCqY4"/>
+</div>
+</div>
+</div>
+</header>
+<main>
+<!-- Heritage Hero Section -->
+<section class="relative min-h-[870px] flex items-center overflow-hidden bg-gradient-to-tr from-primary to-primary-container">
+<div class="absolute inset-0 opacity-20" style="background-image: radial-gradient(#FEC800 1px, transparent 1px); background-size: 40px 40px;"></div>
+<div class="container mx-auto px-8 relative z-10 grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
+<div class="space-y-8">
+<div class="inline-flex items-center space-x-2 bg-white/10 backdrop-blur-md px-4 py-2 rounded-full border border-white/20">
+<span class="material-symbols-outlined text-secondary-container" style="font-variation-settings: 'FILL' 1;">verified_user</span>
+<span class="text-white font-label uppercase tracking-widest text-[11px] font-bold">Institutional Security Protocol</span>
+</div>
+<h1 class="text-white text-6xl md:text-8xl font-black tracking-tighter leading-tight">
+                        Scan. Classify. <br/>
+<span class="text-secondary-container italic">Go Quantum-Safe.</span>
+</h1>
+<p class="text-primary-fixed text-xl max-w-xl font-body leading-relaxed">
+                        The sovereign standard for post-quantum institutional risk. Automate your Cryptography Bill of Materials (CBOM) and secure the financial perimeter against the next generation of threats.
+                    </p>
+<div class="flex flex-wrap gap-4 pt-4">
+<button class="bg-secondary-container text-on-secondary-container px-10 py-4 rounded-xl font-bold text-lg hover:shadow-xl transition-all hover:translate-y-[-2px]">
+                            Initiate Pipeline
+                        </button>
+<button class="bg-transparent border-2 border-white/30 text-white px-10 py-4 rounded-xl font-bold text-lg hover:bg-white/10 transition-all">
+                            Review Security Framework
+                        </button>
+</div>
+</div>
+<!-- Interactive Visualization -->
+<div class="hidden lg:block relative">
+<div class="bg-white/5 backdrop-blur-3xl rounded-[2.5rem] p-8 border border-white/10 shadow-2xl">
+<div class="flex items-center justify-between mb-8">
+<h3 class="text-white font-bold">Live Risk Matrix</h3>
+<div class="flex space-x-2">
+<div class="w-3 h-3 rounded-full bg-error animate-pulse"></div>
+<div class="w-3 h-3 rounded-full bg-secondary-container"></div>
+<div class="w-3 h-3 rounded-full bg-green-500"></div>
+</div>
+</div>
+<div class="grid grid-cols-3 gap-4">
+<!-- Bento Grid Style Risk Tiles -->
+<div class="col-span-2 h-48 bg-white/10 rounded-2xl flex flex-col justify-end p-6">
+<span class="text-secondary-fixed text-xs font-bold uppercase tracking-widest mb-2">Algorithm Health</span>
+<div class="text-3xl font-black text-white">RSA-2048</div>
+<div class="text-error font-bold text-sm">Critical Vulnerability Detected</div>
+</div>
+<div class="h-48 bg-primary/40 rounded-2xl p-6 flex flex-col justify-center items-center text-center">
+<span class="material-symbols-outlined text-secondary-container text-4xl mb-2" style="font-variation-settings: 'FILL' 1;">lock_open</span>
+<div class="text-white text-2xl font-bold">84%</div>
+<span class="text-white/60 text-[10px] uppercase font-bold tracking-widest">Risk Index</span>
+</div>
+<div class="h-32 bg-white/10 rounded-2xl p-6 flex items-center justify-between col-span-3">
+<div class="flex items-center space-x-4">
+<div class="w-12 h-12 bg-secondary-container/20 rounded-xl flex items-center justify-center">
+<span class="material-symbols-outlined text-secondary-container">memory</span>
+</div>
+<div>
+<div class="text-white font-bold text-sm">Migration Progress</div>
+<div class="text-white/60 text-xs">PQC Transition Tier 1</div>
+</div>
+</div>
+<div class="w-1/2 bg-white/10 h-2 rounded-full overflow-hidden">
+<div class="bg-secondary-container h-full w-[65%]"></div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- CBOM Pipeline Section -->
+<section class="py-24 bg-surface">
+<div class="container mx-auto px-8">
+<div class="mb-20 max-w-2xl">
+<h2 class="text-5xl font-black tracking-tighter text-primary mb-6">The 5-Phase CBOM Pipeline</h2>
+<p class="text-on-surface-variant text-lg leading-relaxed">Continuous Cryptographic Inventory (CCI) across the entire software supply chain. Our proprietary engine provides deep inspection of institutional artifacts.</p>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-5 gap-6">
+<!-- Phase 1 -->
+<div class="bg-surface-container-lowest p-8 rounded-xl shadow-sm border-t-4 border-primary group hover:shadow-xl transition-all duration-300">
+<div class="text-primary-container font-black text-4xl mb-4 opacity-30">01</div>
+<h4 class="font-bold text-primary mb-3">Discovery</h4>
+<p class="text-on-surface-variant text-sm">Automated scanning of all binary artifacts and source repositories.</p>
+</div>
+<!-- Phase 2 -->
+<div class="bg-surface-container-lowest p-8 rounded-xl shadow-sm border-t-4 border-secondary group hover:shadow-xl transition-all duration-300">
+<div class="text-secondary font-black text-4xl mb-4 opacity-30">02</div>
+<h4 class="font-bold text-primary mb-3">Extraction</h4>
+<p class="text-on-surface-variant text-sm">Parsing cryptographic signatures and cipher-suite dependencies.</p>
+</div>
+<!-- Phase 3 -->
+<div class="bg-surface-container-lowest p-8 rounded-xl shadow-sm border-t-4 border-primary group hover:shadow-xl transition-all duration-300">
+<div class="text-primary-container font-black text-4xl mb-4 opacity-30">03</div>
+<h4 class="font-bold text-primary mb-3">Classification</h4>
+<p class="text-on-surface-variant text-sm">Mapping algorithms against NIST Post-Quantum standards.</p>
+</div>
+<!-- Phase 4 -->
+<div class="bg-surface-container-lowest p-8 rounded-xl shadow-sm border-t-4 border-secondary group hover:shadow-xl transition-all duration-300">
+<div class="text-secondary font-black text-4xl mb-4 opacity-30">04</div>
+<h4 class="font-bold text-primary mb-3">Vulnerability</h4>
+<p class="text-on-surface-variant text-sm">Quantifying quantum-threat exposure across the asset map.</p>
+</div>
+<!-- Phase 5 -->
+<div class="bg-surface-container-lowest p-8 rounded-xl shadow-sm border-t-4 border-primary group hover:shadow-xl transition-all duration-300">
+<div class="text-primary-container font-black text-4xl mb-4 opacity-30">05</div>
+<h4 class="font-bold text-primary mb-3">Remediation</h4>
+<p class="text-on-surface-variant text-sm">Generating actionable migration paths for legacy crypto.</p>
+</div>
+</div>
+</div>
+</section>
+<!-- Platform Capabilities (Editorial Layout) -->
+<section class="py-24 bg-surface-container-low">
+<div class="container mx-auto px-8">
+<div class="grid grid-cols-1 lg:grid-cols-12 gap-16 items-center">
+<div class="lg:col-span-5 order-2 lg:order-1">
+<div class="space-y-16">
+<div class="relative pl-8 border-l-2 border-outline-variant">
+<h3 class="text-3xl font-bold text-primary mb-4">Negotiation Policy Analyzer</h3>
+<p class="text-on-surface-variant leading-relaxed">
+                                    Simulate and enforce strict cryptographic protocols at the perimeter. Analyze TLS negotiation handshakes to prevent downgrade attacks and ensure end-to-end quantum resistance.
+                                </p>
+<a class="inline-flex items-center text-primary font-bold mt-4 group" href="#">
+                                    Analyze Protocols <span class="material-symbols-outlined ml-2 group-hover:translate-x-1 transition-transform">arrow_forward</span>
+</a>
+</div>
+<div class="relative pl-8 border-l-2 border-outline-variant">
+<h3 class="text-3xl font-bold text-primary mb-4">Security Posture Heatmap</h3>
+<p class="text-on-surface-variant leading-relaxed">
+                                    Visualize your institutional risk landscape in real-time. Our global heatmap identifies geographic and systemic concentrations of legacy cryptographic vulnerability.
+                                </p>
+<a class="inline-flex items-center text-primary font-bold mt-4 group" href="#">
+                                    View Global Risk <span class="material-symbols-outlined ml-2 group-hover:translate-x-1 transition-transform">arrow_forward</span>
+</a>
+</div>
+</div>
+</div>
+<div class="lg:col-span-7 order-1 lg:order-2">
+<div class="aspect-video bg-white rounded-3xl overflow-hidden shadow-2xl relative">
+<img alt="Platform Capability Visualization" class="w-full h-full object-cover opacity-80" data-alt="High tech blue and purple data visualization abstract" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCD4TQ5zUg8PBp95o3IcUimTCU55OiQnDiJGRiGtbNKwiOLOlgy3EFtynKwUPf4ytYA-t4Cgxtc7wMGm-lfk_YIfRAZx3Fs7pCT7axGgvTS7hrFhhMODG8HBXtdEckV0ujbVXwar9N7gPmtaujycN00e8_SbnL_t5QiJAZgYWs1IgI0rbjDyTbsyflFJK0wE75uQdgxpZOdsFv6Fkqdsw3sXtbfW1IuNzcoLdki7S61InXXwf830UURFYGv8p12vd0egA4G6Qr0g2cm"/>
+<div class="absolute inset-0 bg-gradient-to-t from-primary/40 to-transparent"></div>
+<!-- Floating Overlay Card -->
+<div class="absolute bottom-8 right-8 bg-white/95 backdrop-blur-md p-6 rounded-2xl shadow-xl max-w-xs">
+<div class="flex items-center space-x-3 mb-3">
+<div class="w-8 h-8 rounded-full bg-secondary-container flex items-center justify-center">
+<span class="material-symbols-outlined text-on-secondary-container text-sm" style="font-variation-settings: 'FILL' 1;">security</span>
+</div>
+<span class="font-bold text-xs uppercase tracking-widest text-primary">Compliance Alert</span>
+</div>
+<p class="text-xs text-on-surface-variant font-medium">9 active certificates found using deprecated P-256 curves in Tier-1 Infrastructure.</p>
+</div>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- CTA Section (Heritage Banner) -->
+<section class="mx-8 mb-24 rounded-[3rem] overflow-hidden bg-gradient-to-r from-primary to-primary-container relative">
+<div class="absolute top-0 right-0 w-1/3 h-full opacity-10">
+<span class="material-symbols-outlined text-[30rem] absolute -top-24 -right-24 text-white">shield</span>
+</div>
+<div class="py-20 px-12 md:px-24 flex flex-col md:flex-row justify-between items-center gap-12 relative z-10">
+<div class="max-w-2xl">
+<h2 class="text-white text-4xl md:text-5xl font-black tracking-tight mb-6">Secure Your Institutional Legacy.</h2>
+<p class="text-primary-fixed text-lg">Speak with our Quantum Security Architects to begin your transition to sovereign-grade cryptography.</p>
+</div>
+<button class="bg-secondary-container text-on-secondary-container px-12 py-5 rounded-full font-bold text-xl hover:shadow-2xl transition-all scale-100 active:scale-95 whitespace-nowrap">
+                    Request Strategy Session
+                </button>
+</div>
+</section>
+</main>
+<!-- Footer -->
+<footer class="bg-slate-50 dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 transition-all">
+<div class="w-full py-12 px-8 flex flex-col md:flex-row justify-between items-center gap-6 max-w-[1920px] mx-auto">
+<div class="flex flex-col gap-4">
+<div class="font-bold text-slate-900 dark:text-slate-100 flex items-center space-x-2">
+<span class="material-symbols-outlined text-primary">security</span>
+<span class="text-xl font-black tracking-tighter">Q-Armor</span>
+</div>
+<p class="text-slate-500 dark:text-slate-400 text-xs font-light tracking-wide max-w-sm">
+                    © 2024 Q-Armor Institutional Cryptography. Sovereign Security Standards.
+                </p>
+</div>
+<div class="flex flex-wrap justify-center gap-8">
+<a class="text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 text-xs font-light tracking-wide transition-colors" href="#">Privacy Protocol</a>
+<a class="text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 text-xs font-light tracking-wide transition-colors" href="#">Terms of Service</a>
+<a class="text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 text-xs font-light tracking-wide transition-colors" href="#">Quantum Readiness Framework</a>
+<a class="text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 text-xs font-light tracking-wide transition-colors" href="#">Global Offices</a>
+</div>
+<div class="flex space-x-4">
+<a class="text-slate-400 hover:text-[#7B0030] transition-all" href="#"><span class="material-symbols-outlined">share</span></a>
+<a class="text-slate-400 hover:text-[#7B0030] transition-all" href="#"><span class="material-symbols-outlined">hub</span></a>
+</div>
+</div>
+</footer>
+</body></html>
