@@ -1,0 +1,4735 @@
+{
+  "bomFormat": "CycloneDX",
+  "specVersion": "1.7",
+  "serialNumber": "urn:uuid:4b1733f2-13eb-4e65-ab02-e5b69432de95",
+  "version": 1,
+  "metadata": {
+    "timestamp": "2026-03-24T14:07:33.141243Z",
+    "tools": {
+      "components": [
+        {
+          "type": "application",
+          "name": "Q-ARMOR",
+          "version": "9.0.0",
+          "description": "Quantum-Aware Mapping & Observation for Risk Remediation"
+        }
+      ]
+    },
+    "component": {
+      "type": "application",
+      "name": "Q-ARMOR Cryptographic Scan",
+      "version": "9.0.0"
+    },
+    "properties": [
+      {
+        "name": "qarmor:dataMode",
+        "value": "live"
+      },
+      {
+        "name": "qarmor:contentHash",
+        "value": "284639841479f5bab919c29fc6ec909018ca442dd2b788b63a7838fe05420079"
+      }
+    ]
+  },
+  "components": [
+    {
+      "type": "cryptographic-asset",
+      "bom-ref": "crypto-academic.iitg.ac.in-443",
+      "name": "academic.iitg.ac.in:443",
+      "version": "",
+      "description": "Cryptographic configuration for academic.iitg.ac.in (web)",
+      "cryptoProperties": {
+        "assetType": "protocol",
+        "protocolProperties": {
+          "type": "tls",
+          "version": ""
+        },
+        "algorithmProperties": {
+          "keyExchange": "",
+          "authentication": "",
+          "keySize": 255
+        }
+      },
+      "pqcAssessment": {
+        "worstCaseScore": 45,
+        "bestCaseScore": 43,
+        "typicalScore": 43,
+        "status": "QUANTUM_VULNERABLE",
+        "agilityScore": 12,
+        "summary": "academic.iitg.ac.in classified as Legacy.",
+        "recommendedAction": "Renew certificate — expires in 23 days",
+        "worstFindings": [
+          "TLS score=10, KEX score=12, Certificate score=12, Cipher score=15",
+          "Agility score=6, Negotiation score=-5",
+          "Recorded traffic has a MEDIUM probability of future quantum decryption"
+        ],
+        "bestFindings": [
+          "TLS score=20, KEX score=0, Certificate score=12, Cipher score=15",
+          "Agility score=6, Negotiation score=-5"
+        ],
+        "worstRecommendations": [
+          "Enable X25519MLKEM768 hybrid key exchange",
+          "Plan migration to ML-DSA or SLH-DSA certificates",
+          "Renew certificate — expires in 23 days"
+        ]
+      },
+      "provenance": {
+        "source": "Q-ARMOR Phase 7 Tri-Mode Classifier",
+        "scoringVersion": "7.0.0",
+        "probeCount": 3,
+        "phases": [
+          "discovery",
+          "trimode-probe",
+          "classification",
+          "agility-assessment"
+        ]
+      },
+      "properties": [
+        {
+          "name": "qarmor:hostname",
+          "value": "academic.iitg.ac.in"
+        },
+        {
+          "name": "qarmor:port",
+          "value": "443"
+        },
+        {
+          "name": "qarmor:assetType",
+          "value": "web"
+        },
+        {
+          "name": "qarmor:bestScore",
+          "value": "43"
+        },
+        {
+          "name": "qarmor:typicalScore",
+          "value": "43"
+        },
+        {
+          "name": "qarmor:worstScore",
+          "value": "45"
+        },
+        {
+          "name": "qarmor:status",
+          "value": "QUANTUM_VULNERABLE"
+        },
+        {
+          "name": "qarmor:agilityScore",
+          "value": "12"
+        }
+      ]
+    },
+    {
+      "type": "cryptographic-asset",
+      "bom-ref": "crypto-agnigarh.iitg.ac.in-443",
+      "name": "agnigarh.iitg.ac.in:443",
+      "version": "",
+      "description": "Cryptographic configuration for agnigarh.iitg.ac.in (web)",
+      "cryptoProperties": {
+        "assetType": "protocol",
+        "protocolProperties": {
+          "type": "tls",
+          "version": ""
+        },
+        "algorithmProperties": {
+          "keyExchange": "",
+          "authentication": "",
+          "keySize": 0
+        }
+      },
+      "pqcAssessment": {
+        "worstCaseScore": 0,
+        "bestCaseScore": 0,
+        "typicalScore": 0,
+        "status": "UNKNOWN",
+        "agilityScore": 0,
+        "summary": "agnigarh.iitg.ac.in classified as Unclassified.",
+        "recommendedAction": "Verify asset reachability and retry the scan.",
+        "worstFindings": [
+          "All three probes failed; classification unavailable"
+        ],
+        "bestFindings": [
+          "All three probes failed; classification unavailable"
+        ],
+        "worstRecommendations": [
+          "Verify endpoint connectivity and retry"
+        ]
+      },
+      "provenance": {
+        "source": "Q-ARMOR Phase 7 Tri-Mode Classifier",
+        "scoringVersion": "7.0.0",
+        "probeCount": 3,
+        "phases": [
+          "discovery",
+          "trimode-probe",
+          "classification",
+          "agility-assessment"
+        ]
+      },
+      "properties": [
+        {
+          "name": "qarmor:hostname",
+          "value": "agnigarh.iitg.ac.in"
+        },
+        {
+          "name": "qarmor:port",
+          "value": "443"
+        },
+        {
+          "name": "qarmor:assetType",
+          "value": "web"
+        },
+        {
+          "name": "qarmor:bestScore",
+          "value": "0"
+        },
+        {
+          "name": "qarmor:typicalScore",
+          "value": "0"
+        },
+        {
+          "name": "qarmor:worstScore",
+          "value": "0"
+        },
+        {
+          "name": "qarmor:status",
+          "value": "UNKNOWN"
+        },
+        {
+          "name": "qarmor:agilityScore",
+          "value": "0"
+        }
+      ]
+    },
+    {
+      "type": "cryptographic-asset",
+      "bom-ref": "crypto-aie.iitg.ac.in-443",
+      "name": "aie.iitg.ac.in:443",
+      "version": "",
+      "description": "Cryptographic configuration for aie.iitg.ac.in (web)",
+      "cryptoProperties": {
+        "assetType": "protocol",
+        "protocolProperties": {
+          "type": "tls",
+          "version": ""
+        },
+        "algorithmProperties": {
+          "keyExchange": "",
+          "authentication": "",
+          "keySize": 0
+        }
+      },
+      "pqcAssessment": {
+        "worstCaseScore": 0,
+        "bestCaseScore": 0,
+        "typicalScore": 0,
+        "status": "UNKNOWN",
+        "agilityScore": 0,
+        "summary": "aie.iitg.ac.in classified as Unclassified.",
+        "recommendedAction": "Verify asset reachability and retry the scan.",
+        "worstFindings": [
+          "All three probes failed; classification unavailable"
+        ],
+        "bestFindings": [
+          "All three probes failed; classification unavailable"
+        ],
+        "worstRecommendations": [
+          "Verify endpoint connectivity and retry"
+        ]
+      },
+      "provenance": {
+        "source": "Q-ARMOR Phase 7 Tri-Mode Classifier",
+        "scoringVersion": "7.0.0",
+        "probeCount": 3,
+        "phases": [
+          "discovery",
+          "trimode-probe",
+          "classification",
+          "agility-assessment"
+        ]
+      },
+      "properties": [
+        {
+          "name": "qarmor:hostname",
+          "value": "aie.iitg.ac.in"
+        },
+        {
+          "name": "qarmor:port",
+          "value": "443"
+        },
+        {
+          "name": "qarmor:assetType",
+          "value": "web"
+        },
+        {
+          "name": "qarmor:bestScore",
+          "value": "0"
+        },
+        {
+          "name": "qarmor:typicalScore",
+          "value": "0"
+        },
+        {
+          "name": "qarmor:worstScore",
+          "value": "0"
+        },
+        {
+          "name": "qarmor:status",
+          "value": "UNKNOWN"
+        },
+        {
+          "name": "qarmor:agilityScore",
+          "value": "0"
+        }
+      ]
+    },
+    {
+      "type": "cryptographic-asset",
+      "bom-ref": "crypto-alcheringa.iitg.ac.in-443",
+      "name": "alcheringa.iitg.ac.in:443",
+      "version": "",
+      "description": "Cryptographic configuration for alcheringa.iitg.ac.in (web)",
+      "cryptoProperties": {
+        "assetType": "protocol",
+        "protocolProperties": {
+          "type": "tls",
+          "version": ""
+        },
+        "algorithmProperties": {
+          "keyExchange": "",
+          "authentication": "",
+          "keySize": 255
+        }
+      },
+      "pqcAssessment": {
+        "worstCaseScore": 45,
+        "bestCaseScore": 43,
+        "typicalScore": 43,
+        "status": "QUANTUM_VULNERABLE",
+        "agilityScore": 15,
+        "summary": "alcheringa.iitg.ac.in classified as Legacy.",
+        "recommendedAction": "Renew certificate — expires in 9 days",
+        "worstFindings": [
+          "TLS score=10, KEX score=12, Certificate score=12, Cipher score=15",
+          "Agility score=6, Negotiation score=-5",
+          "Recorded traffic has a MEDIUM probability of future quantum decryption"
+        ],
+        "bestFindings": [
+          "TLS score=20, KEX score=0, Certificate score=12, Cipher score=15",
+          "Agility score=6, Negotiation score=-5"
+        ],
+        "worstRecommendations": [
+          "Enable X25519MLKEM768 hybrid key exchange",
+          "Plan migration to ML-DSA or SLH-DSA certificates",
+          "Renew certificate — expires in 9 days"
+        ]
+      },
+      "provenance": {
+        "source": "Q-ARMOR Phase 7 Tri-Mode Classifier",
+        "scoringVersion": "7.0.0",
+        "probeCount": 3,
+        "phases": [
+          "discovery",
+          "trimode-probe",
+          "classification",
+          "agility-assessment"
+        ]
+      },
+      "properties": [
+        {
+          "name": "qarmor:hostname",
+          "value": "alcheringa.iitg.ac.in"
+        },
+        {
+          "name": "qarmor:port",
+          "value": "443"
+        },
+        {
+          "name": "qarmor:assetType",
+          "value": "web"
+        },
+        {
+          "name": "qarmor:bestScore",
+          "value": "43"
+        },
+        {
+          "name": "qarmor:typicalScore",
+          "value": "43"
+        },
+        {
+          "name": "qarmor:worstScore",
+          "value": "45"
+        },
+        {
+          "name": "qarmor:status",
+          "value": "QUANTUM_VULNERABLE"
+        },
+        {
+          "name": "qarmor:agilityScore",
+          "value": "15"
+        }
+      ]
+    },
+    {
+      "type": "cryptographic-asset",
+      "bom-ref": "crypto-almnet.iitg.ac.in-443",
+      "name": "almnet.iitg.ac.in:443",
+      "version": "",
+      "description": "Cryptographic configuration for almnet.iitg.ac.in (web)",
+      "cryptoProperties": {
+        "assetType": "protocol",
+        "protocolProperties": {
+          "type": "tls",
+          "version": ""
+        },
+        "algorithmProperties": {
+          "keyExchange": "",
+          "authentication": "",
+          "keySize": 255
+        }
+      },
+      "pqcAssessment": {
+        "worstCaseScore": 38,
+        "bestCaseScore": 41,
+        "typicalScore": 41,
+        "status": "QUANTUM_VULNERABLE",
+        "agilityScore": 12,
+        "summary": "almnet.iitg.ac.in classified as Legacy.",
+        "recommendedAction": "Enable X25519MLKEM768 hybrid key exchange group in TLS config",
+        "worstFindings": [
+          "TLS score=10, KEX score=12, Certificate score=10, Cipher score=10",
+          "Agility score=6, Negotiation score=-5",
+          "Recorded traffic has a MEDIUM probability of future quantum decryption"
+        ],
+        "bestFindings": [
+          "TLS score=20, KEX score=0, Certificate score=10, Cipher score=15",
+          "Agility score=6, Negotiation score=-5"
+        ],
+        "worstRecommendations": [
+          "Enable X25519MLKEM768 hybrid key exchange",
+          "Plan migration to ML-DSA or SLH-DSA certificates",
+          "Enable X25519MLKEM768 hybrid key exchange group in TLS config"
+        ]
+      },
+      "provenance": {
+        "source": "Q-ARMOR Phase 7 Tri-Mode Classifier",
+        "scoringVersion": "7.0.0",
+        "probeCount": 3,
+        "phases": [
+          "discovery",
+          "trimode-probe",
+          "classification",
+          "agility-assessment"
+        ]
+      },
+      "properties": [
+        {
+          "name": "qarmor:hostname",
+          "value": "almnet.iitg.ac.in"
+        },
+        {
+          "name": "qarmor:port",
+          "value": "443"
+        },
+        {
+          "name": "qarmor:assetType",
+          "value": "web"
+        },
+        {
+          "name": "qarmor:bestScore",
+          "value": "41"
+        },
+        {
+          "name": "qarmor:typicalScore",
+          "value": "41"
+        },
+        {
+          "name": "qarmor:worstScore",
+          "value": "38"
+        },
+        {
+          "name": "qarmor:status",
+          "value": "QUANTUM_VULNERABLE"
+        },
+        {
+          "name": "qarmor:agilityScore",
+          "value": "12"
+        }
+      ]
+    },
+    {
+      "type": "cryptographic-asset",
+      "bom-ref": "crypto-bornadi.iitg.ac.in-443",
+      "name": "bornadi.iitg.ac.in:443",
+      "version": "",
+      "description": "Cryptographic configuration for bornadi.iitg.ac.in (web)",
+      "cryptoProperties": {
+        "assetType": "protocol",
+        "protocolProperties": {
+          "type": "tls",
+          "version": ""
+        },
+        "algorithmProperties": {
+          "keyExchange": "",
+          "authentication": "",
+          "keySize": 0
+        }
+      },
+      "pqcAssessment": {
+        "worstCaseScore": 0,
+        "bestCaseScore": 0,
+        "typicalScore": 0,
+        "status": "UNKNOWN",
+        "agilityScore": 0,
+        "summary": "bornadi.iitg.ac.in classified as Unclassified.",
+        "recommendedAction": "Verify asset reachability and retry the scan.",
+        "worstFindings": [
+          "All three probes failed; classification unavailable"
+        ],
+        "bestFindings": [
+          "All three probes failed; classification unavailable"
+        ],
+        "worstRecommendations": [
+          "Verify endpoint connectivity and retry"
+        ]
+      },
+      "provenance": {
+        "source": "Q-ARMOR Phase 7 Tri-Mode Classifier",
+        "scoringVersion": "7.0.0",
+        "probeCount": 3,
+        "phases": [
+          "discovery",
+          "trimode-probe",
+          "classification",
+          "agility-assessment"
+        ]
+      },
+      "properties": [
+        {
+          "name": "qarmor:hostname",
+          "value": "bornadi.iitg.ac.in"
+        },
+        {
+          "name": "qarmor:port",
+          "value": "443"
+        },
+        {
+          "name": "qarmor:assetType",
+          "value": "web"
+        },
+        {
+          "name": "qarmor:bestScore",
+          "value": "0"
+        },
+        {
+          "name": "qarmor:typicalScore",
+          "value": "0"
+        },
+        {
+          "name": "qarmor:worstScore",
+          "value": "0"
+        },
+        {
+          "name": "qarmor:status",
+          "value": "UNKNOWN"
+        },
+        {
+          "name": "qarmor:agilityScore",
+          "value": "0"
+        }
+      ]
+    },
+    {
+      "type": "cryptographic-asset",
+      "bom-ref": "crypto-dns1.iitg.ac.in-443",
+      "name": "dns1.iitg.ac.in:443",
+      "version": "",
+      "description": "Cryptographic configuration for dns1.iitg.ac.in (web)",
+      "cryptoProperties": {
+        "assetType": "protocol",
+        "protocolProperties": {
+          "type": "tls",
+          "version": ""
+        },
+        "algorithmProperties": {
+          "keyExchange": "",
+          "authentication": "",
+          "keySize": 0
+        }
+      },
+      "pqcAssessment": {
+        "worstCaseScore": 0,
+        "bestCaseScore": 0,
+        "typicalScore": 0,
+        "status": "UNKNOWN",
+        "agilityScore": 0,
+        "summary": "dns1.iitg.ac.in classified as Unclassified.",
+        "recommendedAction": "Verify asset reachability and retry the scan.",
+        "worstFindings": [
+          "All three probes failed; classification unavailable"
+        ],
+        "bestFindings": [
+          "All three probes failed; classification unavailable"
+        ],
+        "worstRecommendations": [
+          "Verify endpoint connectivity and retry"
+        ]
+      },
+      "provenance": {
+        "source": "Q-ARMOR Phase 7 Tri-Mode Classifier",
+        "scoringVersion": "7.0.0",
+        "probeCount": 3,
+        "phases": [
+          "discovery",
+          "trimode-probe",
+          "classification",
+          "agility-assessment"
+        ]
+      },
+      "properties": [
+        {
+          "name": "qarmor:hostname",
+          "value": "dns1.iitg.ac.in"
+        },
+        {
+          "name": "qarmor:port",
+          "value": "443"
+        },
+        {
+          "name": "qarmor:assetType",
+          "value": "web"
+        },
+        {
+          "name": "qarmor:bestScore",
+          "value": "0"
+        },
+        {
+          "name": "qarmor:typicalScore",
+          "value": "0"
+        },
+        {
+          "name": "qarmor:worstScore",
+          "value": "0"
+        },
+        {
+          "name": "qarmor:status",
+          "value": "UNKNOWN"
+        },
+        {
+          "name": "qarmor:agilityScore",
+          "value": "0"
+        }
+      ]
+    },
+    {
+      "type": "cryptographic-asset",
+      "bom-ref": "crypto-dns2.iitg.ac.in-443",
+      "name": "dns2.iitg.ac.in:443",
+      "version": "",
+      "description": "Cryptographic configuration for dns2.iitg.ac.in (web)",
+      "cryptoProperties": {
+        "assetType": "protocol",
+        "protocolProperties": {
+          "type": "tls",
+          "version": ""
+        },
+        "algorithmProperties": {
+          "keyExchange": "",
+          "authentication": "",
+          "keySize": 0
+        }
+      },
+      "pqcAssessment": {
+        "worstCaseScore": 0,
+        "bestCaseScore": 0,
+        "typicalScore": 0,
+        "status": "UNKNOWN",
+        "agilityScore": 0,
+        "summary": "dns2.iitg.ac.in classified as Unclassified.",
+        "recommendedAction": "Verify asset reachability and retry the scan.",
+        "worstFindings": [
+          "All three probes failed; classification unavailable"
+        ],
+        "bestFindings": [
+          "All three probes failed; classification unavailable"
+        ],
+        "worstRecommendations": [
+          "Verify endpoint connectivity and retry"
+        ]
+      },
+      "provenance": {
+        "source": "Q-ARMOR Phase 7 Tri-Mode Classifier",
+        "scoringVersion": "7.0.0",
+        "probeCount": 3,
+        "phases": [
+          "discovery",
+          "trimode-probe",
+          "classification",
+          "agility-assessment"
+        ]
+      },
+      "properties": [
+        {
+          "name": "qarmor:hostname",
+          "value": "dns2.iitg.ac.in"
+        },
+        {
+          "name": "qarmor:port",
+          "value": "443"
+        },
+        {
+          "name": "qarmor:assetType",
+          "value": "web"
+        },
+        {
+          "name": "qarmor:bestScore",
+          "value": "0"
+        },
+        {
+          "name": "qarmor:typicalScore",
+          "value": "0"
+        },
+        {
+          "name": "qarmor:worstScore",
+          "value": "0"
+        },
+        {
+          "name": "qarmor:status",
+          "value": "UNKNOWN"
+        },
+        {
+          "name": "qarmor:agilityScore",
+          "value": "0"
+        }
+      ]
+    },
+    {
+      "type": "cryptographic-asset",
+      "bom-ref": "crypto-eict.iitg.ac.in-443",
+      "name": "eict.iitg.ac.in:443",
+      "version": "",
+      "description": "Cryptographic configuration for eict.iitg.ac.in (web)",
+      "cryptoProperties": {
+        "assetType": "protocol",
+        "protocolProperties": {
+          "type": "tls",
+          "version": ""
+        },
+        "algorithmProperties": {
+          "keyExchange": "",
+          "authentication": "",
+          "keySize": 255
+        }
+      },
+      "pqcAssessment": {
+        "worstCaseScore": 42,
+        "bestCaseScore": 40,
+        "typicalScore": 40,
+        "status": "QUANTUM_VULNERABLE",
+        "agilityScore": 12,
+        "summary": "eict.iitg.ac.in classified as Legacy.",
+        "recommendedAction": "Enable X25519MLKEM768 hybrid key exchange group in TLS config",
+        "worstFindings": [
+          "TLS score=10, KEX score=12, Certificate score=6, Cipher score=15",
+          "Agility score=9, Negotiation score=-5",
+          "Recorded traffic has a MEDIUM probability of future quantum decryption"
+        ],
+        "bestFindings": [
+          "TLS score=20, KEX score=0, Certificate score=6, Cipher score=15",
+          "Agility score=9, Negotiation score=-5"
+        ],
+        "worstRecommendations": [
+          "Enable X25519MLKEM768 hybrid key exchange",
+          "Plan migration to ML-DSA or SLH-DSA certificates",
+          "Enable X25519MLKEM768 hybrid key exchange group in TLS config"
+        ]
+      },
+      "provenance": {
+        "source": "Q-ARMOR Phase 7 Tri-Mode Classifier",
+        "scoringVersion": "7.0.0",
+        "probeCount": 3,
+        "phases": [
+          "discovery",
+          "trimode-probe",
+          "classification",
+          "agility-assessment"
+        ]
+      },
+      "properties": [
+        {
+          "name": "qarmor:hostname",
+          "value": "eict.iitg.ac.in"
+        },
+        {
+          "name": "qarmor:port",
+          "value": "443"
+        },
+        {
+          "name": "qarmor:assetType",
+          "value": "web"
+        },
+        {
+          "name": "qarmor:bestScore",
+          "value": "40"
+        },
+        {
+          "name": "qarmor:typicalScore",
+          "value": "40"
+        },
+        {
+          "name": "qarmor:worstScore",
+          "value": "42"
+        },
+        {
+          "name": "qarmor:status",
+          "value": "QUANTUM_VULNERABLE"
+        },
+        {
+          "name": "qarmor:agilityScore",
+          "value": "12"
+        }
+      ]
+    },
+    {
+      "type": "cryptographic-asset",
+      "bom-ref": "crypto-elearn.iitg.ac.in-443",
+      "name": "elearn.iitg.ac.in:443",
+      "version": "",
+      "description": "Cryptographic configuration for elearn.iitg.ac.in (web)",
+      "cryptoProperties": {
+        "assetType": "protocol",
+        "protocolProperties": {
+          "type": "tls",
+          "version": ""
+        },
+        "algorithmProperties": {
+          "keyExchange": "",
+          "authentication": "",
+          "keySize": 255
+        }
+      },
+      "pqcAssessment": {
+        "worstCaseScore": 63,
+        "bestCaseScore": 96,
+        "typicalScore": 66,
+        "status": "PQC_TRANSITION",
+        "agilityScore": 12,
+        "summary": "elearn.iitg.ac.in classified as Standard (33-point spread across probes).",
+        "recommendedAction": "Migrate certificate to ML-DSA-65 or SLH-DSA-128s",
+        "worstFindings": [
+          "TLS score=10, KEX score=12, Certificate score=12, Cipher score=10",
+          "Agility score=9, Negotiation score=5",
+          "Recorded traffic has a MEDIUM probability of future quantum decryption"
+        ],
+        "bestFindings": [
+          "TLS score=20, KEX score=30, Certificate score=12, Cipher score=15",
+          "Agility score=9, Negotiation score=5"
+        ],
+        "worstRecommendations": [
+          "Enable X25519MLKEM768 hybrid key exchange",
+          "Plan migration to ML-DSA or SLH-DSA certificates",
+          "Migrate certificate to ML-DSA-65 or SLH-DSA-128s"
+        ]
+      },
+      "provenance": {
+        "source": "Q-ARMOR Phase 7 Tri-Mode Classifier",
+        "scoringVersion": "7.0.0",
+        "probeCount": 3,
+        "phases": [
+          "discovery",
+          "trimode-probe",
+          "classification",
+          "agility-assessment"
+        ]
+      },
+      "properties": [
+        {
+          "name": "qarmor:hostname",
+          "value": "elearn.iitg.ac.in"
+        },
+        {
+          "name": "qarmor:port",
+          "value": "443"
+        },
+        {
+          "name": "qarmor:assetType",
+          "value": "web"
+        },
+        {
+          "name": "qarmor:bestScore",
+          "value": "96"
+        },
+        {
+          "name": "qarmor:typicalScore",
+          "value": "66"
+        },
+        {
+          "name": "qarmor:worstScore",
+          "value": "63"
+        },
+        {
+          "name": "qarmor:status",
+          "value": "PQC_TRANSITION"
+        },
+        {
+          "name": "qarmor:agilityScore",
+          "value": "12"
+        }
+      ]
+    },
+    {
+      "type": "cryptographic-asset",
+      "bom-ref": "crypto-event.iitg.ac.in-443",
+      "name": "event.iitg.ac.in:443",
+      "version": "",
+      "description": "Cryptographic configuration for event.iitg.ac.in (web)",
+      "cryptoProperties": {
+        "assetType": "protocol",
+        "protocolProperties": {
+          "type": "tls",
+          "version": ""
+        },
+        "algorithmProperties": {
+          "keyExchange": "",
+          "authentication": "",
+          "keySize": 255
+        }
+      },
+      "pqcAssessment": {
+        "worstCaseScore": 42,
+        "bestCaseScore": 40,
+        "typicalScore": 40,
+        "status": "QUANTUM_VULNERABLE",
+        "agilityScore": 9,
+        "summary": "event.iitg.ac.in classified as Legacy.",
+        "recommendedAction": "Enable X25519MLKEM768 hybrid key exchange group in TLS config",
+        "worstFindings": [
+          "TLS score=10, KEX score=12, Certificate score=6, Cipher score=15",
+          "Agility score=9, Negotiation score=-5",
+          "Recorded traffic has a MEDIUM probability of future quantum decryption"
+        ],
+        "bestFindings": [
+          "TLS score=20, KEX score=0, Certificate score=6, Cipher score=15",
+          "Agility score=9, Negotiation score=-5"
+        ],
+        "worstRecommendations": [
+          "Enable X25519MLKEM768 hybrid key exchange",
+          "Plan migration to ML-DSA or SLH-DSA certificates",
+          "Enable X25519MLKEM768 hybrid key exchange group in TLS config"
+        ]
+      },
+      "provenance": {
+        "source": "Q-ARMOR Phase 7 Tri-Mode Classifier",
+        "scoringVersion": "7.0.0",
+        "probeCount": 3,
+        "phases": [
+          "discovery",
+          "trimode-probe",
+          "classification",
+          "agility-assessment"
+        ]
+      },
+      "properties": [
+        {
+          "name": "qarmor:hostname",
+          "value": "event.iitg.ac.in"
+        },
+        {
+          "name": "qarmor:port",
+          "value": "443"
+        },
+        {
+          "name": "qarmor:assetType",
+          "value": "web"
+        },
+        {
+          "name": "qarmor:bestScore",
+          "value": "40"
+        },
+        {
+          "name": "qarmor:typicalScore",
+          "value": "40"
+        },
+        {
+          "name": "qarmor:worstScore",
+          "value": "42"
+        },
+        {
+          "name": "qarmor:status",
+          "value": "QUANTUM_VULNERABLE"
+        },
+        {
+          "name": "qarmor:agilityScore",
+          "value": "9"
+        }
+      ]
+    },
+    {
+      "type": "cryptographic-asset",
+      "bom-ref": "crypto-fac.iitg.ac.in-443",
+      "name": "fac.iitg.ac.in:443",
+      "version": "",
+      "description": "Cryptographic configuration for fac.iitg.ac.in (web)",
+      "cryptoProperties": {
+        "assetType": "protocol",
+        "protocolProperties": {
+          "type": "tls",
+          "version": ""
+        },
+        "algorithmProperties": {
+          "keyExchange": "",
+          "authentication": "",
+          "keySize": 255
+        }
+      },
+      "pqcAssessment": {
+        "worstCaseScore": 42,
+        "bestCaseScore": 40,
+        "typicalScore": 40,
+        "status": "QUANTUM_VULNERABLE",
+        "agilityScore": 9,
+        "summary": "fac.iitg.ac.in classified as Legacy.",
+        "recommendedAction": "Enable X25519MLKEM768 hybrid key exchange group in TLS config",
+        "worstFindings": [
+          "TLS score=10, KEX score=12, Certificate score=6, Cipher score=15",
+          "Agility score=9, Negotiation score=-5",
+          "Recorded traffic has a MEDIUM probability of future quantum decryption"
+        ],
+        "bestFindings": [
+          "TLS score=20, KEX score=0, Certificate score=6, Cipher score=15",
+          "Agility score=9, Negotiation score=-5"
+        ],
+        "worstRecommendations": [
+          "Enable X25519MLKEM768 hybrid key exchange",
+          "Plan migration to ML-DSA or SLH-DSA certificates",
+          "Enable X25519MLKEM768 hybrid key exchange group in TLS config"
+        ]
+      },
+      "provenance": {
+        "source": "Q-ARMOR Phase 7 Tri-Mode Classifier",
+        "scoringVersion": "7.0.0",
+        "probeCount": 3,
+        "phases": [
+          "discovery",
+          "trimode-probe",
+          "classification",
+          "agility-assessment"
+        ]
+      },
+      "properties": [
+        {
+          "name": "qarmor:hostname",
+          "value": "fac.iitg.ac.in"
+        },
+        {
+          "name": "qarmor:port",
+          "value": "443"
+        },
+        {
+          "name": "qarmor:assetType",
+          "value": "web"
+        },
+        {
+          "name": "qarmor:bestScore",
+          "value": "40"
+        },
+        {
+          "name": "qarmor:typicalScore",
+          "value": "40"
+        },
+        {
+          "name": "qarmor:worstScore",
+          "value": "42"
+        },
+        {
+          "name": "qarmor:status",
+          "value": "QUANTUM_VULNERABLE"
+        },
+        {
+          "name": "qarmor:agilityScore",
+          "value": "9"
+        }
+      ]
+    },
+    {
+      "type": "cryptographic-asset",
+      "bom-ref": "crypto-forward.iitgalumni.iitg.ac.in-443",
+      "name": "forward.iitgalumni.iitg.ac.in:443",
+      "version": "",
+      "description": "Cryptographic configuration for forward.iitgalumni.iitg.ac.in (web)",
+      "cryptoProperties": {
+        "assetType": "protocol",
+        "protocolProperties": {
+          "type": "tls",
+          "version": ""
+        },
+        "algorithmProperties": {
+          "keyExchange": "",
+          "authentication": "",
+          "keySize": 255
+        }
+      },
+      "pqcAssessment": {
+        "worstCaseScore": 42,
+        "bestCaseScore": 40,
+        "typicalScore": 40,
+        "status": "QUANTUM_VULNERABLE",
+        "agilityScore": 6,
+        "summary": "forward.iitgalumni.iitg.ac.in classified as Legacy.",
+        "recommendedAction": "Enable X25519MLKEM768 hybrid key exchange group in TLS config",
+        "worstFindings": [
+          "TLS score=10, KEX score=12, Certificate score=6, Cipher score=15",
+          "Agility score=9, Negotiation score=-5",
+          "Recorded traffic has a MEDIUM probability of future quantum decryption"
+        ],
+        "bestFindings": [
+          "TLS score=20, KEX score=0, Certificate score=6, Cipher score=15",
+          "Agility score=9, Negotiation score=-5"
+        ],
+        "worstRecommendations": [
+          "Enable X25519MLKEM768 hybrid key exchange",
+          "Plan migration to ML-DSA or SLH-DSA certificates",
+          "Enable X25519MLKEM768 hybrid key exchange group in TLS config"
+        ]
+      },
+      "provenance": {
+        "source": "Q-ARMOR Phase 7 Tri-Mode Classifier",
+        "scoringVersion": "7.0.0",
+        "probeCount": 3,
+        "phases": [
+          "discovery",
+          "trimode-probe",
+          "classification",
+          "agility-assessment"
+        ]
+      },
+      "properties": [
+        {
+          "name": "qarmor:hostname",
+          "value": "forward.iitgalumni.iitg.ac.in"
+        },
+        {
+          "name": "qarmor:port",
+          "value": "443"
+        },
+        {
+          "name": "qarmor:assetType",
+          "value": "web"
+        },
+        {
+          "name": "qarmor:bestScore",
+          "value": "40"
+        },
+        {
+          "name": "qarmor:typicalScore",
+          "value": "40"
+        },
+        {
+          "name": "qarmor:worstScore",
+          "value": "42"
+        },
+        {
+          "name": "qarmor:status",
+          "value": "QUANTUM_VULNERABLE"
+        },
+        {
+          "name": "qarmor:agilityScore",
+          "value": "6"
+        }
+      ]
+    },
+    {
+      "type": "cryptographic-asset",
+      "bom-ref": "crypto-gate2026.iitg.ac.in-443",
+      "name": "gate2026.iitg.ac.in:443",
+      "version": "",
+      "description": "Cryptographic configuration for gate2026.iitg.ac.in (web)",
+      "cryptoProperties": {
+        "assetType": "protocol",
+        "protocolProperties": {
+          "type": "tls",
+          "version": ""
+        },
+        "algorithmProperties": {
+          "keyExchange": "",
+          "authentication": "",
+          "keySize": 170
+        }
+      },
+      "pqcAssessment": {
+        "worstCaseScore": 60,
+        "bestCaseScore": 88,
+        "typicalScore": 58,
+        "status": "PQC_TRANSITION",
+        "agilityScore": 9,
+        "summary": "gate2026.iitg.ac.in classified as Standard (28-point spread across probes).",
+        "recommendedAction": "Migrate certificate to ML-DSA-65 or SLH-DSA-128s",
+        "worstFindings": [
+          "TLS score=10, KEX score=12, Certificate score=6, Cipher score=10",
+          "Agility score=12, Negotiation score=5",
+          "Recorded traffic has a MEDIUM probability of future quantum decryption"
+        ],
+        "bestFindings": [
+          "TLS score=20, KEX score=30, Certificate score=6, Cipher score=10",
+          "Agility score=12, Negotiation score=5"
+        ],
+        "worstRecommendations": [
+          "Enable X25519MLKEM768 hybrid key exchange",
+          "Plan migration to ML-DSA or SLH-DSA certificates",
+          "Migrate certificate to ML-DSA-65 or SLH-DSA-128s"
+        ]
+      },
+      "provenance": {
+        "source": "Q-ARMOR Phase 7 Tri-Mode Classifier",
+        "scoringVersion": "7.0.0",
+        "probeCount": 3,
+        "phases": [
+          "discovery",
+          "trimode-probe",
+          "classification",
+          "agility-assessment"
+        ]
+      },
+      "properties": [
+        {
+          "name": "qarmor:hostname",
+          "value": "gate2026.iitg.ac.in"
+        },
+        {
+          "name": "qarmor:port",
+          "value": "443"
+        },
+        {
+          "name": "qarmor:assetType",
+          "value": "web"
+        },
+        {
+          "name": "qarmor:bestScore",
+          "value": "88"
+        },
+        {
+          "name": "qarmor:typicalScore",
+          "value": "58"
+        },
+        {
+          "name": "qarmor:worstScore",
+          "value": "60"
+        },
+        {
+          "name": "qarmor:status",
+          "value": "PQC_TRANSITION"
+        },
+        {
+          "name": "qarmor:agilityScore",
+          "value": "9"
+        }
+      ]
+    },
+    {
+      "type": "cryptographic-asset",
+      "bom-ref": "crypto-gateadmin.iitg.ac.in-443",
+      "name": "gateadmin.iitg.ac.in:443",
+      "version": "",
+      "description": "Cryptographic configuration for gateadmin.iitg.ac.in (web)",
+      "cryptoProperties": {
+        "assetType": "protocol",
+        "protocolProperties": {
+          "type": "tls",
+          "version": ""
+        },
+        "algorithmProperties": {
+          "keyExchange": "",
+          "authentication": "",
+          "keySize": 0
+        }
+      },
+      "pqcAssessment": {
+        "worstCaseScore": 0,
+        "bestCaseScore": 0,
+        "typicalScore": 0,
+        "status": "UNKNOWN",
+        "agilityScore": 0,
+        "summary": "gateadmin.iitg.ac.in classified as Unclassified.",
+        "recommendedAction": "Verify asset reachability and retry the scan.",
+        "worstFindings": [
+          "All three probes failed; classification unavailable"
+        ],
+        "bestFindings": [
+          "All three probes failed; classification unavailable"
+        ],
+        "worstRecommendations": [
+          "Verify endpoint connectivity and retry"
+        ]
+      },
+      "provenance": {
+        "source": "Q-ARMOR Phase 7 Tri-Mode Classifier",
+        "scoringVersion": "7.0.0",
+        "probeCount": 3,
+        "phases": [
+          "discovery",
+          "trimode-probe",
+          "classification",
+          "agility-assessment"
+        ]
+      },
+      "properties": [
+        {
+          "name": "qarmor:hostname",
+          "value": "gateadmin.iitg.ac.in"
+        },
+        {
+          "name": "qarmor:port",
+          "value": "443"
+        },
+        {
+          "name": "qarmor:assetType",
+          "value": "web"
+        },
+        {
+          "name": "qarmor:bestScore",
+          "value": "0"
+        },
+        {
+          "name": "qarmor:typicalScore",
+          "value": "0"
+        },
+        {
+          "name": "qarmor:worstScore",
+          "value": "0"
+        },
+        {
+          "name": "qarmor:status",
+          "value": "UNKNOWN"
+        },
+        {
+          "name": "qarmor:agilityScore",
+          "value": "0"
+        }
+      ]
+    },
+    {
+      "type": "cryptographic-asset",
+      "bom-ref": "crypto-goaps.iitg.ac.in-443",
+      "name": "goaps.iitg.ac.in:443",
+      "version": "",
+      "description": "Cryptographic configuration for goaps.iitg.ac.in (web)",
+      "cryptoProperties": {
+        "assetType": "protocol",
+        "protocolProperties": {
+          "type": "tls",
+          "version": ""
+        },
+        "algorithmProperties": {
+          "keyExchange": "",
+          "authentication": "",
+          "keySize": 170
+        }
+      },
+      "pqcAssessment": {
+        "worstCaseScore": 60,
+        "bestCaseScore": 88,
+        "typicalScore": 58,
+        "status": "PQC_TRANSITION",
+        "agilityScore": 12,
+        "summary": "goaps.iitg.ac.in classified as Standard (28-point spread across probes).",
+        "recommendedAction": "Migrate certificate to ML-DSA-65 or SLH-DSA-128s",
+        "worstFindings": [
+          "TLS score=10, KEX score=12, Certificate score=6, Cipher score=10",
+          "Agility score=12, Negotiation score=5",
+          "Recorded traffic has a MEDIUM probability of future quantum decryption"
+        ],
+        "bestFindings": [
+          "TLS score=20, KEX score=30, Certificate score=6, Cipher score=10",
+          "Agility score=12, Negotiation score=5"
+        ],
+        "worstRecommendations": [
+          "Enable X25519MLKEM768 hybrid key exchange",
+          "Plan migration to ML-DSA or SLH-DSA certificates",
+          "Migrate certificate to ML-DSA-65 or SLH-DSA-128s"
+        ]
+      },
+      "provenance": {
+        "source": "Q-ARMOR Phase 7 Tri-Mode Classifier",
+        "scoringVersion": "7.0.0",
+        "probeCount": 3,
+        "phases": [
+          "discovery",
+          "trimode-probe",
+          "classification",
+          "agility-assessment"
+        ]
+      },
+      "properties": [
+        {
+          "name": "qarmor:hostname",
+          "value": "goaps.iitg.ac.in"
+        },
+        {
+          "name": "qarmor:port",
+          "value": "443"
+        },
+        {
+          "name": "qarmor:assetType",
+          "value": "web"
+        },
+        {
+          "name": "qarmor:bestScore",
+          "value": "88"
+        },
+        {
+          "name": "qarmor:typicalScore",
+          "value": "58"
+        },
+        {
+          "name": "qarmor:worstScore",
+          "value": "60"
+        },
+        {
+          "name": "qarmor:status",
+          "value": "PQC_TRANSITION"
+        },
+        {
+          "name": "qarmor:agilityScore",
+          "value": "12"
+        }
+      ]
+    },
+    {
+      "type": "cryptographic-asset",
+      "bom-ref": "crypto-goapsbe.iitg.ac.in-443",
+      "name": "goapsbe.iitg.ac.in:443",
+      "version": "",
+      "description": "Cryptographic configuration for goapsbe.iitg.ac.in (web)",
+      "cryptoProperties": {
+        "assetType": "protocol",
+        "protocolProperties": {
+          "type": "tls",
+          "version": ""
+        },
+        "algorithmProperties": {
+          "keyExchange": "",
+          "authentication": "",
+          "keySize": 170
+        }
+      },
+      "pqcAssessment": {
+        "worstCaseScore": 37,
+        "bestCaseScore": 35,
+        "typicalScore": 35,
+        "status": "QUANTUM_VULNERABLE",
+        "agilityScore": 12,
+        "summary": "goapsbe.iitg.ac.in classified as Legacy.",
+        "recommendedAction": "Enable X25519MLKEM768 hybrid key exchange group in TLS config",
+        "worstFindings": [
+          "TLS score=10, KEX score=12, Certificate score=6, Cipher score=10",
+          "Agility score=9, Negotiation score=-5",
+          "Recorded traffic has a MEDIUM probability of future quantum decryption"
+        ],
+        "bestFindings": [
+          "TLS score=20, KEX score=0, Certificate score=6, Cipher score=10",
+          "Agility score=9, Negotiation score=-5"
+        ],
+        "worstRecommendations": [
+          "Enable X25519MLKEM768 hybrid key exchange",
+          "Plan migration to ML-DSA or SLH-DSA certificates",
+          "Enable X25519MLKEM768 hybrid key exchange group in TLS config"
+        ]
+      },
+      "provenance": {
+        "source": "Q-ARMOR Phase 7 Tri-Mode Classifier",
+        "scoringVersion": "7.0.0",
+        "probeCount": 3,
+        "phases": [
+          "discovery",
+          "trimode-probe",
+          "classification",
+          "agility-assessment"
+        ]
+      },
+      "properties": [
+        {
+          "name": "qarmor:hostname",
+          "value": "goapsbe.iitg.ac.in"
+        },
+        {
+          "name": "qarmor:port",
+          "value": "443"
+        },
+        {
+          "name": "qarmor:assetType",
+          "value": "web"
+        },
+        {
+          "name": "qarmor:bestScore",
+          "value": "35"
+        },
+        {
+          "name": "qarmor:typicalScore",
+          "value": "35"
+        },
+        {
+          "name": "qarmor:worstScore",
+          "value": "37"
+        },
+        {
+          "name": "qarmor:status",
+          "value": "QUANTUM_VULNERABLE"
+        },
+        {
+          "name": "qarmor:agilityScore",
+          "value": "12"
+        }
+      ]
+    },
+    {
+      "type": "cryptographic-asset",
+      "bom-ref": "crypto-gyan.iitg.ac.in-443",
+      "name": "gyan.iitg.ac.in:443",
+      "version": "",
+      "description": "Cryptographic configuration for gyan.iitg.ac.in (web)",
+      "cryptoProperties": {
+        "assetType": "protocol",
+        "protocolProperties": {
+          "type": "tls",
+          "version": ""
+        },
+        "algorithmProperties": {
+          "keyExchange": "",
+          "authentication": "",
+          "keySize": 255
+        }
+      },
+      "pqcAssessment": {
+        "worstCaseScore": 42,
+        "bestCaseScore": 40,
+        "typicalScore": 40,
+        "status": "QUANTUM_VULNERABLE",
+        "agilityScore": 9,
+        "summary": "gyan.iitg.ac.in classified as Legacy.",
+        "recommendedAction": "Enable X25519MLKEM768 hybrid key exchange group in TLS config",
+        "worstFindings": [
+          "TLS score=10, KEX score=12, Certificate score=6, Cipher score=15",
+          "Agility score=9, Negotiation score=-5",
+          "Recorded traffic has a MEDIUM probability of future quantum decryption"
+        ],
+        "bestFindings": [
+          "TLS score=20, KEX score=0, Certificate score=6, Cipher score=15",
+          "Agility score=9, Negotiation score=-5"
+        ],
+        "worstRecommendations": [
+          "Enable X25519MLKEM768 hybrid key exchange",
+          "Plan migration to ML-DSA or SLH-DSA certificates",
+          "Enable X25519MLKEM768 hybrid key exchange group in TLS config"
+        ]
+      },
+      "provenance": {
+        "source": "Q-ARMOR Phase 7 Tri-Mode Classifier",
+        "scoringVersion": "7.0.0",
+        "probeCount": 3,
+        "phases": [
+          "discovery",
+          "trimode-probe",
+          "classification",
+          "agility-assessment"
+        ]
+      },
+      "properties": [
+        {
+          "name": "qarmor:hostname",
+          "value": "gyan.iitg.ac.in"
+        },
+        {
+          "name": "qarmor:port",
+          "value": "443"
+        },
+        {
+          "name": "qarmor:assetType",
+          "value": "web"
+        },
+        {
+          "name": "qarmor:bestScore",
+          "value": "40"
+        },
+        {
+          "name": "qarmor:typicalScore",
+          "value": "40"
+        },
+        {
+          "name": "qarmor:worstScore",
+          "value": "42"
+        },
+        {
+          "name": "qarmor:status",
+          "value": "QUANTUM_VULNERABLE"
+        },
+        {
+          "name": "qarmor:agilityScore",
+          "value": "9"
+        }
+      ]
+    },
+    {
+      "type": "cryptographic-asset",
+      "bom-ref": "crypto-hep.iitg.ac.in-443",
+      "name": "hep.iitg.ac.in:443",
+      "version": "",
+      "description": "Cryptographic configuration for hep.iitg.ac.in (web)",
+      "cryptoProperties": {
+        "assetType": "protocol",
+        "protocolProperties": {
+          "type": "tls",
+          "version": ""
+        },
+        "algorithmProperties": {
+          "keyExchange": "",
+          "authentication": "",
+          "keySize": 170
+        }
+      },
+      "pqcAssessment": {
+        "worstCaseScore": 40,
+        "bestCaseScore": 38,
+        "typicalScore": 38,
+        "status": "CRITICALLY_VULNERABLE",
+        "agilityScore": 12,
+        "summary": "hep.iitg.ac.in classified as Critical.",
+        "recommendedAction": "Renew certificate — expires in -197 days",
+        "worstFindings": [
+          "TLS score=10, KEX score=12, Certificate score=12, Cipher score=10",
+          "Agility score=6, Negotiation score=-5",
+          "Recorded traffic has a MEDIUM probability of future quantum decryption"
+        ],
+        "bestFindings": [
+          "TLS score=20, KEX score=0, Certificate score=12, Cipher score=10",
+          "Agility score=6, Negotiation score=-5"
+        ],
+        "worstRecommendations": [
+          "Enable X25519MLKEM768 hybrid key exchange",
+          "Plan migration to ML-DSA or SLH-DSA certificates",
+          "Renew certificate — expires in -197 days"
+        ]
+      },
+      "provenance": {
+        "source": "Q-ARMOR Phase 7 Tri-Mode Classifier",
+        "scoringVersion": "7.0.0",
+        "probeCount": 3,
+        "phases": [
+          "discovery",
+          "trimode-probe",
+          "classification",
+          "agility-assessment"
+        ]
+      },
+      "properties": [
+        {
+          "name": "qarmor:hostname",
+          "value": "hep.iitg.ac.in"
+        },
+        {
+          "name": "qarmor:port",
+          "value": "443"
+        },
+        {
+          "name": "qarmor:assetType",
+          "value": "web"
+        },
+        {
+          "name": "qarmor:bestScore",
+          "value": "38"
+        },
+        {
+          "name": "qarmor:typicalScore",
+          "value": "38"
+        },
+        {
+          "name": "qarmor:worstScore",
+          "value": "40"
+        },
+        {
+          "name": "qarmor:status",
+          "value": "CRITICALLY_VULNERABLE"
+        },
+        {
+          "name": "qarmor:agilityScore",
+          "value": "12"
+        }
+      ]
+    },
+    {
+      "type": "cryptographic-asset",
+      "bom-ref": "crypto-iitg.ac.in-443",
+      "name": "iitg.ac.in:443",
+      "version": "",
+      "description": "Cryptographic configuration for iitg.ac.in (web)",
+      "cryptoProperties": {
+        "assetType": "protocol",
+        "protocolProperties": {
+          "type": "tls",
+          "version": ""
+        },
+        "algorithmProperties": {
+          "keyExchange": "",
+          "authentication": "",
+          "keySize": 255
+        }
+      },
+      "pqcAssessment": {
+        "worstCaseScore": 42,
+        "bestCaseScore": 40,
+        "typicalScore": 40,
+        "status": "QUANTUM_VULNERABLE",
+        "agilityScore": 12,
+        "summary": "iitg.ac.in classified as Legacy.",
+        "recommendedAction": "Enable X25519MLKEM768 hybrid key exchange group in TLS config",
+        "worstFindings": [
+          "TLS score=10, KEX score=12, Certificate score=6, Cipher score=15",
+          "Agility score=9, Negotiation score=-5",
+          "Recorded traffic has a MEDIUM probability of future quantum decryption"
+        ],
+        "bestFindings": [
+          "TLS score=20, KEX score=0, Certificate score=6, Cipher score=15",
+          "Agility score=9, Negotiation score=-5"
+        ],
+        "worstRecommendations": [
+          "Enable X25519MLKEM768 hybrid key exchange",
+          "Plan migration to ML-DSA or SLH-DSA certificates",
+          "Enable X25519MLKEM768 hybrid key exchange group in TLS config"
+        ]
+      },
+      "provenance": {
+        "source": "Q-ARMOR Phase 7 Tri-Mode Classifier",
+        "scoringVersion": "7.0.0",
+        "probeCount": 3,
+        "phases": [
+          "discovery",
+          "trimode-probe",
+          "classification",
+          "agility-assessment"
+        ]
+      },
+      "properties": [
+        {
+          "name": "qarmor:hostname",
+          "value": "iitg.ac.in"
+        },
+        {
+          "name": "qarmor:port",
+          "value": "443"
+        },
+        {
+          "name": "qarmor:assetType",
+          "value": "web"
+        },
+        {
+          "name": "qarmor:bestScore",
+          "value": "40"
+        },
+        {
+          "name": "qarmor:typicalScore",
+          "value": "40"
+        },
+        {
+          "name": "qarmor:worstScore",
+          "value": "42"
+        },
+        {
+          "name": "qarmor:status",
+          "value": "QUANTUM_VULNERABLE"
+        },
+        {
+          "name": "qarmor:agilityScore",
+          "value": "12"
+        }
+      ]
+    },
+    {
+      "type": "cryptographic-asset",
+      "bom-ref": "crypto-jeeadv.iitg.ac.in-443",
+      "name": "jeeadv.iitg.ac.in:443",
+      "version": "",
+      "description": "Cryptographic configuration for jeeadv.iitg.ac.in (web)",
+      "cryptoProperties": {
+        "assetType": "protocol",
+        "protocolProperties": {
+          "type": "tls",
+          "version": ""
+        },
+        "algorithmProperties": {
+          "keyExchange": "",
+          "authentication": "",
+          "keySize": 255
+        }
+      },
+      "pqcAssessment": {
+        "worstCaseScore": 42,
+        "bestCaseScore": 40,
+        "typicalScore": 40,
+        "status": "QUANTUM_VULNERABLE",
+        "agilityScore": 12,
+        "summary": "jeeadv.iitg.ac.in classified as Legacy.",
+        "recommendedAction": "Enable X25519MLKEM768 hybrid key exchange group in TLS config",
+        "worstFindings": [
+          "TLS score=10, KEX score=12, Certificate score=6, Cipher score=15",
+          "Agility score=9, Negotiation score=-5",
+          "Recorded traffic has a MEDIUM probability of future quantum decryption"
+        ],
+        "bestFindings": [
+          "TLS score=20, KEX score=0, Certificate score=6, Cipher score=15",
+          "Agility score=9, Negotiation score=-5"
+        ],
+        "worstRecommendations": [
+          "Enable X25519MLKEM768 hybrid key exchange",
+          "Plan migration to ML-DSA or SLH-DSA certificates",
+          "Enable X25519MLKEM768 hybrid key exchange group in TLS config"
+        ]
+      },
+      "provenance": {
+        "source": "Q-ARMOR Phase 7 Tri-Mode Classifier",
+        "scoringVersion": "7.0.0",
+        "probeCount": 3,
+        "phases": [
+          "discovery",
+          "trimode-probe",
+          "classification",
+          "agility-assessment"
+        ]
+      },
+      "properties": [
+        {
+          "name": "qarmor:hostname",
+          "value": "jeeadv.iitg.ac.in"
+        },
+        {
+          "name": "qarmor:port",
+          "value": "443"
+        },
+        {
+          "name": "qarmor:assetType",
+          "value": "web"
+        },
+        {
+          "name": "qarmor:bestScore",
+          "value": "40"
+        },
+        {
+          "name": "qarmor:typicalScore",
+          "value": "40"
+        },
+        {
+          "name": "qarmor:worstScore",
+          "value": "42"
+        },
+        {
+          "name": "qarmor:status",
+          "value": "QUANTUM_VULNERABLE"
+        },
+        {
+          "name": "qarmor:agilityScore",
+          "value": "12"
+        }
+      ]
+    },
+    {
+      "type": "cryptographic-asset",
+      "bom-ref": "crypto-libkey.iitg.ac.in-443",
+      "name": "libkey.iitg.ac.in:443",
+      "version": "",
+      "description": "Cryptographic configuration for libkey.iitg.ac.in (web)",
+      "cryptoProperties": {
+        "assetType": "protocol",
+        "protocolProperties": {
+          "type": "tls",
+          "version": ""
+        },
+        "algorithmProperties": {
+          "keyExchange": "",
+          "authentication": "",
+          "keySize": 255
+        }
+      },
+      "pqcAssessment": {
+        "worstCaseScore": 42,
+        "bestCaseScore": 40,
+        "typicalScore": 40,
+        "status": "QUANTUM_VULNERABLE",
+        "agilityScore": 12,
+        "summary": "libkey.iitg.ac.in classified as Legacy.",
+        "recommendedAction": "Enable X25519MLKEM768 hybrid key exchange group in TLS config",
+        "worstFindings": [
+          "TLS score=10, KEX score=12, Certificate score=6, Cipher score=15",
+          "Agility score=9, Negotiation score=-5",
+          "Recorded traffic has a MEDIUM probability of future quantum decryption"
+        ],
+        "bestFindings": [
+          "TLS score=20, KEX score=0, Certificate score=6, Cipher score=15",
+          "Agility score=9, Negotiation score=-5"
+        ],
+        "worstRecommendations": [
+          "Enable X25519MLKEM768 hybrid key exchange",
+          "Plan migration to ML-DSA or SLH-DSA certificates",
+          "Enable X25519MLKEM768 hybrid key exchange group in TLS config"
+        ]
+      },
+      "provenance": {
+        "source": "Q-ARMOR Phase 7 Tri-Mode Classifier",
+        "scoringVersion": "7.0.0",
+        "probeCount": 3,
+        "phases": [
+          "discovery",
+          "trimode-probe",
+          "classification",
+          "agility-assessment"
+        ]
+      },
+      "properties": [
+        {
+          "name": "qarmor:hostname",
+          "value": "libkey.iitg.ac.in"
+        },
+        {
+          "name": "qarmor:port",
+          "value": "443"
+        },
+        {
+          "name": "qarmor:assetType",
+          "value": "web"
+        },
+        {
+          "name": "qarmor:bestScore",
+          "value": "40"
+        },
+        {
+          "name": "qarmor:typicalScore",
+          "value": "40"
+        },
+        {
+          "name": "qarmor:worstScore",
+          "value": "42"
+        },
+        {
+          "name": "qarmor:status",
+          "value": "QUANTUM_VULNERABLE"
+        },
+        {
+          "name": "qarmor:agilityScore",
+          "value": "12"
+        }
+      ]
+    },
+    {
+      "type": "cryptographic-asset",
+      "bom-ref": "crypto-nameri.iitg.ac.in-443",
+      "name": "nameri.iitg.ac.in:443",
+      "version": "",
+      "description": "Cryptographic configuration for nameri.iitg.ac.in (web)",
+      "cryptoProperties": {
+        "assetType": "protocol",
+        "protocolProperties": {
+          "type": "tls",
+          "version": ""
+        },
+        "algorithmProperties": {
+          "keyExchange": "",
+          "authentication": "",
+          "keySize": 0
+        }
+      },
+      "pqcAssessment": {
+        "worstCaseScore": 0,
+        "bestCaseScore": 0,
+        "typicalScore": 0,
+        "status": "UNKNOWN",
+        "agilityScore": 0,
+        "summary": "nameri.iitg.ac.in classified as Unclassified.",
+        "recommendedAction": "Verify asset reachability and retry the scan.",
+        "worstFindings": [
+          "All three probes failed; classification unavailable"
+        ],
+        "bestFindings": [
+          "All three probes failed; classification unavailable"
+        ],
+        "worstRecommendations": [
+          "Verify endpoint connectivity and retry"
+        ]
+      },
+      "provenance": {
+        "source": "Q-ARMOR Phase 7 Tri-Mode Classifier",
+        "scoringVersion": "7.0.0",
+        "probeCount": 3,
+        "phases": [
+          "discovery",
+          "trimode-probe",
+          "classification",
+          "agility-assessment"
+        ]
+      },
+      "properties": [
+        {
+          "name": "qarmor:hostname",
+          "value": "nameri.iitg.ac.in"
+        },
+        {
+          "name": "qarmor:port",
+          "value": "443"
+        },
+        {
+          "name": "qarmor:assetType",
+          "value": "web"
+        },
+        {
+          "name": "qarmor:bestScore",
+          "value": "0"
+        },
+        {
+          "name": "qarmor:typicalScore",
+          "value": "0"
+        },
+        {
+          "name": "qarmor:worstScore",
+          "value": "0"
+        },
+        {
+          "name": "qarmor:status",
+          "value": "UNKNOWN"
+        },
+        {
+          "name": "qarmor:agilityScore",
+          "value": "0"
+        }
+      ]
+    },
+    {
+      "type": "cryptographic-asset",
+      "bom-ref": "crypto-nilachal.iitg.ac.in-443",
+      "name": "nilachal.iitg.ac.in:443",
+      "version": "",
+      "description": "Cryptographic configuration for nilachal.iitg.ac.in (web)",
+      "cryptoProperties": {
+        "assetType": "protocol",
+        "protocolProperties": {
+          "type": "tls",
+          "version": ""
+        },
+        "algorithmProperties": {
+          "keyExchange": "",
+          "authentication": "",
+          "keySize": 0
+        }
+      },
+      "pqcAssessment": {
+        "worstCaseScore": 0,
+        "bestCaseScore": 0,
+        "typicalScore": 0,
+        "status": "UNKNOWN",
+        "agilityScore": 0,
+        "summary": "nilachal.iitg.ac.in classified as Unclassified.",
+        "recommendedAction": "Verify asset reachability and retry the scan.",
+        "worstFindings": [
+          "All three probes failed; classification unavailable"
+        ],
+        "bestFindings": [
+          "All three probes failed; classification unavailable"
+        ],
+        "worstRecommendations": [
+          "Verify endpoint connectivity and retry"
+        ]
+      },
+      "provenance": {
+        "source": "Q-ARMOR Phase 7 Tri-Mode Classifier",
+        "scoringVersion": "7.0.0",
+        "probeCount": 3,
+        "phases": [
+          "discovery",
+          "trimode-probe",
+          "classification",
+          "agility-assessment"
+        ]
+      },
+      "properties": [
+        {
+          "name": "qarmor:hostname",
+          "value": "nilachal.iitg.ac.in"
+        },
+        {
+          "name": "qarmor:port",
+          "value": "443"
+        },
+        {
+          "name": "qarmor:assetType",
+          "value": "web"
+        },
+        {
+          "name": "qarmor:bestScore",
+          "value": "0"
+        },
+        {
+          "name": "qarmor:typicalScore",
+          "value": "0"
+        },
+        {
+          "name": "qarmor:worstScore",
+          "value": "0"
+        },
+        {
+          "name": "qarmor:status",
+          "value": "UNKNOWN"
+        },
+        {
+          "name": "qarmor:agilityScore",
+          "value": "0"
+        }
+      ]
+    },
+    {
+      "type": "cryptographic-asset",
+      "bom-ref": "crypto-oes.iitg.ac.in-443",
+      "name": "oes.iitg.ac.in:443",
+      "version": "",
+      "description": "Cryptographic configuration for oes.iitg.ac.in (web)",
+      "cryptoProperties": {
+        "assetType": "protocol",
+        "protocolProperties": {
+          "type": "tls",
+          "version": ""
+        },
+        "algorithmProperties": {
+          "keyExchange": "",
+          "authentication": "",
+          "keySize": 255
+        }
+      },
+      "pqcAssessment": {
+        "worstCaseScore": 45,
+        "bestCaseScore": 43,
+        "typicalScore": 43,
+        "status": "QUANTUM_VULNERABLE",
+        "agilityScore": 12,
+        "summary": "oes.iitg.ac.in classified as Legacy.",
+        "recommendedAction": "Enable X25519MLKEM768 hybrid key exchange group in TLS config",
+        "worstFindings": [
+          "TLS score=10, KEX score=12, Certificate score=12, Cipher score=15",
+          "Agility score=6, Negotiation score=-5",
+          "Recorded traffic has a MEDIUM probability of future quantum decryption"
+        ],
+        "bestFindings": [
+          "TLS score=20, KEX score=0, Certificate score=12, Cipher score=15",
+          "Agility score=6, Negotiation score=-5"
+        ],
+        "worstRecommendations": [
+          "Enable X25519MLKEM768 hybrid key exchange",
+          "Plan migration to ML-DSA or SLH-DSA certificates",
+          "Enable X25519MLKEM768 hybrid key exchange group in TLS config"
+        ]
+      },
+      "provenance": {
+        "source": "Q-ARMOR Phase 7 Tri-Mode Classifier",
+        "scoringVersion": "7.0.0",
+        "probeCount": 3,
+        "phases": [
+          "discovery",
+          "trimode-probe",
+          "classification",
+          "agility-assessment"
+        ]
+      },
+      "properties": [
+        {
+          "name": "qarmor:hostname",
+          "value": "oes.iitg.ac.in"
+        },
+        {
+          "name": "qarmor:port",
+          "value": "443"
+        },
+        {
+          "name": "qarmor:assetType",
+          "value": "web"
+        },
+        {
+          "name": "qarmor:bestScore",
+          "value": "43"
+        },
+        {
+          "name": "qarmor:typicalScore",
+          "value": "43"
+        },
+        {
+          "name": "qarmor:worstScore",
+          "value": "45"
+        },
+        {
+          "name": "qarmor:status",
+          "value": "QUANTUM_VULNERABLE"
+        },
+        {
+          "name": "qarmor:agilityScore",
+          "value": "12"
+        }
+      ]
+    },
+    {
+      "type": "cryptographic-asset",
+      "bom-ref": "crypto-online.iitg.ac.in-443",
+      "name": "online.iitg.ac.in:443",
+      "version": "",
+      "description": "Cryptographic configuration for online.iitg.ac.in (web)",
+      "cryptoProperties": {
+        "assetType": "protocol",
+        "protocolProperties": {
+          "type": "tls",
+          "version": ""
+        },
+        "algorithmProperties": {
+          "keyExchange": "",
+          "authentication": "",
+          "keySize": 255
+        }
+      },
+      "pqcAssessment": {
+        "worstCaseScore": 42,
+        "bestCaseScore": 40,
+        "typicalScore": 40,
+        "status": "QUANTUM_VULNERABLE",
+        "agilityScore": 9,
+        "summary": "online.iitg.ac.in classified as Legacy.",
+        "recommendedAction": "Enable X25519MLKEM768 hybrid key exchange group in TLS config",
+        "worstFindings": [
+          "TLS score=10, KEX score=12, Certificate score=6, Cipher score=15",
+          "Agility score=9, Negotiation score=-5",
+          "Recorded traffic has a MEDIUM probability of future quantum decryption"
+        ],
+        "bestFindings": [
+          "TLS score=20, KEX score=0, Certificate score=6, Cipher score=15",
+          "Agility score=9, Negotiation score=-5"
+        ],
+        "worstRecommendations": [
+          "Enable X25519MLKEM768 hybrid key exchange",
+          "Plan migration to ML-DSA or SLH-DSA certificates",
+          "Enable X25519MLKEM768 hybrid key exchange group in TLS config"
+        ]
+      },
+      "provenance": {
+        "source": "Q-ARMOR Phase 7 Tri-Mode Classifier",
+        "scoringVersion": "7.0.0",
+        "probeCount": 3,
+        "phases": [
+          "discovery",
+          "trimode-probe",
+          "classification",
+          "agility-assessment"
+        ]
+      },
+      "properties": [
+        {
+          "name": "qarmor:hostname",
+          "value": "online.iitg.ac.in"
+        },
+        {
+          "name": "qarmor:port",
+          "value": "443"
+        },
+        {
+          "name": "qarmor:assetType",
+          "value": "web"
+        },
+        {
+          "name": "qarmor:bestScore",
+          "value": "40"
+        },
+        {
+          "name": "qarmor:typicalScore",
+          "value": "40"
+        },
+        {
+          "name": "qarmor:worstScore",
+          "value": "42"
+        },
+        {
+          "name": "qarmor:status",
+          "value": "QUANTUM_VULNERABLE"
+        },
+        {
+          "name": "qarmor:agilityScore",
+          "value": "9"
+        }
+      ]
+    },
+    {
+      "type": "cryptographic-asset",
+      "bom-ref": "crypto-opadmission.iitg.ac.in-443",
+      "name": "opadmission.iitg.ac.in:443",
+      "version": "",
+      "description": "Cryptographic configuration for opadmission.iitg.ac.in (web)",
+      "cryptoProperties": {
+        "assetType": "protocol",
+        "protocolProperties": {
+          "type": "tls",
+          "version": ""
+        },
+        "algorithmProperties": {
+          "keyExchange": "",
+          "authentication": "",
+          "keySize": 255
+        }
+      },
+      "pqcAssessment": {
+        "worstCaseScore": 45,
+        "bestCaseScore": 43,
+        "typicalScore": 43,
+        "status": "QUANTUM_VULNERABLE",
+        "agilityScore": 12,
+        "summary": "opadmission.iitg.ac.in classified as Legacy.",
+        "recommendedAction": "Enable X25519MLKEM768 hybrid key exchange group in TLS config",
+        "worstFindings": [
+          "TLS score=10, KEX score=12, Certificate score=12, Cipher score=15",
+          "Agility score=6, Negotiation score=-5",
+          "Recorded traffic has a MEDIUM probability of future quantum decryption"
+        ],
+        "bestFindings": [
+          "TLS score=20, KEX score=0, Certificate score=12, Cipher score=15",
+          "Agility score=6, Negotiation score=-5"
+        ],
+        "worstRecommendations": [
+          "Enable X25519MLKEM768 hybrid key exchange",
+          "Plan migration to ML-DSA or SLH-DSA certificates",
+          "Enable X25519MLKEM768 hybrid key exchange group in TLS config"
+        ]
+      },
+      "provenance": {
+        "source": "Q-ARMOR Phase 7 Tri-Mode Classifier",
+        "scoringVersion": "7.0.0",
+        "probeCount": 3,
+        "phases": [
+          "discovery",
+          "trimode-probe",
+          "classification",
+          "agility-assessment"
+        ]
+      },
+      "properties": [
+        {
+          "name": "qarmor:hostname",
+          "value": "opadmission.iitg.ac.in"
+        },
+        {
+          "name": "qarmor:port",
+          "value": "443"
+        },
+        {
+          "name": "qarmor:assetType",
+          "value": "web"
+        },
+        {
+          "name": "qarmor:bestScore",
+          "value": "43"
+        },
+        {
+          "name": "qarmor:typicalScore",
+          "value": "43"
+        },
+        {
+          "name": "qarmor:worstScore",
+          "value": "45"
+        },
+        {
+          "name": "qarmor:status",
+          "value": "QUANTUM_VULNERABLE"
+        },
+        {
+          "name": "qarmor:agilityScore",
+          "value": "12"
+        }
+      ]
+    },
+    {
+      "type": "cryptographic-asset",
+      "bom-ref": "crypto-paramkamrupa.iitg.ac.in-443",
+      "name": "paramkamrupa.iitg.ac.in:443",
+      "version": "",
+      "description": "Cryptographic configuration for paramkamrupa.iitg.ac.in (web)",
+      "cryptoProperties": {
+        "assetType": "protocol",
+        "protocolProperties": {
+          "type": "tls",
+          "version": ""
+        },
+        "algorithmProperties": {
+          "keyExchange": "",
+          "authentication": "",
+          "keySize": 255
+        }
+      },
+      "pqcAssessment": {
+        "worstCaseScore": 29,
+        "bestCaseScore": 29,
+        "typicalScore": 29,
+        "status": "QUANTUM_VULNERABLE",
+        "agilityScore": 6,
+        "summary": "paramkamrupa.iitg.ac.in classified as Legacy.",
+        "recommendedAction": "Enable X25519MLKEM768 hybrid key exchange group in TLS config",
+        "worstFindings": [
+          "TLS score=10, KEX score=12, Certificate score=6, Cipher score=15",
+          "Agility score=6, Negotiation score=-10",
+          "Recorded traffic has a HIGH probability of future quantum decryption"
+        ],
+        "bestFindings": [
+          "TLS score=10, KEX score=12, Certificate score=6, Cipher score=15",
+          "Agility score=6, Negotiation score=-10"
+        ],
+        "worstRecommendations": [
+          "Enable X25519MLKEM768 hybrid key exchange",
+          "Plan migration to ML-DSA or SLH-DSA certificates",
+          "Enable X25519MLKEM768 hybrid key exchange group in TLS config"
+        ]
+      },
+      "provenance": {
+        "source": "Q-ARMOR Phase 7 Tri-Mode Classifier",
+        "scoringVersion": "7.0.0",
+        "probeCount": 3,
+        "phases": [
+          "discovery",
+          "trimode-probe",
+          "classification",
+          "agility-assessment"
+        ]
+      },
+      "properties": [
+        {
+          "name": "qarmor:hostname",
+          "value": "paramkamrupa.iitg.ac.in"
+        },
+        {
+          "name": "qarmor:port",
+          "value": "443"
+        },
+        {
+          "name": "qarmor:assetType",
+          "value": "web"
+        },
+        {
+          "name": "qarmor:bestScore",
+          "value": "29"
+        },
+        {
+          "name": "qarmor:typicalScore",
+          "value": "29"
+        },
+        {
+          "name": "qarmor:worstScore",
+          "value": "29"
+        },
+        {
+          "name": "qarmor:status",
+          "value": "QUANTUM_VULNERABLE"
+        },
+        {
+          "name": "qarmor:agilityScore",
+          "value": "6"
+        }
+      ]
+    },
+    {
+      "type": "cryptographic-asset",
+      "bom-ref": "crypto-perfsonar.iitg.ac.in-443",
+      "name": "perfsonar.iitg.ac.in:443",
+      "version": "",
+      "description": "Cryptographic configuration for perfsonar.iitg.ac.in (web)",
+      "cryptoProperties": {
+        "assetType": "protocol",
+        "protocolProperties": {
+          "type": "tls",
+          "version": ""
+        },
+        "algorithmProperties": {
+          "keyExchange": "",
+          "authentication": "",
+          "keySize": 0
+        }
+      },
+      "pqcAssessment": {
+        "worstCaseScore": 0,
+        "bestCaseScore": 0,
+        "typicalScore": 0,
+        "status": "UNKNOWN",
+        "agilityScore": 0,
+        "summary": "perfsonar.iitg.ac.in classified as Unclassified.",
+        "recommendedAction": "Verify asset reachability and retry the scan.",
+        "worstFindings": [
+          "All three probes failed; classification unavailable"
+        ],
+        "bestFindings": [
+          "All three probes failed; classification unavailable"
+        ],
+        "worstRecommendations": [
+          "Verify endpoint connectivity and retry"
+        ]
+      },
+      "provenance": {
+        "source": "Q-ARMOR Phase 7 Tri-Mode Classifier",
+        "scoringVersion": "7.0.0",
+        "probeCount": 3,
+        "phases": [
+          "discovery",
+          "trimode-probe",
+          "classification",
+          "agility-assessment"
+        ]
+      },
+      "properties": [
+        {
+          "name": "qarmor:hostname",
+          "value": "perfsonar.iitg.ac.in"
+        },
+        {
+          "name": "qarmor:port",
+          "value": "443"
+        },
+        {
+          "name": "qarmor:assetType",
+          "value": "web"
+        },
+        {
+          "name": "qarmor:bestScore",
+          "value": "0"
+        },
+        {
+          "name": "qarmor:typicalScore",
+          "value": "0"
+        },
+        {
+          "name": "qarmor:worstScore",
+          "value": "0"
+        },
+        {
+          "name": "qarmor:status",
+          "value": "UNKNOWN"
+        },
+        {
+          "name": "qarmor:agilityScore",
+          "value": "0"
+        }
+      ]
+    },
+    {
+      "type": "cryptographic-asset",
+      "bom-ref": "crypto-respark.iitg.ac.in-443",
+      "name": "respark.iitg.ac.in:443",
+      "version": "",
+      "description": "Cryptographic configuration for respark.iitg.ac.in (web)",
+      "cryptoProperties": {
+        "assetType": "protocol",
+        "protocolProperties": {
+          "type": "tls",
+          "version": ""
+        },
+        "algorithmProperties": {
+          "keyExchange": "",
+          "authentication": "",
+          "keySize": 255
+        }
+      },
+      "pqcAssessment": {
+        "worstCaseScore": 42,
+        "bestCaseScore": 40,
+        "typicalScore": 40,
+        "status": "QUANTUM_VULNERABLE",
+        "agilityScore": 12,
+        "summary": "respark.iitg.ac.in classified as Legacy.",
+        "recommendedAction": "Enable X25519MLKEM768 hybrid key exchange group in TLS config",
+        "worstFindings": [
+          "TLS score=10, KEX score=12, Certificate score=6, Cipher score=15",
+          "Agility score=9, Negotiation score=-5",
+          "Recorded traffic has a MEDIUM probability of future quantum decryption"
+        ],
+        "bestFindings": [
+          "TLS score=20, KEX score=0, Certificate score=6, Cipher score=15",
+          "Agility score=9, Negotiation score=-5"
+        ],
+        "worstRecommendations": [
+          "Enable X25519MLKEM768 hybrid key exchange",
+          "Plan migration to ML-DSA or SLH-DSA certificates",
+          "Enable X25519MLKEM768 hybrid key exchange group in TLS config"
+        ]
+      },
+      "provenance": {
+        "source": "Q-ARMOR Phase 7 Tri-Mode Classifier",
+        "scoringVersion": "7.0.0",
+        "probeCount": 3,
+        "phases": [
+          "discovery",
+          "trimode-probe",
+          "classification",
+          "agility-assessment"
+        ]
+      },
+      "properties": [
+        {
+          "name": "qarmor:hostname",
+          "value": "respark.iitg.ac.in"
+        },
+        {
+          "name": "qarmor:port",
+          "value": "443"
+        },
+        {
+          "name": "qarmor:assetType",
+          "value": "web"
+        },
+        {
+          "name": "qarmor:bestScore",
+          "value": "40"
+        },
+        {
+          "name": "qarmor:typicalScore",
+          "value": "40"
+        },
+        {
+          "name": "qarmor:worstScore",
+          "value": "42"
+        },
+        {
+          "name": "qarmor:status",
+          "value": "QUANTUM_VULNERABLE"
+        },
+        {
+          "name": "qarmor:agilityScore",
+          "value": "12"
+        }
+      ]
+    },
+    {
+      "type": "cryptographic-asset",
+      "bom-ref": "crypto-rndops.iitg.ac.in-443",
+      "name": "rndops.iitg.ac.in:443",
+      "version": "",
+      "description": "Cryptographic configuration for rndops.iitg.ac.in (web)",
+      "cryptoProperties": {
+        "assetType": "protocol",
+        "protocolProperties": {
+          "type": "tls",
+          "version": ""
+        },
+        "algorithmProperties": {
+          "keyExchange": "",
+          "authentication": "",
+          "keySize": 255
+        }
+      },
+      "pqcAssessment": {
+        "worstCaseScore": 29,
+        "bestCaseScore": 29,
+        "typicalScore": 29,
+        "status": "QUANTUM_VULNERABLE",
+        "agilityScore": 6,
+        "summary": "rndops.iitg.ac.in classified as Legacy.",
+        "recommendedAction": "Enable X25519MLKEM768 hybrid key exchange group in TLS config",
+        "worstFindings": [
+          "TLS score=10, KEX score=12, Certificate score=6, Cipher score=15",
+          "Agility score=6, Negotiation score=-10",
+          "Recorded traffic has a HIGH probability of future quantum decryption"
+        ],
+        "bestFindings": [
+          "TLS score=10, KEX score=12, Certificate score=6, Cipher score=15",
+          "Agility score=6, Negotiation score=-10"
+        ],
+        "worstRecommendations": [
+          "Enable X25519MLKEM768 hybrid key exchange",
+          "Plan migration to ML-DSA or SLH-DSA certificates",
+          "Enable X25519MLKEM768 hybrid key exchange group in TLS config"
+        ]
+      },
+      "provenance": {
+        "source": "Q-ARMOR Phase 7 Tri-Mode Classifier",
+        "scoringVersion": "7.0.0",
+        "probeCount": 3,
+        "phases": [
+          "discovery",
+          "trimode-probe",
+          "classification",
+          "agility-assessment"
+        ]
+      },
+      "properties": [
+        {
+          "name": "qarmor:hostname",
+          "value": "rndops.iitg.ac.in"
+        },
+        {
+          "name": "qarmor:port",
+          "value": "443"
+        },
+        {
+          "name": "qarmor:assetType",
+          "value": "web"
+        },
+        {
+          "name": "qarmor:bestScore",
+          "value": "29"
+        },
+        {
+          "name": "qarmor:typicalScore",
+          "value": "29"
+        },
+        {
+          "name": "qarmor:worstScore",
+          "value": "29"
+        },
+        {
+          "name": "qarmor:status",
+          "value": "QUANTUM_VULNERABLE"
+        },
+        {
+          "name": "qarmor:agilityScore",
+          "value": "6"
+        }
+      ]
+    },
+    {
+      "type": "cryptographic-asset",
+      "bom-ref": "crypto-staging.iitg.ac.in-443",
+      "name": "staging.iitg.ac.in:443",
+      "version": "",
+      "description": "Cryptographic configuration for staging.iitg.ac.in (web)",
+      "cryptoProperties": {
+        "assetType": "protocol",
+        "protocolProperties": {
+          "type": "tls",
+          "version": ""
+        },
+        "algorithmProperties": {
+          "keyExchange": "",
+          "authentication": "",
+          "keySize": 255
+        }
+      },
+      "pqcAssessment": {
+        "worstCaseScore": 39,
+        "bestCaseScore": 37,
+        "typicalScore": 37,
+        "status": "CRITICALLY_VULNERABLE",
+        "agilityScore": 12,
+        "summary": "staging.iitg.ac.in classified as Critical.",
+        "recommendedAction": "Renew certificate — expires in -28 days",
+        "worstFindings": [
+          "TLS score=10, KEX score=12, Certificate score=6, Cipher score=15",
+          "Agility score=6, Negotiation score=-5",
+          "Recorded traffic has a MEDIUM probability of future quantum decryption"
+        ],
+        "bestFindings": [
+          "TLS score=20, KEX score=0, Certificate score=6, Cipher score=15",
+          "Agility score=6, Negotiation score=-5"
+        ],
+        "worstRecommendations": [
+          "Enable X25519MLKEM768 hybrid key exchange",
+          "Plan migration to ML-DSA or SLH-DSA certificates",
+          "Renew certificate — expires in -28 days"
+        ]
+      },
+      "provenance": {
+        "source": "Q-ARMOR Phase 7 Tri-Mode Classifier",
+        "scoringVersion": "7.0.0",
+        "probeCount": 3,
+        "phases": [
+          "discovery",
+          "trimode-probe",
+          "classification",
+          "agility-assessment"
+        ]
+      },
+      "properties": [
+        {
+          "name": "qarmor:hostname",
+          "value": "staging.iitg.ac.in"
+        },
+        {
+          "name": "qarmor:port",
+          "value": "443"
+        },
+        {
+          "name": "qarmor:assetType",
+          "value": "web"
+        },
+        {
+          "name": "qarmor:bestScore",
+          "value": "37"
+        },
+        {
+          "name": "qarmor:typicalScore",
+          "value": "37"
+        },
+        {
+          "name": "qarmor:worstScore",
+          "value": "39"
+        },
+        {
+          "name": "qarmor:status",
+          "value": "CRITICALLY_VULNERABLE"
+        },
+        {
+          "name": "qarmor:agilityScore",
+          "value": "12"
+        }
+      ]
+    },
+    {
+      "type": "cryptographic-asset",
+      "bom-ref": "crypto-swc.iitg.ac.in-443",
+      "name": "swc.iitg.ac.in:443",
+      "version": "",
+      "description": "Cryptographic configuration for swc.iitg.ac.in (web)",
+      "cryptoProperties": {
+        "assetType": "protocol",
+        "protocolProperties": {
+          "type": "tls",
+          "version": ""
+        },
+        "algorithmProperties": {
+          "keyExchange": "",
+          "authentication": "",
+          "keySize": 255
+        }
+      },
+      "pqcAssessment": {
+        "worstCaseScore": 39,
+        "bestCaseScore": 37,
+        "typicalScore": 37,
+        "status": "QUANTUM_VULNERABLE",
+        "agilityScore": 12,
+        "summary": "swc.iitg.ac.in classified as Legacy.",
+        "recommendedAction": "Enable X25519MLKEM768 hybrid key exchange group in TLS config",
+        "worstFindings": [
+          "TLS score=10, KEX score=12, Certificate score=6, Cipher score=15",
+          "Agility score=6, Negotiation score=-5",
+          "Recorded traffic has a MEDIUM probability of future quantum decryption"
+        ],
+        "bestFindings": [
+          "TLS score=20, KEX score=0, Certificate score=6, Cipher score=15",
+          "Agility score=6, Negotiation score=-5"
+        ],
+        "worstRecommendations": [
+          "Enable X25519MLKEM768 hybrid key exchange",
+          "Plan migration to ML-DSA or SLH-DSA certificates",
+          "Enable X25519MLKEM768 hybrid key exchange group in TLS config"
+        ]
+      },
+      "provenance": {
+        "source": "Q-ARMOR Phase 7 Tri-Mode Classifier",
+        "scoringVersion": "7.0.0",
+        "probeCount": 3,
+        "phases": [
+          "discovery",
+          "trimode-probe",
+          "classification",
+          "agility-assessment"
+        ]
+      },
+      "properties": [
+        {
+          "name": "qarmor:hostname",
+          "value": "swc.iitg.ac.in"
+        },
+        {
+          "name": "qarmor:port",
+          "value": "443"
+        },
+        {
+          "name": "qarmor:assetType",
+          "value": "web"
+        },
+        {
+          "name": "qarmor:bestScore",
+          "value": "37"
+        },
+        {
+          "name": "qarmor:typicalScore",
+          "value": "37"
+        },
+        {
+          "name": "qarmor:worstScore",
+          "value": "39"
+        },
+        {
+          "name": "qarmor:status",
+          "value": "QUANTUM_VULNERABLE"
+        },
+        {
+          "name": "qarmor:agilityScore",
+          "value": "12"
+        }
+      ]
+    },
+    {
+      "type": "cryptographic-asset",
+      "bom-ref": "crypto-tic.iitg.ac.in-443",
+      "name": "tic.iitg.ac.in:443",
+      "version": "",
+      "description": "Cryptographic configuration for tic.iitg.ac.in (web)",
+      "cryptoProperties": {
+        "assetType": "protocol",
+        "protocolProperties": {
+          "type": "tls",
+          "version": ""
+        },
+        "algorithmProperties": {
+          "keyExchange": "",
+          "authentication": "",
+          "keySize": 255
+        }
+      },
+      "pqcAssessment": {
+        "worstCaseScore": 42,
+        "bestCaseScore": 40,
+        "typicalScore": 40,
+        "status": "QUANTUM_VULNERABLE",
+        "agilityScore": 12,
+        "summary": "tic.iitg.ac.in classified as Legacy.",
+        "recommendedAction": "Enable X25519MLKEM768 hybrid key exchange group in TLS config",
+        "worstFindings": [
+          "TLS score=10, KEX score=12, Certificate score=6, Cipher score=15",
+          "Agility score=9, Negotiation score=-5",
+          "Recorded traffic has a MEDIUM probability of future quantum decryption"
+        ],
+        "bestFindings": [
+          "TLS score=20, KEX score=0, Certificate score=6, Cipher score=15",
+          "Agility score=9, Negotiation score=-5"
+        ],
+        "worstRecommendations": [
+          "Enable X25519MLKEM768 hybrid key exchange",
+          "Plan migration to ML-DSA or SLH-DSA certificates",
+          "Enable X25519MLKEM768 hybrid key exchange group in TLS config"
+        ]
+      },
+      "provenance": {
+        "source": "Q-ARMOR Phase 7 Tri-Mode Classifier",
+        "scoringVersion": "7.0.0",
+        "probeCount": 3,
+        "phases": [
+          "discovery",
+          "trimode-probe",
+          "classification",
+          "agility-assessment"
+        ]
+      },
+      "properties": [
+        {
+          "name": "qarmor:hostname",
+          "value": "tic.iitg.ac.in"
+        },
+        {
+          "name": "qarmor:port",
+          "value": "443"
+        },
+        {
+          "name": "qarmor:assetType",
+          "value": "web"
+        },
+        {
+          "name": "qarmor:bestScore",
+          "value": "40"
+        },
+        {
+          "name": "qarmor:typicalScore",
+          "value": "40"
+        },
+        {
+          "name": "qarmor:worstScore",
+          "value": "42"
+        },
+        {
+          "name": "qarmor:status",
+          "value": "QUANTUM_VULNERABLE"
+        },
+        {
+          "name": "qarmor:agilityScore",
+          "value": "12"
+        }
+      ]
+    },
+    {
+      "type": "cryptographic-asset",
+      "bom-ref": "crypto-vidya.iitg.ac.in-443",
+      "name": "vidya.iitg.ac.in:443",
+      "version": "",
+      "description": "Cryptographic configuration for vidya.iitg.ac.in (web)",
+      "cryptoProperties": {
+        "assetType": "protocol",
+        "protocolProperties": {
+          "type": "tls",
+          "version": ""
+        },
+        "algorithmProperties": {
+          "keyExchange": "",
+          "authentication": "",
+          "keySize": 255
+        }
+      },
+      "pqcAssessment": {
+        "worstCaseScore": 39,
+        "bestCaseScore": 37,
+        "typicalScore": 37,
+        "status": "QUANTUM_VULNERABLE",
+        "agilityScore": 12,
+        "summary": "vidya.iitg.ac.in classified as Legacy.",
+        "recommendedAction": "Enable X25519MLKEM768 hybrid key exchange group in TLS config",
+        "worstFindings": [
+          "TLS score=10, KEX score=12, Certificate score=6, Cipher score=15",
+          "Agility score=6, Negotiation score=-5",
+          "Recorded traffic has a MEDIUM probability of future quantum decryption"
+        ],
+        "bestFindings": [
+          "TLS score=20, KEX score=0, Certificate score=6, Cipher score=15",
+          "Agility score=6, Negotiation score=-5"
+        ],
+        "worstRecommendations": [
+          "Enable X25519MLKEM768 hybrid key exchange",
+          "Plan migration to ML-DSA or SLH-DSA certificates",
+          "Enable X25519MLKEM768 hybrid key exchange group in TLS config"
+        ]
+      },
+      "provenance": {
+        "source": "Q-ARMOR Phase 7 Tri-Mode Classifier",
+        "scoringVersion": "7.0.0",
+        "probeCount": 3,
+        "phases": [
+          "discovery",
+          "trimode-probe",
+          "classification",
+          "agility-assessment"
+        ]
+      },
+      "properties": [
+        {
+          "name": "qarmor:hostname",
+          "value": "vidya.iitg.ac.in"
+        },
+        {
+          "name": "qarmor:port",
+          "value": "443"
+        },
+        {
+          "name": "qarmor:assetType",
+          "value": "web"
+        },
+        {
+          "name": "qarmor:bestScore",
+          "value": "37"
+        },
+        {
+          "name": "qarmor:typicalScore",
+          "value": "37"
+        },
+        {
+          "name": "qarmor:worstScore",
+          "value": "39"
+        },
+        {
+          "name": "qarmor:status",
+          "value": "QUANTUM_VULNERABLE"
+        },
+        {
+          "name": "qarmor:agilityScore",
+          "value": "12"
+        }
+      ]
+    },
+    {
+      "type": "cryptographic-asset",
+      "bom-ref": "crypto-www.iitg.ac.in-443",
+      "name": "www.iitg.ac.in:443",
+      "version": "",
+      "description": "Cryptographic configuration for www.iitg.ac.in (web)",
+      "cryptoProperties": {
+        "assetType": "protocol",
+        "protocolProperties": {
+          "type": "tls",
+          "version": ""
+        },
+        "algorithmProperties": {
+          "keyExchange": "",
+          "authentication": "",
+          "keySize": 255
+        }
+      },
+      "pqcAssessment": {
+        "worstCaseScore": 42,
+        "bestCaseScore": 40,
+        "typicalScore": 40,
+        "status": "QUANTUM_VULNERABLE",
+        "agilityScore": 12,
+        "summary": "www.iitg.ac.in classified as Legacy.",
+        "recommendedAction": "Enable X25519MLKEM768 hybrid key exchange group in TLS config",
+        "worstFindings": [
+          "TLS score=10, KEX score=12, Certificate score=6, Cipher score=15",
+          "Agility score=9, Negotiation score=-5",
+          "Recorded traffic has a MEDIUM probability of future quantum decryption"
+        ],
+        "bestFindings": [
+          "TLS score=20, KEX score=0, Certificate score=6, Cipher score=15",
+          "Agility score=9, Negotiation score=-5"
+        ],
+        "worstRecommendations": [
+          "Enable X25519MLKEM768 hybrid key exchange",
+          "Plan migration to ML-DSA or SLH-DSA certificates",
+          "Enable X25519MLKEM768 hybrid key exchange group in TLS config"
+        ]
+      },
+      "provenance": {
+        "source": "Q-ARMOR Phase 7 Tri-Mode Classifier",
+        "scoringVersion": "7.0.0",
+        "probeCount": 3,
+        "phases": [
+          "discovery",
+          "trimode-probe",
+          "classification",
+          "agility-assessment"
+        ]
+      },
+      "properties": [
+        {
+          "name": "qarmor:hostname",
+          "value": "www.iitg.ac.in"
+        },
+        {
+          "name": "qarmor:port",
+          "value": "443"
+        },
+        {
+          "name": "qarmor:assetType",
+          "value": "web"
+        },
+        {
+          "name": "qarmor:bestScore",
+          "value": "40"
+        },
+        {
+          "name": "qarmor:typicalScore",
+          "value": "40"
+        },
+        {
+          "name": "qarmor:worstScore",
+          "value": "42"
+        },
+        {
+          "name": "qarmor:status",
+          "value": "QUANTUM_VULNERABLE"
+        },
+        {
+          "name": "qarmor:agilityScore",
+          "value": "12"
+        }
+      ]
+    },
+    {
+      "type": "cryptographic-asset",
+      "bom-ref": "crypto-www.ric.iitg.ac.in-443",
+      "name": "www.ric.iitg.ac.in:443",
+      "version": "",
+      "description": "Cryptographic configuration for www.ric.iitg.ac.in (web)",
+      "cryptoProperties": {
+        "assetType": "protocol",
+        "protocolProperties": {
+          "type": "tls",
+          "version": ""
+        },
+        "algorithmProperties": {
+          "keyExchange": "",
+          "authentication": "",
+          "keySize": 255
+        }
+      },
+      "pqcAssessment": {
+        "worstCaseScore": 39,
+        "bestCaseScore": 37,
+        "typicalScore": 37,
+        "status": "QUANTUM_VULNERABLE",
+        "agilityScore": 12,
+        "summary": "www.ric.iitg.ac.in classified as Legacy.",
+        "recommendedAction": "Enable X25519MLKEM768 hybrid key exchange group in TLS config",
+        "worstFindings": [
+          "TLS score=10, KEX score=12, Certificate score=6, Cipher score=15",
+          "Agility score=6, Negotiation score=-5",
+          "Recorded traffic has a MEDIUM probability of future quantum decryption"
+        ],
+        "bestFindings": [
+          "TLS score=20, KEX score=0, Certificate score=6, Cipher score=15",
+          "Agility score=6, Negotiation score=-5"
+        ],
+        "worstRecommendations": [
+          "Enable X25519MLKEM768 hybrid key exchange",
+          "Plan migration to ML-DSA or SLH-DSA certificates",
+          "Enable X25519MLKEM768 hybrid key exchange group in TLS config"
+        ]
+      },
+      "provenance": {
+        "source": "Q-ARMOR Phase 7 Tri-Mode Classifier",
+        "scoringVersion": "7.0.0",
+        "probeCount": 3,
+        "phases": [
+          "discovery",
+          "trimode-probe",
+          "classification",
+          "agility-assessment"
+        ]
+      },
+      "properties": [
+        {
+          "name": "qarmor:hostname",
+          "value": "www.ric.iitg.ac.in"
+        },
+        {
+          "name": "qarmor:port",
+          "value": "443"
+        },
+        {
+          "name": "qarmor:assetType",
+          "value": "web"
+        },
+        {
+          "name": "qarmor:bestScore",
+          "value": "37"
+        },
+        {
+          "name": "qarmor:typicalScore",
+          "value": "37"
+        },
+        {
+          "name": "qarmor:worstScore",
+          "value": "39"
+        },
+        {
+          "name": "qarmor:status",
+          "value": "QUANTUM_VULNERABLE"
+        },
+        {
+          "name": "qarmor:agilityScore",
+          "value": "12"
+        }
+      ]
+    },
+    {
+      "type": "cryptographic-asset",
+      "bom-ref": "crypto-www.ric24.iitg.ac.in-443",
+      "name": "www.ric24.iitg.ac.in:443",
+      "version": "",
+      "description": "Cryptographic configuration for www.ric24.iitg.ac.in (web)",
+      "cryptoProperties": {
+        "assetType": "protocol",
+        "protocolProperties": {
+          "type": "tls",
+          "version": ""
+        },
+        "algorithmProperties": {
+          "keyExchange": "",
+          "authentication": "",
+          "keySize": 255
+        }
+      },
+      "pqcAssessment": {
+        "worstCaseScore": 39,
+        "bestCaseScore": 37,
+        "typicalScore": 37,
+        "status": "QUANTUM_VULNERABLE",
+        "agilityScore": 12,
+        "summary": "www.ric24.iitg.ac.in classified as Legacy.",
+        "recommendedAction": "Enable X25519MLKEM768 hybrid key exchange group in TLS config",
+        "worstFindings": [
+          "TLS score=10, KEX score=12, Certificate score=6, Cipher score=15",
+          "Agility score=6, Negotiation score=-5",
+          "Recorded traffic has a MEDIUM probability of future quantum decryption"
+        ],
+        "bestFindings": [
+          "TLS score=20, KEX score=0, Certificate score=6, Cipher score=15",
+          "Agility score=6, Negotiation score=-5"
+        ],
+        "worstRecommendations": [
+          "Enable X25519MLKEM768 hybrid key exchange",
+          "Plan migration to ML-DSA or SLH-DSA certificates",
+          "Enable X25519MLKEM768 hybrid key exchange group in TLS config"
+        ]
+      },
+      "provenance": {
+        "source": "Q-ARMOR Phase 7 Tri-Mode Classifier",
+        "scoringVersion": "7.0.0",
+        "probeCount": 3,
+        "phases": [
+          "discovery",
+          "trimode-probe",
+          "classification",
+          "agility-assessment"
+        ]
+      },
+      "properties": [
+        {
+          "name": "qarmor:hostname",
+          "value": "www.ric24.iitg.ac.in"
+        },
+        {
+          "name": "qarmor:port",
+          "value": "443"
+        },
+        {
+          "name": "qarmor:assetType",
+          "value": "web"
+        },
+        {
+          "name": "qarmor:bestScore",
+          "value": "37"
+        },
+        {
+          "name": "qarmor:typicalScore",
+          "value": "37"
+        },
+        {
+          "name": "qarmor:worstScore",
+          "value": "39"
+        },
+        {
+          "name": "qarmor:status",
+          "value": "QUANTUM_VULNERABLE"
+        },
+        {
+          "name": "qarmor:agilityScore",
+          "value": "12"
+        }
+      ]
+    }
+  ],
+  "dependencies": [],
+  "compositions": [
+    {
+      "aggregate": "complete",
+      "assemblies": [
+        "crypto-academic.iitg.ac.in-443",
+        "crypto-agnigarh.iitg.ac.in-443",
+        "crypto-aie.iitg.ac.in-443",
+        "crypto-alcheringa.iitg.ac.in-443",
+        "crypto-almnet.iitg.ac.in-443",
+        "crypto-bornadi.iitg.ac.in-443",
+        "crypto-dns1.iitg.ac.in-443",
+        "crypto-dns2.iitg.ac.in-443",
+        "crypto-eict.iitg.ac.in-443",
+        "crypto-elearn.iitg.ac.in-443",
+        "crypto-event.iitg.ac.in-443",
+        "crypto-fac.iitg.ac.in-443",
+        "crypto-forward.iitgalumni.iitg.ac.in-443",
+        "crypto-gate2026.iitg.ac.in-443",
+        "crypto-gateadmin.iitg.ac.in-443",
+        "crypto-goaps.iitg.ac.in-443",
+        "crypto-goapsbe.iitg.ac.in-443",
+        "crypto-gyan.iitg.ac.in-443",
+        "crypto-hep.iitg.ac.in-443",
+        "crypto-iitg.ac.in-443",
+        "crypto-jeeadv.iitg.ac.in-443",
+        "crypto-libkey.iitg.ac.in-443",
+        "crypto-nameri.iitg.ac.in-443",
+        "crypto-nilachal.iitg.ac.in-443",
+        "crypto-oes.iitg.ac.in-443",
+        "crypto-online.iitg.ac.in-443",
+        "crypto-opadmission.iitg.ac.in-443",
+        "crypto-paramkamrupa.iitg.ac.in-443",
+        "crypto-perfsonar.iitg.ac.in-443",
+        "crypto-respark.iitg.ac.in-443",
+        "crypto-rndops.iitg.ac.in-443",
+        "crypto-staging.iitg.ac.in-443",
+        "crypto-swc.iitg.ac.in-443",
+        "crypto-tic.iitg.ac.in-443",
+        "crypto-vidya.iitg.ac.in-443",
+        "crypto-www.iitg.ac.in-443",
+        "crypto-www.ric.iitg.ac.in-443",
+        "crypto-www.ric24.iitg.ac.in-443"
+      ]
+    }
+  ],
+  "pqcSummary": {
+    "totalAssets": 38,
+    "averageWorstScore": 32.5,
+    "averageBestScore": 33.7,
+    "averageAgilityScore": 8.4,
+    "distribution": {
+      "fullyQuantumSafe": 0,
+      "pqcTransition": 3,
+      "quantumVulnerable": 24,
+      "criticallyVulnerable": 2,
+      "unknown": 9
+    },
+    "quantumSafetyScore": 32,
+    "regressions": {
+      "totalFindings": 38,
+      "newAssets": 38,
+      "scoreRegressions": 0,
+      "missedUpgrades": 0
+    }
+  },
+  "vulnerabilities": [
+    {
+      "id": "QARMOR-REG-34A41381",
+      "source": {
+        "name": "Q-ARMOR Regression Detector"
+      },
+      "description": "New asset discovered: academic.iitg.ac.in — not present in previous scan",
+      "recommendation": "Investigate origin; verify this asset is authorized and scan its cryptographic posture",
+      "ratings": [
+        {
+          "severity": "critical",
+          "method": "other",
+          "source": {
+            "name": "Q-ARMOR"
+          }
+        }
+      ],
+      "affects": [
+        {
+          "ref": "crypto-academic.iitg.ac.in-443"
+        }
+      ],
+      "properties": [
+        {
+          "name": "qarmor:category",
+          "value": "new_asset"
+        },
+        {
+          "name": "qarmor:urgency",
+          "value": "HIGH"
+        },
+        {
+          "name": "qarmor:currentValue",
+          "value": "QUANTUM_VULNERABLE"
+        }
+      ]
+    },
+    {
+      "id": "QARMOR-REG-E43AC90C",
+      "source": {
+        "name": "Q-ARMOR Regression Detector"
+      },
+      "description": "New asset discovered: agnigarh.iitg.ac.in — not present in previous scan",
+      "recommendation": "Investigate origin; verify this asset is authorized and scan its cryptographic posture",
+      "ratings": [
+        {
+          "severity": "critical",
+          "method": "other",
+          "source": {
+            "name": "Q-ARMOR"
+          }
+        }
+      ],
+      "affects": [
+        {
+          "ref": "crypto-agnigarh.iitg.ac.in-443"
+        }
+      ],
+      "properties": [
+        {
+          "name": "qarmor:category",
+          "value": "new_asset"
+        },
+        {
+          "name": "qarmor:urgency",
+          "value": "HIGH"
+        },
+        {
+          "name": "qarmor:currentValue",
+          "value": "UNKNOWN"
+        }
+      ]
+    },
+    {
+      "id": "QARMOR-REG-FD782F0B",
+      "source": {
+        "name": "Q-ARMOR Regression Detector"
+      },
+      "description": "New asset discovered: aie.iitg.ac.in — not present in previous scan",
+      "recommendation": "Investigate origin; verify this asset is authorized and scan its cryptographic posture",
+      "ratings": [
+        {
+          "severity": "critical",
+          "method": "other",
+          "source": {
+            "name": "Q-ARMOR"
+          }
+        }
+      ],
+      "affects": [
+        {
+          "ref": "crypto-aie.iitg.ac.in-443"
+        }
+      ],
+      "properties": [
+        {
+          "name": "qarmor:category",
+          "value": "new_asset"
+        },
+        {
+          "name": "qarmor:urgency",
+          "value": "HIGH"
+        },
+        {
+          "name": "qarmor:currentValue",
+          "value": "UNKNOWN"
+        }
+      ]
+    },
+    {
+      "id": "QARMOR-REG-7393E00D",
+      "source": {
+        "name": "Q-ARMOR Regression Detector"
+      },
+      "description": "New asset discovered: alcheringa.iitg.ac.in — not present in previous scan",
+      "recommendation": "Investigate origin; verify this asset is authorized and scan its cryptographic posture",
+      "ratings": [
+        {
+          "severity": "critical",
+          "method": "other",
+          "source": {
+            "name": "Q-ARMOR"
+          }
+        }
+      ],
+      "affects": [
+        {
+          "ref": "crypto-alcheringa.iitg.ac.in-443"
+        }
+      ],
+      "properties": [
+        {
+          "name": "qarmor:category",
+          "value": "new_asset"
+        },
+        {
+          "name": "qarmor:urgency",
+          "value": "HIGH"
+        },
+        {
+          "name": "qarmor:currentValue",
+          "value": "QUANTUM_VULNERABLE"
+        }
+      ]
+    },
+    {
+      "id": "QARMOR-REG-E29C0EE3",
+      "source": {
+        "name": "Q-ARMOR Regression Detector"
+      },
+      "description": "New asset discovered: almnet.iitg.ac.in — not present in previous scan",
+      "recommendation": "Investigate origin; verify this asset is authorized and scan its cryptographic posture",
+      "ratings": [
+        {
+          "severity": "critical",
+          "method": "other",
+          "source": {
+            "name": "Q-ARMOR"
+          }
+        }
+      ],
+      "affects": [
+        {
+          "ref": "crypto-almnet.iitg.ac.in-443"
+        }
+      ],
+      "properties": [
+        {
+          "name": "qarmor:category",
+          "value": "new_asset"
+        },
+        {
+          "name": "qarmor:urgency",
+          "value": "HIGH"
+        },
+        {
+          "name": "qarmor:currentValue",
+          "value": "QUANTUM_VULNERABLE"
+        }
+      ]
+    },
+    {
+      "id": "QARMOR-REG-B9311446",
+      "source": {
+        "name": "Q-ARMOR Regression Detector"
+      },
+      "description": "New asset discovered: bornadi.iitg.ac.in — not present in previous scan",
+      "recommendation": "Investigate origin; verify this asset is authorized and scan its cryptographic posture",
+      "ratings": [
+        {
+          "severity": "critical",
+          "method": "other",
+          "source": {
+            "name": "Q-ARMOR"
+          }
+        }
+      ],
+      "affects": [
+        {
+          "ref": "crypto-bornadi.iitg.ac.in-443"
+        }
+      ],
+      "properties": [
+        {
+          "name": "qarmor:category",
+          "value": "new_asset"
+        },
+        {
+          "name": "qarmor:urgency",
+          "value": "HIGH"
+        },
+        {
+          "name": "qarmor:currentValue",
+          "value": "UNKNOWN"
+        }
+      ]
+    },
+    {
+      "id": "QARMOR-REG-379D0A9C",
+      "source": {
+        "name": "Q-ARMOR Regression Detector"
+      },
+      "description": "New asset discovered: dns1.iitg.ac.in — not present in previous scan",
+      "recommendation": "Investigate origin; verify this asset is authorized and scan its cryptographic posture",
+      "ratings": [
+        {
+          "severity": "critical",
+          "method": "other",
+          "source": {
+            "name": "Q-ARMOR"
+          }
+        }
+      ],
+      "affects": [
+        {
+          "ref": "crypto-dns1.iitg.ac.in-443"
+        }
+      ],
+      "properties": [
+        {
+          "name": "qarmor:category",
+          "value": "new_asset"
+        },
+        {
+          "name": "qarmor:urgency",
+          "value": "HIGH"
+        },
+        {
+          "name": "qarmor:currentValue",
+          "value": "UNKNOWN"
+        }
+      ]
+    },
+    {
+      "id": "QARMOR-REG-A04421CB",
+      "source": {
+        "name": "Q-ARMOR Regression Detector"
+      },
+      "description": "New asset discovered: dns2.iitg.ac.in — not present in previous scan",
+      "recommendation": "Investigate origin; verify this asset is authorized and scan its cryptographic posture",
+      "ratings": [
+        {
+          "severity": "critical",
+          "method": "other",
+          "source": {
+            "name": "Q-ARMOR"
+          }
+        }
+      ],
+      "affects": [
+        {
+          "ref": "crypto-dns2.iitg.ac.in-443"
+        }
+      ],
+      "properties": [
+        {
+          "name": "qarmor:category",
+          "value": "new_asset"
+        },
+        {
+          "name": "qarmor:urgency",
+          "value": "HIGH"
+        },
+        {
+          "name": "qarmor:currentValue",
+          "value": "UNKNOWN"
+        }
+      ]
+    },
+    {
+      "id": "QARMOR-REG-2E60E3A3",
+      "source": {
+        "name": "Q-ARMOR Regression Detector"
+      },
+      "description": "New asset discovered: eict.iitg.ac.in — not present in previous scan",
+      "recommendation": "Investigate origin; verify this asset is authorized and scan its cryptographic posture",
+      "ratings": [
+        {
+          "severity": "critical",
+          "method": "other",
+          "source": {
+            "name": "Q-ARMOR"
+          }
+        }
+      ],
+      "affects": [
+        {
+          "ref": "crypto-eict.iitg.ac.in-443"
+        }
+      ],
+      "properties": [
+        {
+          "name": "qarmor:category",
+          "value": "new_asset"
+        },
+        {
+          "name": "qarmor:urgency",
+          "value": "HIGH"
+        },
+        {
+          "name": "qarmor:currentValue",
+          "value": "QUANTUM_VULNERABLE"
+        }
+      ]
+    },
+    {
+      "id": "QARMOR-REG-2B646244",
+      "source": {
+        "name": "Q-ARMOR Regression Detector"
+      },
+      "description": "New asset discovered: elearn.iitg.ac.in — not present in previous scan",
+      "recommendation": "Investigate origin; verify this asset is authorized and scan its cryptographic posture",
+      "ratings": [
+        {
+          "severity": "critical",
+          "method": "other",
+          "source": {
+            "name": "Q-ARMOR"
+          }
+        }
+      ],
+      "affects": [
+        {
+          "ref": "crypto-elearn.iitg.ac.in-443"
+        }
+      ],
+      "properties": [
+        {
+          "name": "qarmor:category",
+          "value": "new_asset"
+        },
+        {
+          "name": "qarmor:urgency",
+          "value": "HIGH"
+        },
+        {
+          "name": "qarmor:currentValue",
+          "value": "PQC_TRANSITION"
+        }
+      ]
+    },
+    {
+      "id": "QARMOR-REG-1EBDC577",
+      "source": {
+        "name": "Q-ARMOR Regression Detector"
+      },
+      "description": "New asset discovered: event.iitg.ac.in — not present in previous scan",
+      "recommendation": "Investigate origin; verify this asset is authorized and scan its cryptographic posture",
+      "ratings": [
+        {
+          "severity": "critical",
+          "method": "other",
+          "source": {
+            "name": "Q-ARMOR"
+          }
+        }
+      ],
+      "affects": [
+        {
+          "ref": "crypto-event.iitg.ac.in-443"
+        }
+      ],
+      "properties": [
+        {
+          "name": "qarmor:category",
+          "value": "new_asset"
+        },
+        {
+          "name": "qarmor:urgency",
+          "value": "HIGH"
+        },
+        {
+          "name": "qarmor:currentValue",
+          "value": "QUANTUM_VULNERABLE"
+        }
+      ]
+    },
+    {
+      "id": "QARMOR-REG-BB8ED871",
+      "source": {
+        "name": "Q-ARMOR Regression Detector"
+      },
+      "description": "New asset discovered: fac.iitg.ac.in — not present in previous scan",
+      "recommendation": "Investigate origin; verify this asset is authorized and scan its cryptographic posture",
+      "ratings": [
+        {
+          "severity": "critical",
+          "method": "other",
+          "source": {
+            "name": "Q-ARMOR"
+          }
+        }
+      ],
+      "affects": [
+        {
+          "ref": "crypto-fac.iitg.ac.in-443"
+        }
+      ],
+      "properties": [
+        {
+          "name": "qarmor:category",
+          "value": "new_asset"
+        },
+        {
+          "name": "qarmor:urgency",
+          "value": "HIGH"
+        },
+        {
+          "name": "qarmor:currentValue",
+          "value": "QUANTUM_VULNERABLE"
+        }
+      ]
+    },
+    {
+      "id": "QARMOR-REG-6CF48EE9",
+      "source": {
+        "name": "Q-ARMOR Regression Detector"
+      },
+      "description": "New asset discovered: forward.iitgalumni.iitg.ac.in — not present in previous scan",
+      "recommendation": "Investigate origin; verify this asset is authorized and scan its cryptographic posture",
+      "ratings": [
+        {
+          "severity": "critical",
+          "method": "other",
+          "source": {
+            "name": "Q-ARMOR"
+          }
+        }
+      ],
+      "affects": [
+        {
+          "ref": "crypto-forward.iitgalumni.iitg.ac.in-443"
+        }
+      ],
+      "properties": [
+        {
+          "name": "qarmor:category",
+          "value": "new_asset"
+        },
+        {
+          "name": "qarmor:urgency",
+          "value": "HIGH"
+        },
+        {
+          "name": "qarmor:currentValue",
+          "value": "QUANTUM_VULNERABLE"
+        }
+      ]
+    },
+    {
+      "id": "QARMOR-REG-8F313C36",
+      "source": {
+        "name": "Q-ARMOR Regression Detector"
+      },
+      "description": "New asset discovered: gate2026.iitg.ac.in — not present in previous scan",
+      "recommendation": "Investigate origin; verify this asset is authorized and scan its cryptographic posture",
+      "ratings": [
+        {
+          "severity": "critical",
+          "method": "other",
+          "source": {
+            "name": "Q-ARMOR"
+          }
+        }
+      ],
+      "affects": [
+        {
+          "ref": "crypto-gate2026.iitg.ac.in-443"
+        }
+      ],
+      "properties": [
+        {
+          "name": "qarmor:category",
+          "value": "new_asset"
+        },
+        {
+          "name": "qarmor:urgency",
+          "value": "HIGH"
+        },
+        {
+          "name": "qarmor:currentValue",
+          "value": "PQC_TRANSITION"
+        }
+      ]
+    },
+    {
+      "id": "QARMOR-REG-D5C62584",
+      "source": {
+        "name": "Q-ARMOR Regression Detector"
+      },
+      "description": "New asset discovered: gateadmin.iitg.ac.in — not present in previous scan",
+      "recommendation": "Investigate origin; verify this asset is authorized and scan its cryptographic posture",
+      "ratings": [
+        {
+          "severity": "critical",
+          "method": "other",
+          "source": {
+            "name": "Q-ARMOR"
+          }
+        }
+      ],
+      "affects": [
+        {
+          "ref": "crypto-gateadmin.iitg.ac.in-443"
+        }
+      ],
+      "properties": [
+        {
+          "name": "qarmor:category",
+          "value": "new_asset"
+        },
+        {
+          "name": "qarmor:urgency",
+          "value": "HIGH"
+        },
+        {
+          "name": "qarmor:currentValue",
+          "value": "UNKNOWN"
+        }
+      ]
+    },
+    {
+      "id": "QARMOR-REG-9C85E3C8",
+      "source": {
+        "name": "Q-ARMOR Regression Detector"
+      },
+      "description": "New asset discovered: goaps.iitg.ac.in — not present in previous scan",
+      "recommendation": "Investigate origin; verify this asset is authorized and scan its cryptographic posture",
+      "ratings": [
+        {
+          "severity": "critical",
+          "method": "other",
+          "source": {
+            "name": "Q-ARMOR"
+          }
+        }
+      ],
+      "affects": [
+        {
+          "ref": "crypto-goaps.iitg.ac.in-443"
+        }
+      ],
+      "properties": [
+        {
+          "name": "qarmor:category",
+          "value": "new_asset"
+        },
+        {
+          "name": "qarmor:urgency",
+          "value": "HIGH"
+        },
+        {
+          "name": "qarmor:currentValue",
+          "value": "PQC_TRANSITION"
+        }
+      ]
+    },
+    {
+      "id": "QARMOR-REG-33FAF17D",
+      "source": {
+        "name": "Q-ARMOR Regression Detector"
+      },
+      "description": "New asset discovered: goapsbe.iitg.ac.in — not present in previous scan",
+      "recommendation": "Investigate origin; verify this asset is authorized and scan its cryptographic posture",
+      "ratings": [
+        {
+          "severity": "critical",
+          "method": "other",
+          "source": {
+            "name": "Q-ARMOR"
+          }
+        }
+      ],
+      "affects": [
+        {
+          "ref": "crypto-goapsbe.iitg.ac.in-443"
+        }
+      ],
+      "properties": [
+        {
+          "name": "qarmor:category",
+          "value": "new_asset"
+        },
+        {
+          "name": "qarmor:urgency",
+          "value": "HIGH"
+        },
+        {
+          "name": "qarmor:currentValue",
+          "value": "QUANTUM_VULNERABLE"
+        }
+      ]
+    },
+    {
+      "id": "QARMOR-REG-42BF5986",
+      "source": {
+        "name": "Q-ARMOR Regression Detector"
+      },
+      "description": "New asset discovered: gyan.iitg.ac.in — not present in previous scan",
+      "recommendation": "Investigate origin; verify this asset is authorized and scan its cryptographic posture",
+      "ratings": [
+        {
+          "severity": "critical",
+          "method": "other",
+          "source": {
+            "name": "Q-ARMOR"
+          }
+        }
+      ],
+      "affects": [
+        {
+          "ref": "crypto-gyan.iitg.ac.in-443"
+        }
+      ],
+      "properties": [
+        {
+          "name": "qarmor:category",
+          "value": "new_asset"
+        },
+        {
+          "name": "qarmor:urgency",
+          "value": "HIGH"
+        },
+        {
+          "name": "qarmor:currentValue",
+          "value": "QUANTUM_VULNERABLE"
+        }
+      ]
+    },
+    {
+      "id": "QARMOR-REG-32783E08",
+      "source": {
+        "name": "Q-ARMOR Regression Detector"
+      },
+      "description": "New asset discovered: hep.iitg.ac.in — not present in previous scan",
+      "recommendation": "Investigate origin; verify this asset is authorized and scan its cryptographic posture",
+      "ratings": [
+        {
+          "severity": "critical",
+          "method": "other",
+          "source": {
+            "name": "Q-ARMOR"
+          }
+        }
+      ],
+      "affects": [
+        {
+          "ref": "crypto-hep.iitg.ac.in-443"
+        }
+      ],
+      "properties": [
+        {
+          "name": "qarmor:category",
+          "value": "new_asset"
+        },
+        {
+          "name": "qarmor:urgency",
+          "value": "HIGH"
+        },
+        {
+          "name": "qarmor:currentValue",
+          "value": "CRITICALLY_VULNERABLE"
+        }
+      ]
+    },
+    {
+      "id": "QARMOR-REG-061389BC",
+      "source": {
+        "name": "Q-ARMOR Regression Detector"
+      },
+      "description": "New asset discovered: iitg.ac.in — not present in previous scan",
+      "recommendation": "Investigate origin; verify this asset is authorized and scan its cryptographic posture",
+      "ratings": [
+        {
+          "severity": "critical",
+          "method": "other",
+          "source": {
+            "name": "Q-ARMOR"
+          }
+        }
+      ],
+      "affects": [
+        {
+          "ref": "crypto-iitg.ac.in-443"
+        }
+      ],
+      "properties": [
+        {
+          "name": "qarmor:category",
+          "value": "new_asset"
+        },
+        {
+          "name": "qarmor:urgency",
+          "value": "HIGH"
+        },
+        {
+          "name": "qarmor:currentValue",
+          "value": "QUANTUM_VULNERABLE"
+        }
+      ]
+    },
+    {
+      "id": "QARMOR-REG-2259ECA3",
+      "source": {
+        "name": "Q-ARMOR Regression Detector"
+      },
+      "description": "New asset discovered: jeeadv.iitg.ac.in — not present in previous scan",
+      "recommendation": "Investigate origin; verify this asset is authorized and scan its cryptographic posture",
+      "ratings": [
+        {
+          "severity": "critical",
+          "method": "other",
+          "source": {
+            "name": "Q-ARMOR"
+          }
+        }
+      ],
+      "affects": [
+        {
+          "ref": "crypto-jeeadv.iitg.ac.in-443"
+        }
+      ],
+      "properties": [
+        {
+          "name": "qarmor:category",
+          "value": "new_asset"
+        },
+        {
+          "name": "qarmor:urgency",
+          "value": "HIGH"
+        },
+        {
+          "name": "qarmor:currentValue",
+          "value": "QUANTUM_VULNERABLE"
+        }
+      ]
+    },
+    {
+      "id": "QARMOR-REG-89DA94CB",
+      "source": {
+        "name": "Q-ARMOR Regression Detector"
+      },
+      "description": "New asset discovered: libkey.iitg.ac.in — not present in previous scan",
+      "recommendation": "Investigate origin; verify this asset is authorized and scan its cryptographic posture",
+      "ratings": [
+        {
+          "severity": "critical",
+          "method": "other",
+          "source": {
+            "name": "Q-ARMOR"
+          }
+        }
+      ],
+      "affects": [
+        {
+          "ref": "crypto-libkey.iitg.ac.in-443"
+        }
+      ],
+      "properties": [
+        {
+          "name": "qarmor:category",
+          "value": "new_asset"
+        },
+        {
+          "name": "qarmor:urgency",
+          "value": "HIGH"
+        },
+        {
+          "name": "qarmor:currentValue",
+          "value": "QUANTUM_VULNERABLE"
+        }
+      ]
+    },
+    {
+      "id": "QARMOR-REG-1CEE0CD5",
+      "source": {
+        "name": "Q-ARMOR Regression Detector"
+      },
+      "description": "New asset discovered: nameri.iitg.ac.in — not present in previous scan",
+      "recommendation": "Investigate origin; verify this asset is authorized and scan its cryptographic posture",
+      "ratings": [
+        {
+          "severity": "critical",
+          "method": "other",
+          "source": {
+            "name": "Q-ARMOR"
+          }
+        }
+      ],
+      "affects": [
+        {
+          "ref": "crypto-nameri.iitg.ac.in-443"
+        }
+      ],
+      "properties": [
+        {
+          "name": "qarmor:category",
+          "value": "new_asset"
+        },
+        {
+          "name": "qarmor:urgency",
+          "value": "HIGH"
+        },
+        {
+          "name": "qarmor:currentValue",
+          "value": "UNKNOWN"
+        }
+      ]
+    },
+    {
+      "id": "QARMOR-REG-4578B9C7",
+      "source": {
+        "name": "Q-ARMOR Regression Detector"
+      },
+      "description": "New asset discovered: nilachal.iitg.ac.in — not present in previous scan",
+      "recommendation": "Investigate origin; verify this asset is authorized and scan its cryptographic posture",
+      "ratings": [
+        {
+          "severity": "critical",
+          "method": "other",
+          "source": {
+            "name": "Q-ARMOR"
+          }
+        }
+      ],
+      "affects": [
+        {
+          "ref": "crypto-nilachal.iitg.ac.in-443"
+        }
+      ],
+      "properties": [
+        {
+          "name": "qarmor:category",
+          "value": "new_asset"
+        },
+        {
+          "name": "qarmor:urgency",
+          "value": "HIGH"
+        },
+        {
+          "name": "qarmor:currentValue",
+          "value": "UNKNOWN"
+        }
+      ]
+    },
+    {
+      "id": "QARMOR-REG-1D490131",
+      "source": {
+        "name": "Q-ARMOR Regression Detector"
+      },
+      "description": "New asset discovered: oes.iitg.ac.in — not present in previous scan",
+      "recommendation": "Investigate origin; verify this asset is authorized and scan its cryptographic posture",
+      "ratings": [
+        {
+          "severity": "critical",
+          "method": "other",
+          "source": {
+            "name": "Q-ARMOR"
+          }
+        }
+      ],
+      "affects": [
+        {
+          "ref": "crypto-oes.iitg.ac.in-443"
+        }
+      ],
+      "properties": [
+        {
+          "name": "qarmor:category",
+          "value": "new_asset"
+        },
+        {
+          "name": "qarmor:urgency",
+          "value": "HIGH"
+        },
+        {
+          "name": "qarmor:currentValue",
+          "value": "QUANTUM_VULNERABLE"
+        }
+      ]
+    },
+    {
+      "id": "QARMOR-REG-BDE575A5",
+      "source": {
+        "name": "Q-ARMOR Regression Detector"
+      },
+      "description": "New asset discovered: online.iitg.ac.in — not present in previous scan",
+      "recommendation": "Investigate origin; verify this asset is authorized and scan its cryptographic posture",
+      "ratings": [
+        {
+          "severity": "critical",
+          "method": "other",
+          "source": {
+            "name": "Q-ARMOR"
+          }
+        }
+      ],
+      "affects": [
+        {
+          "ref": "crypto-online.iitg.ac.in-443"
+        }
+      ],
+      "properties": [
+        {
+          "name": "qarmor:category",
+          "value": "new_asset"
+        },
+        {
+          "name": "qarmor:urgency",
+          "value": "HIGH"
+        },
+        {
+          "name": "qarmor:currentValue",
+          "value": "QUANTUM_VULNERABLE"
+        }
+      ]
+    },
+    {
+      "id": "QARMOR-REG-3149F036",
+      "source": {
+        "name": "Q-ARMOR Regression Detector"
+      },
+      "description": "New asset discovered: opadmission.iitg.ac.in — not present in previous scan",
+      "recommendation": "Investigate origin; verify this asset is authorized and scan its cryptographic posture",
+      "ratings": [
+        {
+          "severity": "critical",
+          "method": "other",
+          "source": {
+            "name": "Q-ARMOR"
+          }
+        }
+      ],
+      "affects": [
+        {
+          "ref": "crypto-opadmission.iitg.ac.in-443"
+        }
+      ],
+      "properties": [
+        {
+          "name": "qarmor:category",
+          "value": "new_asset"
+        },
+        {
+          "name": "qarmor:urgency",
+          "value": "HIGH"
+        },
+        {
+          "name": "qarmor:currentValue",
+          "value": "QUANTUM_VULNERABLE"
+        }
+      ]
+    },
+    {
+      "id": "QARMOR-REG-99E0B266",
+      "source": {
+        "name": "Q-ARMOR Regression Detector"
+      },
+      "description": "New asset discovered: paramkamrupa.iitg.ac.in — not present in previous scan",
+      "recommendation": "Investigate origin; verify this asset is authorized and scan its cryptographic posture",
+      "ratings": [
+        {
+          "severity": "critical",
+          "method": "other",
+          "source": {
+            "name": "Q-ARMOR"
+          }
+        }
+      ],
+      "affects": [
+        {
+          "ref": "crypto-paramkamrupa.iitg.ac.in-443"
+        }
+      ],
+      "properties": [
+        {
+          "name": "qarmor:category",
+          "value": "new_asset"
+        },
+        {
+          "name": "qarmor:urgency",
+          "value": "HIGH"
+        },
+        {
+          "name": "qarmor:currentValue",
+          "value": "QUANTUM_VULNERABLE"
+        }
+      ]
+    },
+    {
+      "id": "QARMOR-REG-F662BDC9",
+      "source": {
+        "name": "Q-ARMOR Regression Detector"
+      },
+      "description": "New asset discovered: perfsonar.iitg.ac.in — not present in previous scan",
+      "recommendation": "Investigate origin; verify this asset is authorized and scan its cryptographic posture",
+      "ratings": [
+        {
+          "severity": "critical",
+          "method": "other",
+          "source": {
+            "name": "Q-ARMOR"
+          }
+        }
+      ],
+      "affects": [
+        {
+          "ref": "crypto-perfsonar.iitg.ac.in-443"
+        }
+      ],
+      "properties": [
+        {
+          "name": "qarmor:category",
+          "value": "new_asset"
+        },
+        {
+          "name": "qarmor:urgency",
+          "value": "HIGH"
+        },
+        {
+          "name": "qarmor:currentValue",
+          "value": "UNKNOWN"
+        }
+      ]
+    },
+    {
+      "id": "QARMOR-REG-E28AB0AA",
+      "source": {
+        "name": "Q-ARMOR Regression Detector"
+      },
+      "description": "New asset discovered: respark.iitg.ac.in — not present in previous scan",
+      "recommendation": "Investigate origin; verify this asset is authorized and scan its cryptographic posture",
+      "ratings": [
+        {
+          "severity": "critical",
+          "method": "other",
+          "source": {
+            "name": "Q-ARMOR"
+          }
+        }
+      ],
+      "affects": [
+        {
+          "ref": "crypto-respark.iitg.ac.in-443"
+        }
+      ],
+      "properties": [
+        {
+          "name": "qarmor:category",
+          "value": "new_asset"
+        },
+        {
+          "name": "qarmor:urgency",
+          "value": "HIGH"
+        },
+        {
+          "name": "qarmor:currentValue",
+          "value": "QUANTUM_VULNERABLE"
+        }
+      ]
+    },
+    {
+      "id": "QARMOR-REG-A30ADEA9",
+      "source": {
+        "name": "Q-ARMOR Regression Detector"
+      },
+      "description": "New asset discovered: rndops.iitg.ac.in — not present in previous scan",
+      "recommendation": "Investigate origin; verify this asset is authorized and scan its cryptographic posture",
+      "ratings": [
+        {
+          "severity": "critical",
+          "method": "other",
+          "source": {
+            "name": "Q-ARMOR"
+          }
+        }
+      ],
+      "affects": [
+        {
+          "ref": "crypto-rndops.iitg.ac.in-443"
+        }
+      ],
+      "properties": [
+        {
+          "name": "qarmor:category",
+          "value": "new_asset"
+        },
+        {
+          "name": "qarmor:urgency",
+          "value": "HIGH"
+        },
+        {
+          "name": "qarmor:currentValue",
+          "value": "QUANTUM_VULNERABLE"
+        }
+      ]
+    },
+    {
+      "id": "QARMOR-REG-7C0BC10C",
+      "source": {
+        "name": "Q-ARMOR Regression Detector"
+      },
+      "description": "New asset discovered: staging.iitg.ac.in — not present in previous scan",
+      "recommendation": "Investigate origin; verify this asset is authorized and scan its cryptographic posture",
+      "ratings": [
+        {
+          "severity": "critical",
+          "method": "other",
+          "source": {
+            "name": "Q-ARMOR"
+          }
+        }
+      ],
+      "affects": [
+        {
+          "ref": "crypto-staging.iitg.ac.in-443"
+        }
+      ],
+      "properties": [
+        {
+          "name": "qarmor:category",
+          "value": "new_asset"
+        },
+        {
+          "name": "qarmor:urgency",
+          "value": "HIGH"
+        },
+        {
+          "name": "qarmor:currentValue",
+          "value": "CRITICALLY_VULNERABLE"
+        }
+      ]
+    },
+    {
+      "id": "QARMOR-REG-3C3F2ACD",
+      "source": {
+        "name": "Q-ARMOR Regression Detector"
+      },
+      "description": "New asset discovered: swc.iitg.ac.in — not present in previous scan",
+      "recommendation": "Investigate origin; verify this asset is authorized and scan its cryptographic posture",
+      "ratings": [
+        {
+          "severity": "critical",
+          "method": "other",
+          "source": {
+            "name": "Q-ARMOR"
+          }
+        }
+      ],
+      "affects": [
+        {
+          "ref": "crypto-swc.iitg.ac.in-443"
+        }
+      ],
+      "properties": [
+        {
+          "name": "qarmor:category",
+          "value": "new_asset"
+        },
+        {
+          "name": "qarmor:urgency",
+          "value": "HIGH"
+        },
+        {
+          "name": "qarmor:currentValue",
+          "value": "QUANTUM_VULNERABLE"
+        }
+      ]
+    },
+    {
+      "id": "QARMOR-REG-F873EAC5",
+      "source": {
+        "name": "Q-ARMOR Regression Detector"
+      },
+      "description": "New asset discovered: tic.iitg.ac.in — not present in previous scan",
+      "recommendation": "Investigate origin; verify this asset is authorized and scan its cryptographic posture",
+      "ratings": [
+        {
+          "severity": "critical",
+          "method": "other",
+          "source": {
+            "name": "Q-ARMOR"
+          }
+        }
+      ],
+      "affects": [
+        {
+          "ref": "crypto-tic.iitg.ac.in-443"
+        }
+      ],
+      "properties": [
+        {
+          "name": "qarmor:category",
+          "value": "new_asset"
+        },
+        {
+          "name": "qarmor:urgency",
+          "value": "HIGH"
+        },
+        {
+          "name": "qarmor:currentValue",
+          "value": "QUANTUM_VULNERABLE"
+        }
+      ]
+    },
+    {
+      "id": "QARMOR-REG-B7E21A01",
+      "source": {
+        "name": "Q-ARMOR Regression Detector"
+      },
+      "description": "New asset discovered: vidya.iitg.ac.in — not present in previous scan",
+      "recommendation": "Investigate origin; verify this asset is authorized and scan its cryptographic posture",
+      "ratings": [
+        {
+          "severity": "critical",
+          "method": "other",
+          "source": {
+            "name": "Q-ARMOR"
+          }
+        }
+      ],
+      "affects": [
+        {
+          "ref": "crypto-vidya.iitg.ac.in-443"
+        }
+      ],
+      "properties": [
+        {
+          "name": "qarmor:category",
+          "value": "new_asset"
+        },
+        {
+          "name": "qarmor:urgency",
+          "value": "HIGH"
+        },
+        {
+          "name": "qarmor:currentValue",
+          "value": "QUANTUM_VULNERABLE"
+        }
+      ]
+    },
+    {
+      "id": "QARMOR-REG-07FBECD6",
+      "source": {
+        "name": "Q-ARMOR Regression Detector"
+      },
+      "description": "New asset discovered: www.iitg.ac.in — not present in previous scan",
+      "recommendation": "Investigate origin; verify this asset is authorized and scan its cryptographic posture",
+      "ratings": [
+        {
+          "severity": "critical",
+          "method": "other",
+          "source": {
+            "name": "Q-ARMOR"
+          }
+        }
+      ],
+      "affects": [
+        {
+          "ref": "crypto-www.iitg.ac.in-443"
+        }
+      ],
+      "properties": [
+        {
+          "name": "qarmor:category",
+          "value": "new_asset"
+        },
+        {
+          "name": "qarmor:urgency",
+          "value": "HIGH"
+        },
+        {
+          "name": "qarmor:currentValue",
+          "value": "QUANTUM_VULNERABLE"
+        }
+      ]
+    },
+    {
+      "id": "QARMOR-REG-C2F1A7BF",
+      "source": {
+        "name": "Q-ARMOR Regression Detector"
+      },
+      "description": "New asset discovered: www.ric.iitg.ac.in — not present in previous scan",
+      "recommendation": "Investigate origin; verify this asset is authorized and scan its cryptographic posture",
+      "ratings": [
+        {
+          "severity": "critical",
+          "method": "other",
+          "source": {
+            "name": "Q-ARMOR"
+          }
+        }
+      ],
+      "affects": [
+        {
+          "ref": "crypto-www.ric.iitg.ac.in-443"
+        }
+      ],
+      "properties": [
+        {
+          "name": "qarmor:category",
+          "value": "new_asset"
+        },
+        {
+          "name": "qarmor:urgency",
+          "value": "HIGH"
+        },
+        {
+          "name": "qarmor:currentValue",
+          "value": "QUANTUM_VULNERABLE"
+        }
+      ]
+    },
+    {
+      "id": "QARMOR-REG-1439B637",
+      "source": {
+        "name": "Q-ARMOR Regression Detector"
+      },
+      "description": "New asset discovered: www.ric24.iitg.ac.in — not present in previous scan",
+      "recommendation": "Investigate origin; verify this asset is authorized and scan its cryptographic posture",
+      "ratings": [
+        {
+          "severity": "critical",
+          "method": "other",
+          "source": {
+            "name": "Q-ARMOR"
+          }
+        }
+      ],
+      "affects": [
+        {
+          "ref": "crypto-www.ric24.iitg.ac.in-443"
+        }
+      ],
+      "properties": [
+        {
+          "name": "qarmor:category",
+          "value": "new_asset"
+        },
+        {
+          "name": "qarmor:urgency",
+          "value": "HIGH"
+        },
+        {
+          "name": "qarmor:currentValue",
+          "value": "QUANTUM_VULNERABLE"
+        }
+      ]
+    }
+  ],
+  "demo_mode": false,
+  "data_notice": "LIVE DATA"
+}
