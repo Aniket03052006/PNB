@@ -47,6 +47,7 @@ let historyData = null;
 let classifiedData = null;
 let dbScansData = null;
 let phase9Data = null;
+let nistMatrixData = null;
 let enterpriseDashboardData = null;
 
 /* ─── API Calls ─── */
@@ -1660,6 +1661,7 @@ function renderStrategicRoadmap(phases) {
 async function loadNISTMatrix() {
     try {
         const data = await apiCall('/api/assess/matrix');
+        nistMatrixData = data;
         renderNISTMatrix(data);
         showToast('NIST matrix loaded', 'success');
     } catch (e) {
@@ -4124,6 +4126,937 @@ document.addEventListener('DOMContentLoaded', () => {
     primeOverviewVisuals();
 });
 
+function pdfSafeText(value, fallback = '-') {
+    if (value === null || value === undefined) return fallback;
+    const text = String(value)
+        .replace(/[•]/g, '-')
+        .replace(/[–—]/g, '-')
+        .replace(/[^\x20-\x7E]/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+    return text || fallback;
+}
+
+function pdfDate(value = new Date()) {
+    try {
+        return new Date(value).toLocaleDateString('en-IN', {
+            day: '2-digit',
+            month: 'short',
+            year: 'numeric',
+        });
+    } catch {
+        return pdfSafeText(value);
+    }
+}
+
+function pdfPercent(part, total) {
+    if (!total) return '0%';
+    return `${Math.round((Number(part || 0) / Number(total || 1)) * 100)}%`;
+}
+
+function pdfFilenameTarget() {
+    const raw = document.getElementById('domainInput')?.value || 'Demo_Environment';
+    return String(raw).trim().replace(/[^a-z0-9._-]+/gi, '_') || 'Demo_Environment';
+}
+
+function summarizePdfInventoryResults(results = []) {
+    return results.map(normalizeInventoryEntry).sort((a, b) => (a.score || 0) - (b.score || 0));
+}
+
+function summarizePdfAssessmentRows(assessments = []) {
+    const riskOrder = { HIGH: 0, MEDIUM: 1, LOW: 2 };
+    return [...assessments].sort((a, b) =>
+        (riskOrder[a.overall_quantum_risk] ?? 9) - (riskOrder[b.overall_quantum_risk] ?? 9)
+    );
+}
+
+function buildPdfExecutiveHighlights() {
+    const scan = latestScanPayload || scanData || {};
+    const assess = assessmentData || {};
+    const agg = assess.aggregate || {};
+    const total = scan.total_assets || agg.total_endpoints || 0;
+    const critical = scan.critically_vulnerable || 0;
+    const vulnerable = scan.quantum_vulnerable || 0;
+    const highRisk = agg.risk_high || 0;
+    const avgScore = Number(scan.average_q_score || agg.average_q_score || 0).toFixed(1);
+    const transition = scan.pqc_transition || 0;
+
+    const lines = [];
+    lines.push(`Average Q-Score is ${avgScore} across ${total || 0} assessed asset${total === 1 ? '' : 's'}.`);
+
+    if (critical > 0) {
+        lines.push(`${critical} asset${critical === 1 ? '' : 's'} are critically vulnerable and should be prioritized immediately.`);
+    } else if (highRisk > 0) {
+        lines.push(`${highRisk} endpoint${highRisk === 1 ? '' : 's'} remain high risk with no critical posture detected.`);
+    } else {
+        lines.push('No critical exposure is currently reflected in the latest report snapshot.');
+    }
+
+    if (transition > 0) {
+        lines.push(`${transition} asset${transition === 1 ? '' : 's'} are in PQC transition, indicating partial modernization is underway.`);
+    } else if (vulnerable > 0) {
+        lines.push(`${vulnerable} asset${vulnerable === 1 ? '' : 's'} still rely on quantum-vulnerable controls.`);
+    } else {
+        lines.push('The current dataset shows a stable posture with no outstanding transition backlog.');
+    }
+
+    return lines;
+}
+
+function syncPdfToBackend(blob, filename) {
+    const fd = new FormData();
+    fd.append('file', blob, filename);
+    fetch('/api/reports/save', { method: 'POST', body: fd }).catch(e => console.warn(e));
+}
+
+function reportTable(headers, rows, emptyMessage = 'No data available.') {
+    if (!rows.length) {
+        return `<div class="report-empty">${escHtml(emptyMessage)}</div>`;
+    }
+    return `
+        <table>
+            <thead>
+                <tr>${headers.map((header) => `<th>${escHtml(header)}</th>`).join('')}</tr>
+            </thead>
+            <tbody>
+                ${rows.map((row) => `<tr>${row.map((cell) => `<td>${escHtml(pdfSafeText(cell))}</td>`).join('')}</tr>`).join('')}
+            </tbody>
+        </table>
+    `;
+}
+
+function reportMetricCards(metrics) {
+    return `
+        <div class="metrics">
+            ${metrics.map((metric) => `
+                <div class="metric">
+                    <div class="metric-label">${escHtml(metric.label)}</div>
+                    <div class="metric-value">${escHtml(pdfSafeText(metric.value))}</div>
+                </div>
+            `).join('')}
+        </div>
+    `;
+}
+
+function reportSection(title, body, subtitle = '') {
+    return `
+        <section class="section">
+            <h2>${escHtml(title)}</h2>
+            ${subtitle ? `<p>${escHtml(subtitle)}</p>` : ''}
+            ${body}
+        </section>
+    `;
+}
+
+function reportList(items, emptyMessage = 'No items available.') {
+    if (!items.length) {
+        return `<div class="report-empty">${escHtml(emptyMessage)}</div>`;
+    }
+    return `<ul class="highlights">${items.map((item) => `<li>${escHtml(pdfSafeText(item))}</li>`).join('')}</ul>`;
+}
+
+function buildNetworkGraphSvg(graphPayload) {
+    const nodes = Array.isArray(graphPayload?.nodes) ? graphPayload.nodes : [];
+    const edges = Array.isArray(graphPayload?.edges) ? graphPayload.edges : [];
+    if (!nodes.length) {
+        return '<div class="report-empty">No network graph data available.</div>';
+    }
+
+    const width = 920;
+    const height = 420;
+    const cx = width / 2;
+    const cy = height / 2;
+    const radius = Math.max(90, Math.min(width, height) / 2 - 70);
+    const points = nodes.map((node, index) => {
+        const angle = (Math.PI * 2 * index) / Math.max(nodes.length, 1) - Math.PI / 2;
+        return {
+            ...node,
+            x: cx + Math.cos(angle) * radius,
+            y: cy + Math.sin(angle) * (radius * 0.72),
+        };
+    });
+    const byId = new Map(points.map((point) => [point.id, point]));
+    const tierCounts = points.reduce((acc, point) => {
+        const label = vizTierLabel(point);
+        acc[label] = (acc[label] || 0) + 1;
+        return acc;
+    }, {});
+
+    const svg = `
+        <div class="graph-shell">
+            <svg viewBox="0 0 ${width} ${height}" class="graph-svg" role="img" aria-label="Network graph">
+                <rect x="0" y="0" width="${width}" height="${height}" rx="16" fill="#fafafa" stroke="#d9dde3"/>
+                ${edges.map((edge) => {
+                    const source = byId.get(edge.source);
+                    const target = byId.get(edge.target);
+                    if (!source || !target) return '';
+                    return `<line x1="${source.x}" y1="${source.y}" x2="${target.x}" y2="${target.y}" stroke="#c9ced6" stroke-width="1.5" />`;
+                }).join('')}
+                ${points.map((point) => {
+                    const fill = tierColor(point.display_tier || point.pqc_status);
+                    const label = pdfSafeText((point.label || point.id || '').split('.')[0], 'node').slice(0, 14);
+                    const ip = pdfSafeText(point.ip_address || '', '');
+                    return `
+                        <circle cx="${point.x}" cy="${point.y}" r="22" fill="${fill}" fill-opacity="0.14" stroke="${fill}" stroke-width="2"></circle>
+                        <circle cx="${point.x}" cy="${point.y}" r="12" fill="${fill}"></circle>
+                        <text x="${point.x}" y="${point.y + 38}" text-anchor="middle" font-size="12" font-family="Segoe UI, Arial, sans-serif" fill="#202124">${escHtml(label)}</text>
+                        ${ip ? `<text x="${point.x}" y="${point.y + 54}" text-anchor="middle" font-size="10" font-family="Segoe UI, Arial, sans-serif" fill="#6b7280">${escHtml(ip)}</text>` : ''}
+                    `;
+                }).join('')}
+            </svg>
+            <div class="graph-legend">
+                ${Object.entries(tierCounts).map(([label, count]) => `<span>${escHtml(label)}: <strong>${count}</strong></span>`).join('')}
+            </div>
+        </div>
+    `;
+
+    return svg;
+}
+
+async function ensureReportState() {
+    if (!enterpriseDashboardData) {
+        await loadEnterpriseDashboardData({ notifyOnError: false, forceRefresh: false });
+    }
+
+    if (!latestScanPayload && !scanData) {
+        try {
+            latestScanPayload = await fetchLatestScan(false);
+        } catch (error) {
+            console.warn('Latest scan fetch failed for report:', error);
+        }
+    }
+
+    if (!assessmentData || !remediationData) {
+        try {
+            const [assess, remediation] = await Promise.all([
+                apiCall('/api/assess'),
+                apiCall('/api/assess/remediation'),
+            ]);
+            assessmentData = assess;
+            remediationData = remediation;
+        } catch (error) {
+            console.warn('Assessment data fetch failed for report:', error);
+        }
+    }
+
+    if (!trimodeData) {
+        try {
+            trimodeData = await apiCall('/api/scan/trimode/fingerprints');
+            trimodeData.mode = trimodeData.mode || getActiveEnterpriseContext().mode || 'live';
+            trimodeData.total_assets = trimodeData.total || trimodeData.fingerprints?.length || 0;
+        } catch (error) {
+            console.warn('Tri-mode data fetch failed for report:', error);
+        }
+    }
+
+    if (!historyData) {
+        try {
+            historyData = await fetchHistoryLatest(false);
+        } catch (error) {
+            console.warn('History data fetch failed for report:', error);
+        }
+    }
+
+    if (!nistMatrixData) {
+        try {
+            nistMatrixData = await apiCall('/api/assess/matrix');
+        } catch (error) {
+            console.warn('NIST matrix fetch failed for report:', error);
+        }
+    }
+}
+
+function buildPrintableAssessmentHtml(filename) {
+    const scan = latestScanPayload || scanData || {};
+    const assessment = assessmentData || {};
+    const agg = assessment.aggregate || {};
+    const remediation = remediationData || {};
+    const inventoryRows = summarizePdfInventoryResults(scan.results || []);
+    const assessmentRows = summarizePdfAssessmentRows(assessment.assessments || []);
+    const highlights = buildPdfExecutiveHighlights();
+    const totalAssets = scan.total_assets || agg.total_endpoints || inventoryRows.length || 0;
+    const company = pdfSafeText(
+        document.getElementById('domainInput')?.value ||
+        document.getElementById('enterpriseDomainInput')?.value ||
+        'Demo Environment',
+        'Demo Environment'
+    );
+    const mode = pdfSafeText((document.getElementById('enterpriseModeSelect')?.value || 'demo').toUpperCase(), 'DEMO');
+    const findingRows = assessmentRows.length
+        ? assessmentRows.slice(0, 8).map(a => ({
+            endpoint: `${pdfSafeText(a.target, '?')}:${a.port || 443}`,
+            risk: pdfSafeText(a.overall_quantum_risk),
+            kex: pdfSafeText(a.key_exchange_algorithm),
+            cert: pdfSafeText(a.certificate_algorithm),
+            score: pdfSafeText(a.q_score, '0'),
+        }))
+        : inventoryRows.slice(0, 8).map(row => ({
+            endpoint: `${pdfSafeText(row.hostname, '?')}:${row.port || 443}`,
+            risk: pdfSafeText(row.status),
+            kex: pdfSafeText(row.keyExchange),
+            cert: pdfSafeText(row.certificate),
+            score: pdfSafeText(row.score, '0'),
+        }));
+    const actionRows = (remediation.items || remediation.remediations || []).slice(0, 6).map(item => ({
+        priority: pdfSafeText(item.priority || item.severity || 'Planned', 'Planned'),
+        category: pdfSafeText(item.category || item.dimension || 'General', 'General'),
+        action: pdfSafeText(item.title || item.recommendation || item.summary || 'Review cryptographic controls'),
+    }));
+    const assetRows = inventoryRows.slice(0, 12).map(row => ({
+        asset: `${pdfSafeText(row.hostname, '?')}:${row.port || 443}`,
+        type: pdfSafeText(row.assetType),
+        tls: pdfSafeText(row.tlsVersion),
+        kex: pdfSafeText(row.keyExchange),
+        score: pdfSafeText(row.score, '0'),
+        status: pdfSafeText(row.status),
+    }));
+
+    const tableRows = (rows, cells) => rows.length
+        ? rows.map(row => `<tr>${cells.map(cell => `<td>${escHtml(row[cell] || '-')}</td>`).join('')}</tr>`).join('')
+        : `<tr>${cells.map(() => '<td>-</td>').join('')}</tr>`;
+
+    const enterprise = enterpriseDashboardData || {};
+    const home = enterprise.home || {};
+    const discovery = home.asset_discovery_summary || {};
+    const inventory = home.assets_inventory_summary || {};
+    const posture = home.posture_of_pqc || {};
+    const cbomSummary = home.cbom_summary || {};
+    const cyber = enterprise.cyber || {};
+    const graph = enterprise.graph || {};
+    const heatmap = enterprise.heatmap || {};
+    const domains = enterprise.domains?.items || [];
+    const ssl = enterprise.ssl?.items || [];
+    const ipAssets = enterprise.ip?.items || [];
+    const software = enterprise.software?.items || [];
+    const historyWeeks = historyData?.weeks || [];
+    const remediationEndpointRows = Object.entries(remediation.per_endpoint || {}).slice(0, 40).flatMap(([endpoint, actions]) =>
+        (actions || []).slice(0, 3).map((action) => [
+            endpoint,
+            action.priority || '-',
+            action.category || '-',
+            action.title || action.description || '-',
+        ])
+    );
+    const roadmapRows = (remediation.strategic_roadmap || []).flatMap((phase) =>
+        (phase.actions || []).map((action) => [
+            phase.phase || phase.priority || '-',
+            action.priority || phase.priority || '-',
+            action.category || '-',
+            action.title || '-',
+            action.description || '-',
+        ])
+    );
+    const assessmentTableRows = assessmentRows.map((row) => [
+        `${row.target || '?'}:${row.port || 443}`,
+        row.overall_quantum_risk || '-',
+        row.tls_status || '-',
+        row.key_exchange_status || '-',
+        row.certificate_status || '-',
+        row.symmetric_cipher_status || '-',
+        row.hndl_vulnerable ? 'YES' : 'NO',
+        row.q_score || 0,
+    ]);
+    const trimodeRows = (trimodeData?.fingerprints || []).map((fp) => [
+        `${fp.hostname || '?'}:${fp.port || 443}`,
+        fp.asset_type || 'web',
+        fp.q_score?.status || 'UNKNOWN',
+        fp.q_score?.total || 0,
+        `${fp.probe_a?.tls_version || '-'} / ${fp.probe_a?.key_exchange || '-'}`,
+        `${fp.probe_b?.tls_version || '-'} / ${fp.probe_b?.key_exchange || '-'}`,
+        `${fp.probe_c?.tls_version || '-'} / ${fp.probe_c?.key_exchange || '-'}`,
+    ]);
+    const phase7Assets = classifiedData?.assets || [];
+    const phase7AgilityRows = phase7Assets.map((asset) => [
+        `${asset.hostname || '?'}:${asset.port || 443}`,
+        asset.status || '-',
+        asset.best_case_score || 0,
+        asset.typical_score || 0,
+        asset.worst_case_score || 0,
+        `${asset.agility_score || 0}/15`,
+        asset.recommended_action || '-',
+    ]);
+    const phase9Labels = phase9Data?.labels?.labels || [];
+    const phase9Regressions = [
+        ...((phase9Data?.regression?.new_assets || []).map((item) => ({ ...item, category: 'New Asset' }))),
+        ...((phase9Data?.regression?.score_regressions || []).map((item) => ({ ...item, category: 'Score Regression' }))),
+        ...((phase9Data?.regression?.missed_upgrades || []).map((item) => ({ ...item, category: 'Missed Upgrade' }))),
+    ];
+    const phase9Claims = phase9Data?.attestation?.attestation?.declarations?.claims || [];
+    const nist = nistMatrixData || {};
+    const heatmapRows = [];
+    HM_ROWS.forEach((rowKey) => {
+        HM_COLS.forEach((colKey) => {
+            heatmapRows.push([
+                HM_ROW_LABELS[rowKey],
+                HM_COL_LABELS[colKey],
+                heatmap?.grid?.[rowKey]?.[colKey]?.count || 0,
+                (heatmap?.grid?.[rowKey]?.[colKey]?.hostnames || []).slice(0, 6).join(', ') || '-',
+            ]);
+        });
+    });
+
+    const sections = [];
+
+    sections.push(reportSection(
+        'Executive Summary',
+        `
+            ${reportMetricCards([
+                { label: 'Assets Assessed', value: totalAssets },
+                { label: 'Average Q-Score', value: Number(scan.average_q_score || agg.average_q_score || 0).toFixed(1) },
+                { label: 'Critically Vulnerable', value: `${scan.critically_vulnerable || 0} (${pdfPercent(scan.critically_vulnerable || 0, totalAssets)})` },
+                { label: 'Fully Quantum Safe', value: `${scan.fully_quantum_safe || 0} (${pdfPercent(scan.fully_quantum_safe || 0, totalAssets)})` },
+            ])}
+            ${reportList(highlights)}
+        `,
+        'A print-ready dashboard report generated from the current Q-ARMOR state.'
+    ));
+
+    sections.push(reportSection(
+        'Enterprise Overview',
+        `
+            ${reportMetricCards([
+                { label: 'Domains', value: discovery.domain_count || 0 },
+                { label: 'IPs', value: discovery.ip_count || 0 },
+                { label: 'Subdomains', value: discovery.subdomain_count || 0 },
+                { label: 'Cloud Assets', value: discovery.cloud_asset_count || 0 },
+                { label: 'SSL Records', value: inventory.ssl_cert_count || 0 },
+                { label: 'Software Records', value: inventory.software_count || 0 },
+                { label: 'IoT Devices', value: inventory.iot_device_count || 0 },
+                { label: 'Login Forms', value: inventory.login_form_count || 0 },
+                { label: 'PQC Adoption', value: `${formatPercent(posture.pqc_adoption_pct)}%` },
+                { label: 'Transition Rate', value: `${formatPercent(posture.transition_pct)}%` },
+                { label: 'Vulnerable Components', value: cbomSummary.vulnerable_component_count || 0 },
+                { label: 'Weak Crypto', value: cbomSummary.weak_crypto_count || 0 },
+            ])}
+        `,
+        'High-level enterprise discovery and posture metrics reflected in the overview dashboard.'
+    ));
+
+    sections.push(reportSection(
+        'Network Graph',
+        `
+            ${buildNetworkGraphSvg(graph)}
+            ${reportTable(
+                ['Node', 'Type', 'Tier', 'IP Address'],
+                (graph.nodes || []).map((node) => [
+                    node.label || node.id || '-',
+                    node.type || 'asset',
+                    node.display_tier || node.pqc_status || '-',
+                    node.ip_address || '-',
+                ]),
+                'No network nodes available.'
+            )}
+        `,
+        'Topology of discovered assets and their current PQC tiers.'
+    ));
+
+    sections.push(reportSection(
+        'Cyber Rating and Heatmap',
+        `
+            ${reportMetricCards([
+                { label: 'Enterprise Score', value: cyber.enterprise_score || 0 },
+                { label: 'Tier', value: cyber.tier || '-' },
+                { label: 'Display Tier', value: cyber.display_tier || cyber.tier_label || '-' },
+                { label: 'Negotiation Policies', value: Object.keys(enterprise.negotiation?.policies || {}).length },
+            ])}
+            ${reportTable(['Posture', 'Crypto Strength', 'Asset Count', 'Host Sample'], heatmapRows, 'No heatmap data available.')}
+        `,
+        'Summary of enterprise rating and per-cell heatmap distribution.'
+    ));
+
+    sections.push(reportSection(
+        'Asset Discovery Tables',
+        `
+            <h3>Domains</h3>
+            ${reportTable(['Detection Date', 'Domain', 'Registration Date', 'Registrar', 'Company'], domains.map((item) => [
+                item.timestamp || item.detection_date || item.last_seen || '-',
+                item.domain_name || '-',
+                item.creation_date || item.registration_date || '-',
+                item.registrar || '-',
+                item.organization || item.company_name || '-',
+            ]), 'No domain records available.')}
+            <h3>SSL Inventory</h3>
+            ${reportTable(['Detection Date', 'Fingerprint', 'Valid From', 'Common Name', 'Company', 'CA'], ssl.map((item) => [
+                item.timestamp || item.detection_date || item.last_seen || '-',
+                item.ssl_sha_fingerprint || '-',
+                item.valid_from || '-',
+                item.common_name || '-',
+                item.organization || item.company_name || '-',
+                item.issuer_common_name || item.certificate_authority || '-',
+            ]), 'No SSL records available.')}
+            <h3>IP Inventory</h3>
+            ${reportTable(['Detection Date', 'IP Address', 'Ports', 'Subnet', 'ASN', 'Location', 'Company'], ipAssets.map((item) => [
+                item.timestamp || item.detection_date || item.last_seen || '-',
+                item.ip_address || '-',
+                Array.isArray(item.ports) ? item.ports.join(', ') : (item.port || '443'),
+                item.subnet || '-',
+                item.asn || '-',
+                item.location || '-',
+                item.organization || item.company || '-',
+            ]), 'No IP records available.')}
+            <h3>Software Inventory</h3>
+            ${reportTable(['Detection Date', 'Product', 'Version', 'Type', 'Port', 'Host', 'Company'], software.map((item) => [
+                item.timestamp || item.detection_date || item.last_seen || '-',
+                item.product || '-',
+                item.version || '-',
+                item.type || '-',
+                item.port || '-',
+                item.host || '-',
+                item.organization || item.company_name || '-',
+            ]), 'No software records available.')}
+        `,
+        'Detailed asset discovery data mirrored from the overview dashboard.'
+    ));
+
+    sections.push(reportSection(
+        'Asset Inventory Snapshot',
+        reportTable(
+            ['Asset', 'Type', 'TLS', 'Cipher Suite', 'Key Exchange', 'Certificate', 'Q-Score', 'Status'],
+            inventoryRows.map((row) => [
+                `${row.hostname || '?'}:${row.port || 443}`,
+                row.assetType || '-',
+                row.tlsVersion || '-',
+                row.cipherSuite || '-',
+                row.keyExchange || '-',
+                row.certificate || '-',
+                row.score || 0,
+                row.status || '-',
+            ]),
+            'No asset inventory rows available.'
+        ),
+        'Current asset inventory from the primary scan table.'
+    ));
+
+    sections.push(reportSection(
+        'PQC Assessment',
+        `
+            ${reportMetricCards([
+                { label: 'Endpoints', value: agg.total_endpoints || 0 },
+                { label: 'High Risk', value: agg.risk_high || 0 },
+                { label: 'Medium Risk', value: agg.risk_medium || 0 },
+                { label: 'Low Risk', value: agg.risk_low || 0 },
+                { label: 'HNDL Vulnerable', value: agg.hndl_vulnerable || 0 },
+                { label: 'Average Q-Score', value: agg.average_q_score || 0 },
+            ])}
+            ${reportTable(
+                ['Endpoint', 'Risk', 'TLS', 'Key Exchange', 'Certificate', 'Symmetric', 'HNDL', 'Q-Score'],
+                assessmentTableRows,
+                'No assessment rows available.'
+            )}
+        `,
+        'Endpoint-level PQC assessment and risk analysis.'
+    ));
+
+    sections.push(reportSection(
+        'Remediation Plan',
+        `
+            ${reportMetricCards([
+                { label: 'Total Remediations', value: remediation.total_remediations || 0 },
+                { label: 'P1 Critical', value: remediation.by_priority?.P1_CRITICAL || 0 },
+                { label: 'P2 High', value: remediation.by_priority?.P2_HIGH || 0 },
+                { label: 'P3 Medium', value: remediation.by_priority?.P3_MEDIUM || 0 },
+                { label: 'P4 Low', value: remediation.by_priority?.P4_LOW || 0 },
+            ])}
+            <h3>Strategic Roadmap</h3>
+            ${reportTable(['Phase', 'Priority', 'Category', 'Action', 'Description'], roadmapRows, 'No remediation roadmap available.')}
+            <h3>Per-Endpoint Recommendations</h3>
+            ${reportTable(['Endpoint', 'Priority', 'Category', 'Action'], remediationEndpointRows, 'No endpoint remediation data available.')}
+        `,
+        'Prioritized roadmap and endpoint actions from the remediation dashboard.'
+    ));
+
+    sections.push(reportSection(
+        'NIST Matrix',
+        `
+            <h3>Quantum-Vulnerable Algorithms</h3>
+            ${reportList(nist.vulnerable || [], 'No vulnerable algorithms listed.')}
+            <h3>PQC-Safe Algorithms</h3>
+            ${reportList(nist.pqc_safe || [], 'No PQC-safe algorithms listed.')}
+            <h3>Hybrid Algorithms</h3>
+            ${reportList(nist.hybrid || [], 'No hybrid algorithms listed.')}
+        `,
+        'Algorithm reference matrix shown in the NIST Matrix tab.'
+    ));
+
+    sections.push(reportSection(
+        'Tri-Mode Probing',
+        reportTable(
+            ['Asset', 'Type', 'Status', 'Q-Score', 'Probe A', 'Probe B', 'Probe C'],
+            trimodeRows,
+            'No tri-mode fingerprints available.'
+        ),
+        'Probe A/B/C results showing PQC-capable, typical, and downgrade handshake behavior.'
+    ));
+
+    sections.push(reportSection(
+        'Historical Trends',
+        reportTable(
+            ['Week', 'Date', 'Assets', 'Q-Safety Score', 'Safe', 'Transition', 'Vulnerable', 'Critical', 'Unknown'],
+            historyWeeks.map((week) => [
+                `Week ${week.week}`,
+                week.scan_date ? new Date(week.scan_date).toLocaleDateString() : `Week ${week.week}`,
+                week.total_assets || 0,
+                week.quantum_safety_score || 0,
+                week.fully_quantum_safe || 0,
+                week.pqc_transition || 0,
+                week.quantum_vulnerable || 0,
+                week.critically_vulnerable || 0,
+                week.unknown || 0,
+            ]),
+            'No historical trend data available.'
+        ),
+        'Weekly posture movement from the history dashboard.'
+    ));
+
+    if (phase7Assets.length) {
+        sections.push(reportSection(
+            'Classification and Agility',
+            `
+                ${reportMetricCards([
+                    { label: 'Classified Assets', value: classifiedData?.total_assets || 0 },
+                    { label: 'Average Worst Score', value: classifiedData?.avg_worst_score || 0 },
+                    { label: 'Quantum Safe', value: classifiedData?.summary?.fully_quantum_safe || 0 },
+                    { label: 'PQC Transition', value: classifiedData?.summary?.pqc_transition || 0 },
+                    { label: 'Vulnerable', value: classifiedData?.summary?.quantum_vulnerable || 0 },
+                    { label: 'Critical', value: classifiedData?.summary?.critically_vulnerable || 0 },
+                ])}
+                ${reportTable(['Asset', 'Status', 'Best', 'Typical', 'Worst', 'Agility', 'Action'], phase7AgilityRows, 'No classification rows available.')}
+            `,
+            'Classification posture and agility assessment from Phase 7.'
+        ));
+    }
+
+    if (phase9Data) {
+        sections.push(reportSection(
+            'Regression and Certification',
+            `
+                ${reportMetricCards([
+                    { label: 'Total Assets', value: phase9Data.labels?.total_assets || 0 },
+                    { label: 'Quantum Safety Score', value: phase9Data.labels?.quantum_safety_score || 0 },
+                    { label: 'Tier 1', value: phase9Data.labels?.tier_1_count || 0 },
+                    { label: 'Tier 2', value: phase9Data.labels?.tier_2_count || 0 },
+                    { label: 'Tier 3', value: phase9Data.labels?.tier_3_count || 0 },
+                    { label: 'Regressions', value: phase9Data.regression?.total_findings || 0 },
+                ])}
+                <h3>Regression Findings</h3>
+                ${reportTable(['Host', 'Port', 'Category', 'Urgency', 'Description', 'Action'], phase9Regressions.map((item) => [
+                    item.hostname || '-',
+                    item.port || 443,
+                    item.category || '-',
+                    item.urgency || '-',
+                    item.description || '-',
+                    item.recommended_action || '-',
+                ]), 'No regression findings.')}
+                <h3>Issued Labels</h3>
+                ${reportTable(['Label ID', 'Host', 'Port', 'Tier', 'Certification', 'Standards', 'Gap', 'Fix'], phase9Labels.map((item) => [
+                    item.label_id || '-',
+                    item.hostname || '-',
+                    item.port || 443,
+                    item.tier || '-',
+                    item.certification_title || '-',
+                    (item.nist_standards || []).join(', ') || '-',
+                    item.primary_gap || '-',
+                    item.fix_in_days ? `${item.fix_in_days}d` : '-',
+                ]), 'No labels issued.')}
+                <h3>Attestation Claims</h3>
+                ${reportTable(['Standard', 'Title', 'Status', 'Coverage', 'Evidence'], phase9Claims.map((claim) => [
+                    claim.id || '-',
+                    claim.title || '-',
+                    claim.complianceStatus || '-',
+                    claim.coverage || '-',
+                    claim.evidence || '-',
+                ]), 'No attestation claims available.')}
+            `,
+            'Regression, labeling, and attestation outputs from the certification pipeline.'
+        ));
+    }
+
+    return `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>${escHtml(filename)}</title>
+    <style>
+        @page {
+            size: A4;
+            margin: 16mm;
+        }
+        * {
+            box-sizing: border-box;
+        }
+        body {
+            margin: 0;
+            color: #1c1c1c;
+            font-family: "Segoe UI", Arial, sans-serif;
+            background: #ffffff;
+        }
+        .report {
+            max-width: 180mm;
+            margin: 0 auto;
+        }
+        .header {
+            border-bottom: 1px solid #d9dde3;
+            padding-bottom: 14px;
+            margin-bottom: 20px;
+        }
+        .brand {
+            color: #7b0030;
+            font-size: 12px;
+            font-weight: 700;
+            letter-spacing: 0.18em;
+            text-transform: uppercase;
+            margin-bottom: 12px;
+        }
+        h1 {
+            margin: 0 0 8px;
+            font-size: 28px;
+            line-height: 1.1;
+            font-weight: 700;
+        }
+        .meta {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 6px 24px;
+            color: #5f6368;
+            font-size: 12px;
+        }
+        .section {
+            margin: 0 0 22px;
+            page-break-inside: avoid;
+        }
+        .section h2 {
+            margin: 0 0 10px;
+            font-size: 15px;
+            font-weight: 700;
+            padding-top: 6px;
+            border-top: 2px solid #7b0030;
+        }
+        .section h3 {
+            margin: 14px 0 8px;
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            color: #7b0030;
+        }
+        .section p {
+            margin: 0 0 10px;
+            color: #5f6368;
+            font-size: 12px;
+            line-height: 1.5;
+        }
+        .metrics {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 10px;
+            margin-bottom: 12px;
+        }
+        .metric {
+            border: 1px solid #d9dde3;
+            background: #fafafa;
+            padding: 12px 14px;
+            border-radius: 8px;
+        }
+        .metric-label {
+            color: #5f6368;
+            font-size: 11px;
+            margin-bottom: 4px;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+        }
+        .metric-value {
+            font-size: 22px;
+            font-weight: 700;
+            color: #1c1c1c;
+        }
+        .highlights {
+            margin: 0;
+            padding-left: 18px;
+        }
+        .highlights li {
+            margin-bottom: 8px;
+            font-size: 13px;
+            line-height: 1.5;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 12px;
+        }
+        th, td {
+            border: 1px solid #d9dde3;
+            padding: 8px 9px;
+            text-align: left;
+            vertical-align: top;
+        }
+        th {
+            background: #f5f6f8;
+            color: #5f6368;
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+        }
+        .report-empty {
+            border: 1px dashed #d9dde3;
+            color: #7b7f85;
+            padding: 12px 14px;
+            border-radius: 8px;
+            font-size: 12px;
+            background: #fafafa;
+        }
+        .graph-shell {
+            margin-bottom: 12px;
+        }
+        .graph-svg {
+            width: 100%;
+            height: auto;
+            display: block;
+        }
+        .graph-legend {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            margin-top: 8px;
+            color: #5f6368;
+            font-size: 12px;
+        }
+        .footer-note {
+            margin-top: 18px;
+            color: #7b7f85;
+            font-size: 11px;
+            border-top: 1px solid #d9dde3;
+            padding-top: 10px;
+        }
+        @media print {
+            .print-hint {
+                display: none;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="report">
+        <div class="header">
+            <div class="brand">Q-ARMOR</div>
+            <h1>Quantum Risk Assessment</h1>
+            <div class="meta">
+                <div><strong>Organization:</strong> ${escHtml(company)}</div>
+                <div><strong>Mode:</strong> ${escHtml(mode)}</div>
+                <div><strong>Generated:</strong> ${escHtml(pdfDate(new Date()))}</div>
+                <div><strong>Prepared By:</strong> Q-ARMOR Reporting Engine</div>
+            </div>
+        </div>
+        ${sections.join('')}
+
+        <div class="footer-note print-hint">
+            If the print dialog does not open automatically, use your browser print action and choose "Save as PDF".
+        </div>
+    </div>
+</body>
+</html>`;
+}
+
+function openPrintableAssessmentReport(filename) {
+    const existing = document.getElementById('qarmorPrintFrame');
+    if (existing) existing.remove();
+
+    const frame = document.createElement('iframe');
+    frame.id = 'qarmorPrintFrame';
+    frame.title = filename;
+    frame.style.position = 'fixed';
+    frame.style.right = '0';
+    frame.style.bottom = '0';
+    frame.style.width = '1px';
+    frame.style.height = '1px';
+    frame.style.opacity = '0';
+    frame.style.pointerEvents = 'none';
+    frame.style.border = '0';
+
+    document.body.appendChild(frame);
+
+    const doc = frame.contentWindow?.document;
+    if (!doc || !frame.contentWindow) {
+        frame.remove();
+        throw new Error('Unable to create print frame');
+    }
+
+    doc.open();
+    doc.write(buildPrintableAssessmentHtml(filename));
+    doc.close();
+
+    setTimeout(() => {
+        try {
+            frame.contentWindow.focus();
+            frame.contentWindow.print();
+        } catch (error) {
+            console.error(error);
+        }
+    }, 300);
+}
+
+function buildDirectExportContainer(filename) {
+    const existing = document.getElementById('qarmorDirectPdfRoot');
+    if (existing) existing.remove();
+
+    const parser = new DOMParser();
+    const fullHtml = buildPrintableAssessmentHtml(filename);
+    const parsed = parser.parseFromString(fullHtml, 'text/html');
+    const root = document.createElement('div');
+    root.id = 'qarmorDirectPdfRoot';
+    root.style.position = 'absolute';
+    root.style.left = '-100000px';
+    root.style.top = '0';
+    root.style.width = '210mm';
+    root.style.background = '#ffffff';
+    root.style.zIndex = '-1';
+
+    const styleText = Array.from(parsed.head.querySelectorAll('style'))
+        .map((node) => node.textContent || '')
+        .join('\n');
+
+    root.innerHTML = `
+        <style>${styleText}</style>
+        ${parsed.body.innerHTML}
+    `;
+
+    document.body.appendChild(root);
+    return root;
+}
+
+async function tryDirectAssessmentPdfExport(filename) {
+    if (typeof window.html2pdf !== 'function') {
+        throw new Error('html2pdf is unavailable');
+    }
+
+    const container = buildDirectExportContainer(filename);
+    try {
+        await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+        const worker = window.html2pdf().set({
+            margin: [8, 8, 8, 8],
+            filename,
+            image: { type: 'jpeg', quality: 0.96 },
+            html2canvas: {
+                scale: 2,
+                useCORS: true,
+                backgroundColor: '#ffffff',
+                logging: false,
+                windowWidth: Math.max(container.scrollWidth, 1200),
+            },
+            pagebreak: {
+                mode: ['css', 'legacy'],
+                avoid: ['table', 'tr', '.metric', '.graph-shell', '.section'],
+            },
+            jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+        }).from(container).toPdf().get('pdf');
+
+        const pdfBlob = worker.output('blob');
+        syncPdfToBackend(pdfBlob, filename);
+        worker.save(filename);
+    } finally {
+        container.remove();
+    }
+}
+
 /* ─── PDF Assessment Generation ─── */
 async function exportAssessment() {
     const btn = document.getElementById('btnExportPDF');
@@ -4131,51 +5064,22 @@ async function exportAssessment() {
     btn.innerHTML = '<span class="material-symbols-outlined" style="margin-right:8px; animation: spin 2s linear infinite;">autorenew</span> Generating...';
     btn.disabled = true;
 
-    // Show all panels temporarily for the PDF
-    const panels = document.querySelectorAll('.panel');
-    const originalDisplays = Array.from(panels).map(p => p.style.display);
-    panels.forEach(p => p.style.display = 'block');
-
-    // Allow UI to repaint the "Generating" state before blocking the main thread
-    await new Promise(resolve => setTimeout(resolve, 50));
-
     try {
-        const element = document.querySelector('.app-container');
-        if (!element) throw new Error("Could not find app-container layout");
-
-        const targetDomain = document.getElementById('domainInput')?.value || 'Demo_Environment';
-        const opt = {
-          margin:       8,
-          filename:     `Q_ARMOR_Assessment_${targetDomain}_${new Date().toISOString().slice(0,10)}.pdf`,
-          image:        { type: 'jpeg', quality: 0.98 },
-          html2canvas:  { scale: 2, useCORS: true, logging: false },
-          jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
-        };
-
-        // Leverage the raw jsPDF object to guarantee uncorrupted pdf blob generation
-        await html2pdf().set(opt).from(element).toPdf().get('pdf').then(function (pdf) {
-            // Generate valid blob with MIME headers for the backend
-            const pdfBlob = pdf.output('blob');
-            let fd = new FormData();
-            fd.append('file', pdfBlob, opt.filename);
-            
-            // Sync to backend
-            fetch('/api/reports/save', {
-                method: 'POST',
-                body: fd
-            }).then(r => console.log('Backend sync status:', r.status)).catch(console.warn);
-
-            // Native jsPDF safe download
-            pdf.save(opt.filename);
-        });
-
-        showToast("Assessment exported successfully.", "success");
+        const filename = `Q_ARMOR_Assessment_${pdfFilenameTarget()}_${new Date().toISOString().slice(0,10)}.pdf`;
+        await ensureReportState();
+        try {
+            await tryDirectAssessmentPdfExport(filename);
+            showToast('Report exported successfully.', 'success');
+        } catch (directError) {
+            console.error(directError);
+            openPrintableAssessmentReport(filename);
+            showToast('Direct export failed. Opened the full report in print mode instead.', 'info');
+        }
 
     } catch (e) {
         console.error(e);
-        showToast("PDF generation failed.", "error");
+        showToast('Report generation failed.', 'error');
     } finally {
-        panels.forEach((p, i) => p.style.display = originalDisplays[i]);
         btn.innerHTML = originalText;
         btn.disabled = false;
     }
