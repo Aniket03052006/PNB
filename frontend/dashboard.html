@@ -37,7 +37,7 @@
                 </div>
                 <button class="btn btn-primary" id="btnDemoScan" onclick="runDemoScan()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg> Run Demo Scan</button>
                 <button class="btn" id="btnExportPDF" onclick="exportAssessment()" disabled><span class="material-symbols-outlined" style="font-size: 14px; margin-right: 4px;">picture_as_pdf</span> Export PDF</button>
-                <button class="btn" id="btnExportCBOM" onclick="exportCBOM()" disabled><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg> Export CBOM</button>
+                <button class="btn" id="btnExportCBOM" onclick="exportCBOM()" disabled><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg> Export CBOM v2</button>
                 <button class="btn" id="btnExportCDXA" onclick="exportCDXA()" disabled><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg> Export CDXA</button>
             </div>
         </header>
@@ -576,11 +576,11 @@
             <div id="historyEmpty" class="empty-state" style="padding: 60px 20px;">
                 <div class="empty-state-icon"><svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg></div>
                 <div class="empty-state-title">Scan History</div>
-                <div class="empty-state-desc">View real scan history from the database, or load demo trend data</div>
+                <div class="empty-state-desc">View stored scan history from previous runs, or load demo trend data</div>
                 <div style="display:flex;gap:8px;align-items:center;margin-top:16px;flex-wrap:wrap;justify-content:center;">
-                    <button class="btn btn-primary" onclick="loadLiveHistory()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect><line x1="8" y1="21" x2="16" y2="21"></line><line x1="12" y1="17" x2="12" y2="21"></line></svg> Load DB History</button>
+                    <button class="btn btn-primary" onclick="loadLiveHistory()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect><line x1="8" y1="21" x2="16" y2="21"></line><line x1="12" y1="17" x2="12" y2="21"></line></svg> Load Previous Scans</button>
                     <span style="color:var(--text-dim);font-size:0.8rem;">or</span>
-                    <button class="btn" onclick="loadHistory()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg> Load Demo History</button>
+                    <button class="btn" onclick="loadHistory()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg> Load Demo Sample</button>
                 </div>
             </div>
             <div id="historyContent" style="display:none;">

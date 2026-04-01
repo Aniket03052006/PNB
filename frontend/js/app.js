@@ -887,19 +887,26 @@ async function scanSingleHost() {
 /* ─── CBOM Export ─── */
 async function exportCBOM() {
     try {
-        const modeSelect = document.getElementById('enterpriseModeSelect');
-        const mode = modeSelect ? modeSelect.value : 'demo';
         const targetDomain = document.getElementById('domainInput')?.value || 'Demo_Environment';
         const dateStr = new Date().toISOString().slice(0,10);
-        const filename = `Q_ARMOR_CBOM_${targetDomain}_${dateStr}.json`;
-        
-        const url = new URL(`${API_BASE}/api/cbom/latest`, window.location.origin);
-        url.searchParams.append('mode', mode);
+        const filename = `Q_ARMOR_CBOM_V2_${targetDomain}_${dateStr}.json`;
 
-        const resp = await authorizedFetch(url.toString());
-        if (!resp.ok) throw new Error(`HTTP Error ${resp.status}`);
-        const json = await resp.json();
-        const blob = new Blob([JSON.stringify(json, null, 2)], { type: 'application/json' });
+        let blob = null;
+        const phase9Resp = await authorizedFetch(`${API_BASE}/api/phase9/cbom/download`);
+        if (phase9Resp.ok) {
+            const phase9Blob = await phase9Resp.blob();
+            if (phase9Blob.size > 2) {
+                blob = phase9Blob;
+            }
+        }
+
+        if (!blob) {
+            const json = await fetchCbomLatest(false);
+            if (!hasRenderableCbom(json)) {
+                throw new Error('No CBOM v2 is loaded yet. Run the Phase 9 pipeline or open a stored scan with CBOM data first.');
+            }
+            blob = new Blob([JSON.stringify(json, null, 2)], { type: 'application/json' });
+        }
         
         // Sync to backend
         let fd = new FormData();
@@ -912,7 +919,7 @@ async function exportCBOM() {
         a.download = filename;
         a.click();
         URL.revokeObjectURL(objUrl);
-        showToast('CBOM exported successfully', 'success');
+        showToast('CBOM v2 exported successfully', 'success');
     } catch (e) {
         showToast('Export failed: ' + e.message, 'error');
     }
@@ -2029,6 +2036,190 @@ function escHtml(str) {
     return div.innerHTML;
 }
 
+function displayScanSerial(scanId, fallbackNumber = null) {
+    if (Number.isInteger(fallbackNumber) && fallbackNumber > 0) {
+        return `Scan ${String(fallbackNumber).padStart(2, '0')}`;
+    }
+    const raw = String(scanId || '').trim();
+    if (!raw) return 'Scan';
+    if (/^\d+$/.test(raw)) return `Scan ${raw}`;
+    return `Scan ${raw.replace(/-/g, '').slice(0, 6).toUpperCase()}`;
+}
+
+function lookupScanSerial(scanId) {
+    const scans = Array.isArray(dbScansData) ? dbScansData : [];
+    const index = scans.findIndex((scan) => String(scan.id) === String(scanId));
+    if (index >= 0) {
+        return displayScanSerial(scanId, scans.length - index);
+    }
+    return displayScanSerial(scanId);
+}
+
+function scanSerialForPosition(scans, scan, index) {
+    return displayScanSerial(scan?.id, Array.isArray(scans) ? scans.length - index : null);
+}
+
+function normalizeStoredAssetForPhase7(asset) {
+    if (!asset || typeof asset !== 'object') {
+        return null;
+    }
+
+    const innerAsset = asset.asset && typeof asset.asset === 'object' ? asset.asset : {};
+    const qScore = asset.q_score && typeof asset.q_score === 'object' ? asset.q_score : {};
+    const score = Number(
+        asset.worst_case_score
+        ?? asset.worst_score
+        ?? asset.typical_score
+        ?? qScore.total
+        ?? asset.score
+        ?? 0
+    ) || 0;
+    const status = asset.status || asset.pqc_status || qScore.status || 'UNKNOWN';
+
+    return {
+        hostname: asset.hostname || innerAsset.hostname || innerAsset.ip || asset.asset || 'unknown',
+        port: Number(asset.port ?? innerAsset.port ?? 443) || 443,
+        asset_type: asset.asset_type || innerAsset.asset_type || 'web',
+        status,
+        pqc_support: Boolean(asset.pqc_support),
+        best_case_score: Number(asset.best_case_score ?? score) || 0,
+        typical_score: Number(asset.typical_score ?? score) || 0,
+        worst_case_score: score,
+        agility_score: Number(asset.agility_score ?? 0) || 0,
+        summary: asset.summary || '',
+        recommended_action: asset.recommended_action || '',
+        agility_details: Array.isArray(asset.agility_details) ? asset.agility_details : [],
+    };
+}
+
+function formatUiDateTime(value, includeTime = true) {
+    if (!value) return '—';
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) {
+        return String(value);
+    }
+    return includeTime
+        ? date.toLocaleString('en-IN', {
+            day: '2-digit',
+            month: 'short',
+            year: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit',
+        })
+        : date.toLocaleDateString('en-IN', {
+            day: '2-digit',
+            month: 'short',
+            year: 'numeric',
+        });
+}
+
+function shortenDocumentId(value, fallback = '—') {
+    const raw = String(value || '')
+        .replace(/^urn:uuid:/i, '')
+        .trim();
+    if (!raw) return fallback;
+    return raw.replace(/-/g, '').slice(0, 8).toUpperCase();
+}
+
+function extractNamedProperty(properties, key) {
+    if (!Array.isArray(properties)) return '';
+    const match = properties.find((property) => property?.name === key);
+    return match?.value || '';
+}
+
+function compliancePalette(status) {
+    const normalized = String(status || '').toUpperCase();
+    if (normalized === 'COMPLIANT' || normalized === 'FULLY_QUANTUM_SAFE') {
+        return { bg: 'rgba(34, 197, 94, 0.12)', color: 'var(--accent-green)' };
+    }
+    if (normalized === 'PARTIALLY_COMPLIANT' || normalized === 'PQC_TRANSITION') {
+        return { bg: 'rgba(217, 119, 6, 0.12)', color: '#D97706' };
+    }
+    if (normalized === 'NOT_APPLICABLE' || normalized === 'UNKNOWN') {
+        return { bg: 'rgba(148, 163, 184, 0.12)', color: 'var(--text-secondary)' };
+    }
+    return { bg: 'rgba(220, 38, 38, 0.12)', color: '#DC2626' };
+}
+
+function renderToneBadge(label, status) {
+    const tone = compliancePalette(status || label);
+    return `<span style="display:inline-flex;align-items:center;padding:0.2rem 0.55rem;border-radius:999px;background:${tone.bg};color:${tone.color};font-size:0.72rem;font-weight:700;">${escHtml(label || '—')}</span>`;
+}
+
+async function openHistoryScanDetails(scanId) {
+    showLoading(`Loading ${lookupScanSerial(scanId)} details...`);
+    try {
+        const scan = await apiCall(`/api/db/scans/${scanId}`);
+        const details = scan.details && typeof scan.details === 'object' ? scan.details : {};
+        const parsedAssets = Array.isArray(details.assets)
+            ? details.assets
+            : (scan.results_json ? JSON.parse(scan.results_json) : []);
+        const assets = parsedAssets
+            .map(normalizeStoredAssetForPhase7)
+            .filter(Boolean);
+        const phase7Payload = {
+            mode: scan.mode || 'live',
+            scan_id: scan.id,
+            total_assets: scan.total_assets || assets.length,
+            avg_worst_score: Number(scan.avg_score || scan.average_q_score || 0),
+            summary: {
+                fully_quantum_safe: scan.fully_safe ?? scan.fully_quantum_safe ?? 0,
+                pqc_transition: scan.pqc_trans ?? scan.pqc_transition ?? 0,
+                quantum_vulnerable: scan.q_vuln ?? scan.quantum_vulnerable ?? 0,
+                critically_vulnerable: scan.crit_vuln ?? scan.critically_vulnerable ?? 0,
+                unknown: scan.unknown ?? 0,
+            },
+            assets,
+        };
+        classifiedData = phase7Payload;
+        renderPhase7(phase7Payload);
+        const storedPhase9 = details.phase9
+            || (details.cbom || details.attestation || details.labels || details.regression
+                ? {
+                    cbom: details.cbom || {},
+                    attestation: details.attestation || {},
+                    attestation_summary: details.attestation_summary || {},
+                    labels: details.labels || {},
+                    regression: details.regression || {},
+                    registry: details.registry || {},
+                }
+                : null);
+        if (storedPhase9) {
+            phase9Data = storedPhase9;
+            latestCbomPayload = storedPhase9.cbom || null;
+            renderPhase9(storedPhase9);
+        }
+        switchTab('phase7');
+        showToast(`Opened ${lookupScanSerial(scanId)} details`, 'success');
+    } catch (e) {
+        showToast('Failed to load scan details: ' + e.message, 'error');
+    } finally {
+        hideLoading();
+    }
+}
+
+async function deleteScan(scanId) {
+    const label = lookupScanSerial(scanId);
+    if (!window.confirm(`Delete ${label}? This cannot be undone.`)) return;
+    showLoading(`Deleting ${label}...`);
+    try {
+        await authorizedFetch(`${API_BASE}/api/db/scans/${scanId}`, { method: 'DELETE' });
+        dbScansData = (dbScansData || []).filter((scan) => String(scan.id) !== String(scanId));
+        latestHistoryPayload = null;
+        historyData = null;
+        renderDbScans(dbScansData);
+        const historyContent = document.getElementById('historyContent');
+        if (historyContent?.style.display !== 'none') {
+            await loadLiveHistory();
+        }
+        showToast(`${label} deleted`, 'success');
+    } catch (e) {
+        showToast('Failed to delete scan: ' + e.message, 'error');
+    } finally {
+        hideLoading();
+    }
+}
+
 
 /* ═══════════════════════════════════════════════════════════════════════════
    Phase 6: Historical Trends & Baseline
@@ -2053,42 +2244,50 @@ async function loadHistory() {
 }
 
 async function loadLiveHistory() {
-    showLoading('Loading scan history from database...');
+    showLoading('Loading previous scan history...');
     try {
-        const scans = await apiCall('/api/db/scans?limit=50');
+        const [historyPayload, comparePayload] = await Promise.all([
+            fetchHistoryLatest(true),
+            apiCall('/api/compare/latest').catch(() => null),
+        ]);
+        const scans = Array.isArray(historyPayload?.scans) ? historyPayload.scans : [];
         if (!scans || !scans.length) {
-            showToast('No scans in database yet — run a live scan first', 'info');
+            showToast('No previous scans found yet — run a scan first', 'info');
             hideLoading();
             return;
         }
 
-        // Build weekly-style trend data from DB scans
-        const weeks = scans.slice(0, 10).reverse().map((s, i) => ({
+        const recentScans = scans.slice(-10);
+        const weeks = recentScans.map((s, i) => ({
             week: i + 1,
             scan_date: s.scan_date,
             total_assets: s.total_assets || 0,
-            quantum_safety_score: Math.round(100 - (s.avg_score || 50)),
-            fully_quantum_safe: s.fully_safe || 0,
-            pqc_transition: s.pqc_trans || 0,
-            quantum_vulnerable: s.q_vuln || 0,
-            critically_vulnerable: s.crit_vuln || 0,
+            quantum_safety_score: Math.round(Number(s.average_q_score ?? s.avg_score ?? 0)),
+            fully_quantum_safe: s.fully_quantum_safe ?? s.fully_safe ?? 0,
+            pqc_transition: s.pqc_transition ?? s.pqc_trans ?? 0,
+            quantum_vulnerable: s.quantum_vulnerable ?? s.q_vuln ?? 0,
+            critically_vulnerable: s.critically_vulnerable ?? s.crit_vuln ?? 0,
             unknown: s.unknown || 0,
         }));
 
-        const histData = { mode: 'live (DB)', weeks };
+        const modeLabel = historyPayload?.demo_mode ? 'demo' : 'stored scans';
+        const histData = { mode: modeLabel, weeks, scans };
         historyData = histData;
         renderHistory(histData);
 
-        // Show the latest scan results as baseline comparison
-        const latest = scans[0];
-        const previous = scans.length >= 2 ? scans[1] : null;
-        renderLiveBaseline(latest, previous);
+        const latest = scans[scans.length - 1];
+        const previous = scans.length >= 2 ? scans[scans.length - 2] : null;
+        if (comparePayload?.scan_a && comparePayload?.scan_b) {
+            renderCompareBaseline(comparePayload);
+        } else {
+            renderLiveBaseline(latest, previous);
+        }
 
         document.getElementById('historyEmpty').style.display = 'none';
         document.getElementById('historyContent').style.display = '';
-        showToast(`Loaded ${scans.length} scans from database`, 'success');
+        showToast(`Loaded ${scans.length} previous scans`, 'success');
     } catch (e) {
-        showToast('Failed to load DB history: ' + e.message, 'error');
+        showToast('Failed to load previous scans: ' + e.message, 'error');
     } finally {
         hideLoading();
     }
@@ -2162,20 +2361,79 @@ function renderLiveBaseline(latest, previous) {
     `;
 }
 
+function renderCompareBaseline(comparePayload) {
+    const container = document.getElementById('baselineContent');
+    if (!container) return;
+    const latest = comparePayload?.scan_b || {};
+    const previous = comparePayload?.scan_a || {};
+    const delta = comparePayload?.delta || {};
+    const latestDomain = latest.domain || 'latest scan';
+    const previousDomain = previous.domain || 'previous scan';
+
+    function diffBadge(val) {
+        if (!val || Number(val) === 0) return '<span style="color:var(--text-dim);">0</span>';
+        return Number(val) > 0
+            ? `<span style="color:var(--accent-green);font-weight:600;">+${val}</span>`
+            : `<span style="color:#DC2626;font-weight:600;">${val}</span>`;
+    }
+
+    container.innerHTML = `
+        <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:16px;">
+            <div class="stat-card stat-card--total" style="padding:12px;">
+                <div class="stat-value" style="font-size:1.4rem;">${latest.total || latest.total_assets || 0}</div>
+                <div class="stat-label">Latest Assets</div>
+            </div>
+            <div class="stat-card stat-card--safe" style="padding:12px;">
+                <div class="stat-value" style="font-size:1.4rem;">${latest.fully_safe || 0}</div>
+                <div class="stat-label">Quantum Safe</div>
+            </div>
+            <div class="stat-card stat-card--transition" style="padding:12px;">
+                <div class="stat-value" style="font-size:1.4rem;">${latest.pqc_trans || 0}</div>
+                <div class="stat-label">Transition</div>
+            </div>
+            <div class="stat-card stat-card--vulnerable" style="padding:12px;">
+                <div class="stat-value" style="font-size:1.4rem;">${latest.q_vuln || 0}</div>
+                <div class="stat-label">Vulnerable</div>
+            </div>
+            <div class="stat-card stat-card--critical" style="padding:12px;">
+                <div class="stat-value" style="font-size:1.4rem;">${latest.crit_vuln || 0}</div>
+                <div class="stat-label">Critical</div>
+            </div>
+        </div>
+        <table class="asset-table" style="margin-bottom:12px;"><thead><tr>
+            <th>Metric</th><th>Latest</th><th>Previous</th><th>Delta</th>
+        </tr></thead><tbody>
+            <tr><td>Scan Label</td><td>${escHtml(latestDomain)}</td><td>${escHtml(previousDomain)}</td><td>—</td></tr>
+            <tr><td>Total Assets</td><td>${latest.total || latest.total_assets || 0}</td><td>${previous.total || previous.total_assets || 0}</td><td>${diffBadge(delta.total_assets || 0)}</td></tr>
+            <tr><td>Avg Score</td><td>${latest.avg || latest.avg_score || 0}</td><td>${previous.avg || previous.avg_score || 0}</td><td>${diffBadge(delta.avg_score || 0)}</td></tr>
+            <tr><td style="color:var(--status-safe)">Fully Safe</td><td>${latest.fully_safe || 0}</td><td>${previous.fully_safe || 0}</td><td>${diffBadge(delta.fully_safe || 0)}</td></tr>
+            <tr><td style="color:var(--status-transition)">PQC Transition</td><td>${latest.pqc_trans || 0}</td><td>${previous.pqc_trans || 0}</td><td>${diffBadge(delta.pqc_trans || 0)}</td></tr>
+            <tr><td style="color:var(--status-vulnerable)">Vulnerable</td><td>${latest.q_vuln || 0}</td><td>${previous.q_vuln || 0}</td><td>${diffBadge(delta.q_vuln || 0)}</td></tr>
+            <tr><td style="color:var(--status-critical)">Critical</td><td>${latest.crit_vuln || 0}</td><td>${previous.crit_vuln || 0}</td><td>${diffBadge(delta.crit_vuln || 0)}</td></tr>
+        </tbody></table>
+    `;
+}
+
 function renderHistory(data) {
     if (!data || !data.weeks) return;
     const modeEl = document.getElementById('historyMode');
     if (modeEl) modeEl.textContent = data.mode || 'live';
+    const scans = Array.isArray(data.scans) ? data.scans : [];
 
-    const maxScore = Math.max(...data.weeks.map(w => w.quantum_safety_score), 1);
-    const rows = data.weeks.map(w => {
-        const barW = Math.round((w.quantum_safety_score / 100) * 200);
-        const date = w.scan_date ? new Date(w.scan_date).toLocaleDateString() : `Week ${w.week}`;
-        return `<tr>
-            <td>Week ${w.week}</td>
+    const rows = data.weeks.map((w, index) => {
+        const score = Math.max(0, Math.min(100, Number(w.quantum_safety_score || 0)));
+        const barW = Math.round((score / 100) * 200);
+        const date = w.scan_date ? new Date(w.scan_date).toLocaleDateString() : `Scan ${w.week}`;
+        const scan = scans[index] || null;
+        const serial = scanSerialForPosition(scans, scan, index);
+        const rowAction = scan?.id
+            ? `onclick="openHistoryScanDetails('${escHtml(String(scan.id))}')" style="cursor:pointer;"`
+            : '';
+        return `<tr ${rowAction}>
+            <td>${serial}</td>
             <td>${date}</td>
             <td>${w.total_assets}</td>
-            <td style="font-weight:600;color:var(--accent-green);">${w.quantum_safety_score} <span class="score-bar" style="width:${barW}px;"></span></td>
+            <td style="font-weight:600;color:${getScoreColor(score)};">${score} <span class="score-bar" style="width:${barW}px;"></span></td>
             <td style="color:var(--status-safe);">${w.fully_quantum_safe}</td>
             <td style="color:var(--status-transition);">${w.pqc_transition}</td>
             <td style="color:var(--status-vulnerable);">${w.quantum_vulnerable}</td>
@@ -2189,7 +2447,7 @@ function renderHistory(data) {
         container.innerHTML = `
             <table class="history-table">
                 <thead><tr>
-                    <th>Week</th><th>Date</th><th>Assets</th><th>Q-Safety Score</th>
+                    <th>Scan</th><th>Date</th><th>Assets</th><th>Average Q-Score</th>
                     <th>Safe</th><th>Transition</th><th>Vulnerable</th><th>Critical</th><th>Unknown</th>
                 </tr></thead>
                 <tbody>${rows}</tbody>
@@ -2262,7 +2520,7 @@ async function runPhase7Demo() {
         classifiedData = data;
         renderPhase7(data);
         loadDbScans();
-        showToast(`Classified ${data.total_assets} assets (scan #${data.scan_id})`, 'success');
+        showToast(`Classified ${data.total_assets} assets (${displayScanSerial(data.scan_id)})`, 'success');
     } catch (e) {
         showToast('Classification failed: ' + e.message, 'error');
     } finally {
@@ -2279,7 +2537,7 @@ async function runPhase7Live() {
         classifiedData = data;
         renderPhase7(data);
         loadDbScans();
-        showToast(`Classified ${data.total_assets} live assets for ${domain} (scan #${data.scan_id})`, 'success');
+        showToast(`Classified ${data.total_assets} live assets for ${domain} (${displayScanSerial(data.scan_id)})`, 'success');
     } catch (e) {
         showToast('Live classification failed: ' + e.message, 'error');
     } finally {
@@ -2435,14 +2693,16 @@ function renderDbScans(scans) {
     }
 
     let html = `<table class="asset-table"><thead><tr>
-        <th>ID</th><th>Date</th><th>Mode</th><th>Domain</th><th>Assets</th><th>Avg Score</th>
+        <th>Serial</th><th>Date</th><th>Mode</th><th>Domain</th><th>Assets</th><th>Avg Score</th>
         <th>Safe</th><th>Trans</th><th>Vuln</th><th>Crit</th><th>Actions</th>
     </tr></thead><tbody>`;
 
-    for (const s of scans) {
+    for (let index = 0; index < scans.length; index += 1) {
+        const s = scans[index];
         const date = s.scan_date ? new Date(s.scan_date).toLocaleString() : '—';
+        const serial = displayScanSerial(s.id, scans.length - index);
         html += `<tr>
-            <td style="font-weight:600;">#${s.id}</td>
+            <td style="font-weight:600;">${serial}</td>
             <td style="font-size:0.75rem;">${date}</td>
             <td><span class="asset-type">${s.mode || '—'}</span></td>
             <td>${escHtml(s.domain || '—')}</td>
@@ -2453,8 +2713,9 @@ function renderDbScans(scans) {
             <td style="color:var(--status-vulnerable);text-align:center;">${s.q_vuln || 0}</td>
             <td style="color:var(--status-critical);text-align:center;">${s.crit_vuln || 0}</td>
             <td>
-                <button class="btn" style="font-size:0.7rem;padding:2px 8px;" onclick="viewScan(${s.id})">View</button>
-                ${scans.length >= 2 ? `<button class="btn" style="font-size:0.7rem;padding:2px 8px;margin-left:4px;" onclick="compareScanPick(${s.id})">Compare</button>` : ''}
+                <button class="btn" style="font-size:0.7rem;padding:2px 8px;" onclick="viewScan('${escHtml(String(s.id))}')">View</button>
+                ${scans.length >= 2 ? `<button class="btn" style="font-size:0.7rem;padding:2px 8px;margin-left:4px;" onclick="compareScanPick('${escHtml(String(s.id))}')">Compare</button>` : ''}
+                <button class="btn" style="font-size:0.7rem;padding:2px 8px;margin-left:4px;" onclick="deleteScan('${escHtml(String(s.id))}')">Delete</button>
             </td>
         </tr>`;
     }
@@ -2464,7 +2725,7 @@ function renderDbScans(scans) {
 }
 
 async function viewScan(scanId) {
-    showLoading(`Loading scan #${scanId}...`);
+    showLoading(`Loading ${lookupScanSerial(scanId)}...`);
     try {
         const scan = await apiCall(`/api/db/scans/${scanId}`);
         if (scan.results_json) {
@@ -2474,7 +2735,7 @@ async function viewScan(scanId) {
                 renderP7Agility(assets);
             } catch { /* ignore parse failure */ }
         }
-        showToast(`Loaded scan #${scanId}`, 'info');
+        showToast(`Loaded ${lookupScanSerial(scanId)}`, 'info');
     } catch (e) {
         showToast('Failed to load scan: ' + e.message, 'error');
     } finally {
@@ -2493,11 +2754,11 @@ async function compareScanPick(scanId) {
 }
 
 async function compareTwoScans(a, b) {
-    showLoading(`Comparing scan #${a} vs #${b}...`);
+    showLoading(`Comparing ${lookupScanSerial(a)} vs ${lookupScanSerial(b)}...`);
     try {
         const delta = await apiCall(`/api/db/compare/${a}/${b}`);
         renderScanComparison(delta, a, b);
-        showToast(`Comparison ready: scan #${a} vs #${b}`, 'success');
+        showToast(`Comparison ready: ${lookupScanSerial(a)} vs ${lookupScanSerial(b)}`, 'success');
     } catch (e) {
         showToast('Comparison failed: ' + e.message, 'error');
     } finally {
@@ -2510,6 +2771,12 @@ function renderScanComparison(delta, idA, idB) {
     const a = delta.scan_a || {};
     const b = delta.scan_b || {};
     const d = delta.delta || {};
+    const labelA = lookupScanSerial(idA);
+    const labelB = lookupScanSerial(idB);
+    const newAssets = Array.isArray(delta.new_assets) ? delta.new_assets : [];
+    const removedAssets = Array.isArray(delta.removed_assets) ? delta.removed_assets : [];
+    const changedAssets = Array.isArray(delta.changed_assets) ? delta.changed_assets : [];
+    const regressions = Array.isArray(delta.regressions) ? delta.regressions : [];
 
     function diffBadge(val) {
         if (val > 0) return `<span style="color:var(--accent-green);font-weight:600;">+${val}</span>`;
@@ -2517,13 +2784,20 @@ function renderScanComparison(delta, idA, idB) {
         return `<span style="color:var(--text-dim);">0</span>`;
     }
 
+    function renderAssetList(items, emptyLabel, formatter) {
+        if (!items.length) {
+            return `<div class="empty-state"><div class="empty-state-desc">${emptyLabel}</div></div>`;
+        }
+        return `<table class="asset-table"><tbody>${items.map(formatter).join('')}</tbody></table>`;
+    }
+
     container.innerHTML = `
         <div style="margin-bottom:12px;display:flex;align-items:center;gap:12px;">
-            <strong style="color:var(--text-primary);">Scan #${idA} vs #${idB}</strong>
+            <strong style="color:var(--text-primary);">${labelA} vs ${labelB}</strong>
             <button class="btn" style="font-size:0.7rem;padding:2px 8px;" onclick="loadDbScans()">← Back to list</button>
         </div>
         <table class="asset-table"><thead><tr>
-            <th>Metric</th><th>Scan #${idA}</th><th>Scan #${idB}</th><th>Delta</th>
+            <th>Metric</th><th>${labelA}</th><th>${labelB}</th><th>Delta</th>
         </tr></thead><tbody>
             <tr><td>Total Assets</td><td>${a.total_assets || 0}</td><td>${b.total_assets || 0}</td><td>${diffBadge(d.total_assets || 0)}</td></tr>
             <tr><td>Avg Score</td><td>${a.avg_score || 0}</td><td>${b.avg_score || 0}</td><td>${diffBadge(d.avg_score || 0)}</td></tr>
@@ -2532,6 +2806,40 @@ function renderScanComparison(delta, idA, idB) {
             <tr><td style="color:var(--status-vulnerable)">Vulnerable</td><td>${a.q_vuln || 0}</td><td>${b.q_vuln || 0}</td><td>${diffBadge(d.q_vuln || 0)}</td></tr>
             <tr><td style="color:var(--status-critical)">Critical</td><td>${a.crit_vuln || 0}</td><td>${b.crit_vuln || 0}</td><td>${diffBadge(d.crit_vuln || 0)}</td></tr>
         </tbody></table>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(18rem,1fr));gap:1rem;margin-top:1rem;">
+            <div>
+                <div class="panel-title" style="margin-bottom:0.5rem;">New Assets</div>
+                ${renderAssetList(newAssets, 'No new assets detected.', (item) => `<tr><td>${escHtml(item.asset || item)}</td></tr>`)}
+            </div>
+            <div>
+                <div class="panel-title" style="margin-bottom:0.5rem;">Removed Assets</div>
+                ${renderAssetList(removedAssets, 'No removed assets detected.', (item) => `<tr><td>${escHtml(item.asset || item)}</td></tr>`)}
+            </div>
+            <div style="grid-column:1 / -1;">
+                <div class="panel-title" style="margin-bottom:0.5rem;">Changed Scores</div>
+                ${renderAssetList(changedAssets, 'No score changes detected.', (item) => `
+                    <tr>
+                        <td><strong>${escHtml(item.asset)}</strong></td>
+                        <td>Old: ${item.old}</td>
+                        <td>New: ${item.new}</td>
+                        <td>Delta: ${diffBadge(item.delta)}</td>
+                        <td>${escHtml(item.reason || `${item.old_status || 'UNKNOWN'} → ${item.new_status || 'UNKNOWN'}`)}</td>
+                    </tr>
+                `)}
+            </div>
+            <div style="grid-column:1 / -1;">
+                <div class="panel-title" style="margin-bottom:0.5rem;color:var(--status-critical);">Regressions</div>
+                ${renderAssetList(regressions, 'No regressions detected.', (item) => `
+                    <tr>
+                        <td><strong style="color:var(--status-critical);">${escHtml(item.asset)}</strong></td>
+                        <td>Old: ${item.old}</td>
+                        <td>New: ${item.new}</td>
+                        <td>Delta: <span style="color:var(--status-critical);font-weight:700;">${item.delta}</span></td>
+                        <td>${escHtml(item.reason || 'Score drop ≥ 5 detected')}</td>
+                    </tr>
+                `)}
+            </div>
+        </div>
     `;
 }
 
@@ -2580,6 +2888,9 @@ function renderPhase9(data) {
     const attest = data.attestation_summary || {};
     const registry = data.registry || {};
     const attestFull = data.attestation || {};
+    if (hasRenderableCbom(data.cbom)) {
+        latestCbomPayload = data.cbom;
+    }
 
     // KPI cards
     document.getElementById('p9Total').textContent = labels.total_assets || 0;
@@ -2700,40 +3011,89 @@ function renderPhase9Attestation(attestFull, summary) {
     const badge = document.getElementById('p9AttestBadge');
 
     const overallComp = summary.overallCompliance || 'UNKNOWN';
+    const overallTone = compliancePalette(overallComp);
     badge.textContent = overallComp;
-    badge.style.background = overallComp === 'COMPLIANT' ? 'rgba(0,255,136,0.12)' :
-        overallComp === 'PARTIALLY_COMPLIANT' ? 'rgba(255,170,0,0.12)' : 'rgba(255,71,87,0.12)';
-    badge.style.color = overallComp === 'COMPLIANT' ? 'var(--accent-green)' :
-        overallComp === 'PARTIALLY_COMPLIANT' ? '#D97706' : '#DC2626';
+    badge.style.background = overallTone.bg;
+    badge.style.color = overallTone.color;
 
-    const decls = attestFull?.attestation?.declarations || {};
+    const attestBody = attestFull?.attestation || {};
+    const decls = attestBody.declarations || {};
     const claims = decls.claims || [];
+    const labelClaims = attestBody.labelClaims || [];
+    const evidence = attestBody.evidence || {};
+    const cbomEvidence = evidence.cbom || {};
+    const signature = attestFull?.signature || {};
 
     let claimsHtml = '';
     for (const c of claims) {
-        const statusColor = c.complianceStatus === 'COMPLIANT' ? 'var(--accent-green)' :
-            c.complianceStatus === 'PARTIALLY_COMPLIANT' ? '#D97706' :
-            c.complianceStatus === 'NOT_APPLICABLE' ? 'var(--text-dim)' : '#DC2626';
         claimsHtml += `<tr>
             <td style="font-weight:600;">${c.id || ''}</td>
             <td style="max-width:240px;">${c.title || ''}</td>
-            <td><span style="color:${statusColor};font-weight:700;">${c.complianceStatus || ''}</span></td>
-            <td>${c.coverage || ''}</td>
-            <td style="font-size:0.75rem;color:var(--text-secondary);">${c.evidence || ''}</td>
+            <td>${renderToneBadge(c.complianceStatus || 'UNKNOWN', c.complianceStatus)}</td>
+            <td>${escHtml(c.coverage || '—')}</td>
+            <td style="font-size:0.75rem;color:var(--text-secondary);">${escHtml(c.evidence || '')}</td>
         </tr>`;
     }
 
     container.innerHTML = `
-        <div style="display:flex;gap:24px;margin-bottom:12px;font-size:0.82rem;">
-            <div><strong>Serial:</strong> <code style="font-size:0.72rem;">${summary.serialNumber || ''}</code></div>
-            <div><strong>Signed:</strong> <span style="color:${summary.signed ? 'var(--accent-green)' : '#DC2626'};">${summary.signed ? 'Ed25519 ✓' : 'No'}</span></div>
-            <div><strong>Valid Until:</strong> ${summary.validUntil ? new Date(summary.validUntil).toLocaleDateString() : '—'}</div>
-            <div><strong>Q-Safety:</strong> <span style="color:var(--accent-cyan);font-weight:700;">${summary.quantumSafetyScore || 0}/100</span></div>
-            <div><strong>Mode:</strong> <span style="color:#D97706;">${summary.dataMode || 'live'}</span></div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(11rem,1fr));gap:0.75rem;margin-bottom:1rem;">
+            <div style="background:rgba(255,255,255,0.03);border:0.0625rem solid var(--border-subtle);border-radius:0.75rem;padding:0.9rem;">
+                <div style="font-size:0.72rem;color:var(--text-secondary);margin-bottom:0.25rem;">CDXA Document</div>
+                <div style="font-size:1.05rem;font-weight:700;">CDXA ${escHtml(shortenDocumentId(summary.serialNumber, 'LATEST'))}</div>
+                <div style="font-size:0.76rem;color:var(--text-secondary);margin-top:0.35rem;">Issued ${escHtml(formatUiDateTime(summary.timestamp))}</div>
+            </div>
+            <div style="background:rgba(255,255,255,0.03);border:0.0625rem solid var(--border-subtle);border-radius:0.75rem;padding:0.9rem;">
+                <div style="font-size:0.72rem;color:var(--text-secondary);margin-bottom:0.25rem;">Signature</div>
+                <div style="font-size:1rem;font-weight:700;color:${summary.signed ? 'var(--accent-green)' : '#DC2626'};">${summary.signed ? escHtml(signature.algorithm || 'Ed25519') : 'Unsigned'}</div>
+                <div style="font-size:0.76rem;color:var(--text-secondary);margin-top:0.35rem;">Valid until ${escHtml(formatUiDateTime(summary.validUntil, false))}</div>
+            </div>
+            <div style="background:rgba(255,255,255,0.03);border:0.0625rem solid var(--border-subtle);border-radius:0.75rem;padding:0.9rem;">
+                <div style="font-size:0.72rem;color:var(--text-secondary);margin-bottom:0.25rem;">Coverage</div>
+                <div style="font-size:1rem;font-weight:700;">${escHtml(String(summary.totalAssets || 0))} assets</div>
+                <div style="font-size:0.76rem;color:var(--text-secondary);margin-top:0.35rem;">Q-Safety ${escHtml(String(summary.quantumSafetyScore || 0))}/100</div>
+            </div>
+            <div style="background:rgba(255,255,255,0.03);border:0.0625rem solid var(--border-subtle);border-radius:0.75rem;padding:0.9rem;">
+                <div style="font-size:0.72rem;color:var(--text-secondary);margin-bottom:0.25rem;">Evidence Link</div>
+                <div style="font-size:1rem;font-weight:700;">CBOM ${escHtml(shortenDocumentId(cbomEvidence.serialNumber, '—'))}</div>
+                <div style="font-size:0.76rem;color:var(--text-secondary);margin-top:0.35rem;">${escHtml(String(cbomEvidence.componentsCount || 0))} components • ${escHtml(String(summary.dataMode || 'live').toUpperCase())}</div>
+            </div>
         </div>
-        <table class="asset-table"><thead><tr>
-            <th>FIPS Standard</th><th>Title</th><th>Status</th><th>Coverage</th><th>Evidence</th>
-        </tr></thead><tbody>${claimsHtml}</tbody></table>
+        <div style="padding:0.9rem 1rem;border-radius:0.75rem;background:rgba(255,255,255,0.03);border:0.0625rem solid var(--border-subtle);margin-bottom:1rem;">
+            <div style="font-size:0.78rem;color:var(--text-secondary);margin-bottom:0.35rem;">Executive Summary</div>
+            <div style="font-size:0.85rem;line-height:1.6;">${escHtml(summary.executiveSummary || attestBody.subject?.executiveSummary || 'No attestation summary available.')}</div>
+        </div>
+        <div style="overflow-x:auto;margin-bottom:1rem;">
+            <table class="asset-table"><thead><tr>
+                <th>FIPS Standard</th><th>Title</th><th>Status</th><th>Coverage</th><th>Evidence</th>
+            </tr></thead><tbody>${claimsHtml || '<tr><td colspan="5" style="text-align:center;color:var(--text-secondary);padding:1rem 0.75rem;">No compliance claims available.</td></tr>'}</tbody></table>
+        </div>
+        <div style="overflow-x:auto;margin-bottom:1rem;">
+            <table class="asset-table">
+                <thead><tr>
+                    <th>Endpoint</th><th>Tier</th><th>Standards</th><th>Algorithms</th><th>Gap</th><th>Fix Window</th>
+                </tr></thead>
+                <tbody>
+                    ${labelClaims.length ? labelClaims.map((claim) => `
+                        <tr>
+                            <td>
+                                <div style="font-weight:600;">${escHtml(`${claim.hostname || 'unknown'}:${claim.port || 443}`)}</div>
+                                <div style="font-size:0.72rem;color:var(--text-secondary);">${escHtml(claim.certificationTitle || 'Certification pending')}</div>
+                            </td>
+                            <td>${renderToneBadge(`Tier ${claim.tier || 3}`, claim.tier === 1 ? 'COMPLIANT' : claim.tier === 2 ? 'PARTIALLY_COMPLIANT' : 'NON_COMPLIANT')}</td>
+                            <td style="font-size:0.76rem;">${escHtml((claim.nistStandards || []).join(', ') || '—')}</td>
+                            <td style="font-size:0.76rem;">${escHtml((claim.algorithmsInUse || []).join(', ') || '—')}</td>
+                            <td style="color:var(--text-secondary);">${escHtml(claim.primaryGap || '—')}</td>
+                            <td>${claim.fixInDays ? `${escHtml(String(claim.fixInDays))} days` : '—'}</td>
+                        </tr>
+                    `).join('') : '<tr><td colspan="6" style="text-align:center;color:var(--text-secondary);padding:1rem 0.75rem;">No endpoint attestation details available.</td></tr>'}
+                </tbody>
+            </table>
+        </div>
+        <div style="display:flex;flex-wrap:wrap;gap:0.6rem;font-size:0.78rem;color:var(--text-secondary);">
+            <div style="padding:0.55rem 0.75rem;border-radius:999px;background:rgba(255,255,255,0.03);border:0.0625rem solid var(--border-subtle);">Classification: ${escHtml(evidence.classificationSource || '—')}</div>
+            <div style="padding:0.55rem 0.75rem;border-radius:999px;background:rgba(255,255,255,0.03);border:0.0625rem solid var(--border-subtle);">Labeling: ${escHtml(evidence.labelingSource || '—')}</div>
+            <div style="padding:0.55rem 0.75rem;border-radius:999px;background:rgba(255,255,255,0.03);border:0.0625rem solid var(--border-subtle);">Regression: ${escHtml(evidence.regressionSource || '—')}</div>
+        </div>
     `;
 }
 
@@ -2943,10 +3303,21 @@ function hasRenderableCbom(payload) {
 
 async function fetchCbomLatest(forceRefresh = false) {
     if (!forceRefresh && latestCbomPayload && hasRenderableCbom(latestCbomPayload)) return latestCbomPayload;
+    if (!forceRefresh && hasRenderableCbom(phase9Data?.cbom)) {
+        latestCbomPayload = phase9Data.cbom;
+        return latestCbomPayload;
+    }
     latestCbomPayload = await apiCall(buildContextEndpoint('/api/cbom/latest', forceRefresh));
+    if (!hasRenderableCbom(latestCbomPayload) && hasRenderableCbom(phase9Data?.cbom)) {
+        latestCbomPayload = phase9Data.cbom;
+        return latestCbomPayload;
+    }
     if (!forceRefresh && !hasRenderableCbom(latestCbomPayload)) {
         // Recover from stale/empty cache snapshots by forcing a fresh backend pipeline read.
         latestCbomPayload = await apiCall(buildContextEndpoint('/api/cbom/latest', true));
+        if (!hasRenderableCbom(latestCbomPayload) && hasRenderableCbom(phase9Data?.cbom)) {
+            latestCbomPayload = phase9Data.cbom;
+        }
     }
     return latestCbomPayload;
 }
@@ -3610,12 +3981,20 @@ function cipherColor(name) {
 }
 
 function deriveCbomMetrics(cbom) {
-    const components = (cbom.components || []).filter((component) => component.type === 'cryptographic-asset');
+    const components = (cbom.components || []).filter((component) => (
+        component.type === 'cryptographic-asset'
+        && component.cryptoProperties?.assetType === 'protocol'
+    ));
     const summary = cbom.pqcSummary || {};
     const distribution = summary.distribution || {};
     const keyLengthDistribution = {};
     const tlsDistribution = {};
     const cipherUsage = [];
+    const componentByRef = new Map();
+
+    components.forEach((component) => {
+        componentByRef.set(component['bom-ref'], component);
+    });
 
     components.forEach((component) => {
         const algorithmProperties = component.cryptoProperties?.algorithmProperties || {};
@@ -3633,22 +4012,57 @@ function deriveCbomMetrics(cbom) {
         else cipherUsage.push({ name: cipherName, count: 1 });
     });
 
+    const vulnerabilities = (cbom.vulnerabilities || []).map((entry) => {
+        const affectedRef = entry?.affects?.[0]?.ref || '';
+        const affectedComponent = componentByRef.get(affectedRef) || {};
+        const properties = entry.properties || [];
+        const previousValue = extractNamedProperty(properties, 'qarmor:previousValue');
+        const currentValue = extractNamedProperty(properties, 'qarmor:currentValue');
+        return {
+            asset: affectedComponent.name || affectedRef || 'Unknown asset',
+            category: (extractNamedProperty(properties, 'qarmor:category') || 'finding').replace(/_/g, ' '),
+            urgency: String(extractNamedProperty(properties, 'qarmor:urgency') || entry?.ratings?.[0]?.severity || 'info').toUpperCase(),
+            description: entry.description || '',
+            recommendation: entry.recommendation || '',
+            evidence: previousValue || currentValue ? `${previousValue || '—'} -> ${currentValue || '—'}` : '',
+        };
+    });
+
     return {
         stats: [
-            { label: 'Total Applications', val: summary.totalAssets ?? components.length },
-            { label: 'Sites Surveyed', val: summary.totalAssets ?? components.length },
-            { label: 'Active Certificates', val: components.length },
+            { label: 'Protected Assets', val: summary.totalAssets ?? components.length },
+            { label: 'Q-Safety Score', val: summary.quantumSafetyScore ?? 0 },
+            { label: 'Average Agility', val: summary.averageAgilityScore ?? 0 },
             { label: 'Weak Cryptography', val: (distribution.quantumVulnerable || 0) + (distribution.criticallyVulnerable || 0), warn: true },
-            { label: 'Certificate Issues', val: (cbom.vulnerabilities || []).length },
+            { label: 'Open Findings', val: vulnerabilities.length, warn: vulnerabilities.length > 0 },
         ],
+        serialNumber: cbom.serialNumber || '',
+        generatedAt: cbom.metadata?.timestamp || '',
+        dataMode: extractNamedProperty(cbom.metadata?.properties, 'qarmor:dataMode') || cbom.dataMode || 'live',
+        contentHash: extractNamedProperty(cbom.metadata?.properties, 'qarmor:contentHash'),
+        averages: {
+            best: summary.averageBestScore ?? 0,
+            worst: summary.averageWorstScore ?? 0,
+            agility: summary.averageAgilityScore ?? 0,
+        },
+        distribution,
         keyLengthDistribution,
         tlsDistribution,
         cipherUsage: cipherUsage.sort((a, b) => b.count - a.count).slice(0, 8),
+        vulnerabilities,
         applications: components.map((component) => ({
             name: component.name,
-            key_length: component.cryptoProperties?.algorithmProperties?.keySize || '—',
-            cipher: [component.cryptoProperties?.algorithmProperties?.keyExchange, component.cryptoProperties?.algorithmProperties?.authentication].filter(Boolean).join(' / ') || '—',
-            certificate_authority: (component.nistStandardRefs || []).join(', ') || component.provenance?.source || '—',
+            tlsVersion: component.cryptoProperties?.protocolProperties?.version || '—',
+            keyExchange: component.cryptoProperties?.algorithmProperties?.keyExchange || '—',
+            authentication: component.cryptoProperties?.algorithmProperties?.authentication || '—',
+            keyLength: component.cryptoProperties?.algorithmProperties?.keySize || '—',
+            status: component.pqcAssessment?.status || 'UNKNOWN',
+            typicalScore: component.pqcAssessment?.typicalScore ?? '—',
+            worstScore: component.pqcAssessment?.worstCaseScore ?? '—',
+            agilityScore: component.pqcAssessment?.agilityScore ?? '—',
+            standards: (component.nistStandardRefs || []).map((ref) => ref.replace(/^nist-/i, '').toUpperCase()).join(', ') || '—',
+            summary: component.pqcAssessment?.summary || '—',
+            action: component.pqcAssessment?.recommendedAction || '—',
         })),
     };
 }
@@ -3684,9 +4098,46 @@ async function initCBOM(forceRefresh = false) {
         const cbom = await fetchCbomLatest(forceRefresh);
         latestCbomPayload = cbom;
         const metrics = deriveCbomMetrics(cbom);
+        const distributionCards = [
+            { label: 'Fully Quantum Safe', value: metrics.distribution.fullyQuantumSafe || 0, tone: 'FULLY_QUANTUM_SAFE' },
+            { label: 'Transition Ready', value: metrics.distribution.pqcTransition || 0, tone: 'PQC_TRANSITION' },
+            { label: 'Quantum Vulnerable', value: metrics.distribution.quantumVulnerable || 0, tone: 'NON_COMPLIANT' },
+            { label: 'Critical', value: metrics.distribution.criticallyVulnerable || 0, tone: 'CRITICALLY_VULNERABLE' },
+            { label: 'Unknown', value: metrics.distribution.unknown || 0, tone: 'UNKNOWN' },
+        ];
         mount.innerHTML = `
             ${bannerHtml(cbom)}
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(12rem,1fr));gap:0.75rem;margin-bottom:1rem;">
+                <div style="background:rgba(255,255,255,0.03);border:0.0625rem solid var(--border-subtle);border-radius:0.75rem;padding:1rem;">
+                    <div style="font-size:0.72rem;color:var(--text-secondary);margin-bottom:0.35rem;">CBOM Document</div>
+                    <div style="font-size:1.15rem;font-weight:700;">CBOM ${escHtml(shortenDocumentId(metrics.serialNumber, 'LATEST'))}</div>
+                    <div style="font-size:0.78rem;color:var(--text-secondary);margin-top:0.35rem;">Generated ${escHtml(formatUiDateTime(metrics.generatedAt))}</div>
+                </div>
+                <div style="background:rgba(255,255,255,0.03);border:0.0625rem solid var(--border-subtle);border-radius:0.75rem;padding:1rem;">
+                    <div style="font-size:0.72rem;color:var(--text-secondary);margin-bottom:0.35rem;">Scan Context</div>
+                    <div style="display:flex;flex-wrap:wrap;gap:0.45rem;margin-bottom:0.45rem;">
+                        ${renderToneBadge(String(metrics.dataMode || 'live').toUpperCase(), metrics.dataMode === 'demo' ? 'PARTIALLY_COMPLIANT' : 'COMPLIANT')}
+                    </div>
+                    <div style="font-size:0.78rem;color:var(--text-secondary);">Hash ${escHtml(shortenDocumentId(metrics.contentHash, '—'))}</div>
+                </div>
+                <div style="background:rgba(255,255,255,0.03);border:0.0625rem solid var(--border-subtle);border-radius:0.75rem;padding:1rem;">
+                    <div style="font-size:0.72rem;color:var(--text-secondary);margin-bottom:0.35rem;">Posture Summary</div>
+                    <div style="font-size:0.9rem;line-height:1.6;">
+                        <div><strong>Average Best:</strong> ${escHtml(String(metrics.averages.best || 0))}</div>
+                        <div><strong>Average Worst:</strong> ${escHtml(String(metrics.averages.worst || 0))}</div>
+                        <div><strong>Agility:</strong> ${escHtml(String(metrics.averages.agility || 0))}/15</div>
+                    </div>
+                </div>
+            </div>
             <div id="cbomStats" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(9rem,1fr));gap:0.75rem;margin-bottom:1.25rem"></div>
+            <div style="display:flex;flex-wrap:wrap;gap:0.55rem;margin-bottom:1.1rem;">
+                ${distributionCards.map((item) => `
+                    <div style="display:flex;align-items:center;gap:0.5rem;padding:0.55rem 0.75rem;border-radius:999px;background:rgba(255,255,255,0.03);border:0.0625rem solid var(--border-subtle);">
+                        ${renderToneBadge(item.label, item.tone)}
+                        <strong style="font-size:0.85rem;">${escHtml(String(item.value))}</strong>
+                    </div>
+                `).join('')}
+            </div>
             <div class="viz-grid viz-grid--two" style="margin-bottom:1rem">
                 <div style="background:rgba(255,255,255,0.03);border:0.0625rem solid var(--border-subtle);border-radius:0.75rem;padding:1rem">
                     <div style="font-size:0.8rem;font-weight:600;margin-bottom:0.75rem">Key Length Distribution</div>
@@ -3705,8 +4156,17 @@ async function initCBOM(forceRefresh = false) {
                 <div style="font-size:0.8rem;font-weight:600;margin-bottom:0.75rem">Cipher Suite Usage</div>
                 <div id="cipherBars"></div>
             </div>
+            <div style="background:rgba(255,255,255,0.03);border:0.0625rem solid var(--border-subtle);border-radius:0.75rem;padding:1rem;margin-bottom:1rem">
+                <div style="display:flex;justify-content:space-between;align-items:center;gap:1rem;margin-bottom:0.75rem;">
+                    <div style="font-size:0.8rem;font-weight:600;">Priority Findings</div>
+                    <div style="font-size:0.75rem;color:var(--text-secondary);">${metrics.vulnerabilities.length} flagged issues</div>
+                </div>
+                <div style="overflow-x:auto">
+                    <table id="cbomFindingsTable" class="asset-table"></table>
+                </div>
+            </div>
             <div style="background:rgba(255,255,255,0.03);border:0.0625rem solid var(--border-subtle);border-radius:0.75rem;padding:1rem">
-                <div style="font-size:0.8rem;font-weight:600;margin-bottom:0.75rem">Per-Application Detail</div>
+                <div style="font-size:0.8rem;font-weight:600;margin-bottom:0.75rem">Asset Inventory</div>
                 <div style="overflow-x:auto">
                     <table id="cbomTable" style="width:100%;border-collapse:collapse;font-size:0.8rem"></table>
                 </div>
@@ -3794,21 +4254,56 @@ async function initCBOM(forceRefresh = false) {
             tableNode.innerHTML = `
                 <thead>
                     <tr style="border-bottom:0.0625rem solid var(--border-subtle)">
-                        ${['Application', 'Key Length', 'Cipher', 'Certificate Authority'].map((header) => `<th style="padding:0.5rem 0.75rem;text-align:left;font-size:0.75rem;color:var(--text-secondary);font-weight:600">${header}</th>`).join('')}
+                        ${['Asset', 'TLS', 'Key Exchange', 'Signature', 'Status', 'Worst', 'Agility', 'Standards', 'Next Step'].map((header) => `<th style="padding:0.5rem 0.75rem;text-align:left;font-size:0.75rem;color:var(--text-secondary);font-weight:600">${header}</th>`).join('')}
                     </tr>
                 </thead>
                 <tbody>
                     ${metrics.applications.map((app) => {
-                        const rowClass = /DES|CBC|RC4/i.test(app.cipher) ? 'cbom-table-row-weak' : /MLKEM/i.test(app.cipher) ? 'cbom-table-row-pqc' : 'cbom-table-row-normal';
+                        const rowClass = /DES|CBC|RC4/i.test(`${app.keyExchange} ${app.authentication}`) ? 'cbom-table-row-weak' : /MLKEM|ML-KEM|MLDSA|ML-DSA|SLH/i.test(`${app.keyExchange} ${app.authentication}`) ? 'cbom-table-row-pqc' : 'cbom-table-row-normal';
                         return `<tr class="${rowClass}">
-                            <td style="padding:0.5rem 0.75rem;font-size:0.8rem">${escHtml(app.name || '')}</td>
-                            <td style="padding:0.5rem 0.75rem;font-size:0.8rem">${escHtml(String(app.key_length || '—'))}</td>
-                            <td style="padding:0.5rem 0.75rem;font-size:0.8rem;color:${cipherColor(app.cipher || '')}">${escHtml(app.cipher || '—')}</td>
-                            <td style="padding:0.5rem 0.75rem;font-size:0.8rem">${escHtml(app.certificate_authority || '—')}</td>
+                            <td style="padding:0.5rem 0.75rem;font-size:0.8rem">
+                                <div style="font-weight:600;">${escHtml(app.name || '')}</div>
+                                <div style="font-size:0.72rem;color:var(--text-secondary);">${escHtml(app.summary || '—')}</div>
+                            </td>
+                            <td style="padding:0.5rem 0.75rem;font-size:0.8rem">${escHtml(String(app.tlsVersion || '—'))}</td>
+                            <td style="padding:0.5rem 0.75rem;font-size:0.8rem;color:${cipherColor(app.keyExchange || '')}">${escHtml(app.keyExchange || '—')}</td>
+                            <td style="padding:0.5rem 0.75rem;font-size:0.8rem">${escHtml(app.authentication || '—')}</td>
+                            <td style="padding:0.5rem 0.75rem;font-size:0.8rem">${renderToneBadge(String(app.status || 'UNKNOWN').replace(/_/g, ' '), app.status)}</td>
+                            <td style="padding:0.5rem 0.75rem;font-size:0.8rem;font-weight:700;">${escHtml(String(app.worstScore || '—'))}</td>
+                            <td style="padding:0.5rem 0.75rem;font-size:0.8rem">${escHtml(String(app.agilityScore || '—'))}/15</td>
+                            <td style="padding:0.5rem 0.75rem;font-size:0.78rem">${escHtml(app.standards || '—')}</td>
+                            <td style="padding:0.5rem 0.75rem;font-size:0.78rem;color:var(--text-secondary);max-width:18rem;">${escHtml(app.action || '—')}</td>
                         </tr>`;
                     }).join('')}
                 </tbody>
             `;
+        }
+
+        const findingsNode = document.getElementById('cbomFindingsTable');
+        if (findingsNode) {
+            findingsNode.innerHTML = metrics.vulnerabilities.length
+                ? `
+                    <thead><tr>
+                        <th>Asset</th><th>Category</th><th>Urgency</th><th>What Changed</th><th>Recommended Action</th>
+                    </tr></thead>
+                    <tbody>
+                        ${metrics.vulnerabilities.map((item) => `
+                            <tr>
+                                <td>${escHtml(item.asset || '—')}</td>
+                                <td>${escHtml(item.category || '—')}</td>
+                                <td>${renderToneBadge(item.urgency || 'INFO', item.urgency)}</td>
+                                <td>
+                                    <div>${escHtml(item.description || '—')}</div>
+                                    ${item.evidence ? `<div style="font-size:0.72rem;color:var(--text-secondary);margin-top:0.25rem;">${escHtml(item.evidence)}</div>` : ''}
+                                </td>
+                                <td style="color:var(--text-secondary);">${escHtml(item.recommendation || '—')}</td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                `
+                : `
+                    <tbody><tr><td colspan="5" style="text-align:center;color:var(--text-secondary);padding:1rem 0.75rem;">No open CBOM findings for this scan.</td></tr></tbody>
+                `;
         }
     } catch (error) {
         renderVizError('cbomVizMount', 'CBOM analytics failed', error.message, 'initCBOM(true)');
@@ -3962,7 +4457,7 @@ async function initTimeline(forceRefresh = false) {
         ]);
         latestHistoryPayload = historyPayload;
         const scans = (historyPayload.scans || historyPayload || []).slice(-6);
-        const labels = scans.map((scan) => scan.label || `Scan ${scan.id || ''}`);
+        const labels = scans.map((scan, index) => scanSerialForPosition(scans, scan, index));
         const scores = scans.map((scan) => scan.enterprise_score ?? scan.cyber_rating ?? Math.round((scan.avg_score || 0) * 10) ?? 0);
 
         enterpriseMount.innerHTML = `${bannerHtml(historyPayload)}<div class="timeline-chart-wrap" style="position:relative;height:13.75rem"><canvas id="enterpriseTimelineChart"></canvas></div>`;
@@ -4173,6 +4668,12 @@ switchTab = function switchTabInteractive(tabName) {
     if (tabName === 'history' && !vizInit.timeline && document.getElementById('historyContent')?.style.display !== 'none') {
         vizInit.timeline = true;
         initTimeline();
+    }
+
+    if (tabName === 'history' && document.getElementById('historyContent')?.style.display === 'none') {
+        loadLiveHistory().catch((error) => {
+            console.warn('Automatic history load failed:', error);
+        });
     }
 };
 

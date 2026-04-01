@@ -8,10 +8,13 @@ import time
 from typing import Any
 
 import requests
+from dotenv import load_dotenv
 from fastapi import HTTPException, Request, status
 from jose import JWTError, jwt
 
 logger = logging.getLogger("qarmor.auth")
+
+load_dotenv()
 
 SUPABASE_URL = os.environ.get(
     "SUPABASE_URL",

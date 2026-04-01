@@ -13,6 +13,7 @@ from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
+from dotenv import load_dotenv
 from starlette.middleware.gzip import GZipMiddleware
 import logging
 
@@ -63,6 +64,7 @@ from backend.scanner.label_registry import (
     registry_router, append_all_labels, auto_revoke_on_scan,
 )
 from backend.scanner import database as db
+from backend import scan_history
 from backend.auth import (
     AuthConfigurationError,
     get_current_user,
@@ -72,6 +74,8 @@ from backend.auth import (
 )
 
 logger = logging.getLogger("qarmor.app")
+
+load_dotenv()
 
 app = FastAPI(
     title="Q-ARMOR",
@@ -134,9 +138,10 @@ PUBLIC_PREFIXES = (
 
 
 def _is_public_path(path: str) -> bool:
-    if path in PUBLIC_ROUTES:
+    normalized = path if path == "/" else path.rstrip("/")
+    if normalized in PUBLIC_ROUTES:
         return True
-    return any(path.startswith(prefix) for prefix in PUBLIC_PREFIXES)
+    return any(normalized.startswith(prefix) for prefix in PUBLIC_PREFIXES)
 
 
 @app.middleware("http")
@@ -368,6 +373,111 @@ def _latest_scan_payload_from_assets(
         "demo_mode": demo_mode,
         "data_notice": _data_notice(demo_mode),
     }
+
+
+def _request_user_id(request: Request | None) -> str | None:
+    if request is None:
+        return None
+    try:
+        user = get_current_user(request)
+    except Exception:
+        return None
+    user_id = str(user.get("sub") or "").strip()
+    return user_id or None
+
+
+def _save_user_scan_history(
+    request: Request | None,
+    results: list[dict[str, Any]] | None,
+    *,
+    mode: str,
+    domain: str = "",
+    details: dict[str, Any] | None = None,
+) -> int | None:
+    user_id = _request_user_id(request)
+    if not user_id or not results or not scan_history.is_configured():
+        return None
+    try:
+        return scan_history.save_scan_history(
+            user_id=user_id,
+            results=results,
+            mode=mode,
+            domain=domain,
+            details=details,
+        )
+    except Exception:
+        logger.exception("Failed to persist user scan history")
+        return None
+
+
+def _history_scans_for_request(request: Request | None, limit: int = 20) -> list[dict[str, Any]]:
+    user_id = _request_user_id(request)
+    if not user_id or not scan_history.is_configured():
+        return []
+    return scan_history.list_scans(user_id, limit)
+
+
+def _history_scan_for_request(request: Request | None, scan_id: str) -> dict[str, Any] | None:
+    user_id = _request_user_id(request)
+    if not user_id or not scan_history.is_configured():
+        return None
+    return scan_history.load_scan(user_id, scan_id)
+
+
+def _history_latest_scan_for_request(request: Request | None) -> dict[str, Any] | None:
+    user_id = _request_user_id(request)
+    if not user_id or not scan_history.is_configured():
+        return None
+    return scan_history.load_latest_scan(user_id)
+
+
+def _history_asset_for_request(request: Request | None, asset: str, limit: int = 10) -> list[dict[str, Any]]:
+    user_id = _request_user_id(request)
+    if not user_id or not scan_history.is_configured():
+        return []
+    return scan_history.get_asset_history(user_id, asset, limit)
+
+
+def _compare_scan_summaries(scan_a: dict[str, Any], scan_b: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "scan_a": {
+            "id": scan_a.get("id"),
+            "total": scan_a.get("total_assets", 0),
+            "avg": scan_a.get("avg_score", 0),
+            "fully_safe": scan_a.get("fully_safe", 0),
+            "pqc_trans": scan_a.get("pqc_trans", 0),
+            "q_vuln": scan_a.get("q_vuln", 0),
+            "crit_vuln": scan_a.get("crit_vuln", 0),
+            "total_assets": scan_a.get("total_assets", 0),
+            "avg_score": scan_a.get("avg_score", 0),
+        },
+        "scan_b": {
+            "id": scan_b.get("id"),
+            "total": scan_b.get("total_assets", 0),
+            "avg": scan_b.get("avg_score", 0),
+            "fully_safe": scan_b.get("fully_safe", 0),
+            "pqc_trans": scan_b.get("pqc_trans", 0),
+            "q_vuln": scan_b.get("q_vuln", 0),
+            "crit_vuln": scan_b.get("crit_vuln", 0),
+            "total_assets": scan_b.get("total_assets", 0),
+            "avg_score": scan_b.get("avg_score", 0),
+        },
+        "delta": {
+            "total_assets": int(scan_b.get("total_assets", 0) or 0) - int(scan_a.get("total_assets", 0) or 0),
+            "avg_score": round(float(scan_b.get("avg_score", 0) or 0) - float(scan_a.get("avg_score", 0) or 0), 1),
+            "fully_safe": int(scan_b.get("fully_safe", 0) or 0) - int(scan_a.get("fully_safe", 0) or 0),
+            "pqc_trans": int(scan_b.get("pqc_trans", 0) or 0) - int(scan_a.get("pqc_trans", 0) or 0),
+            "q_vuln": int(scan_b.get("q_vuln", 0) or 0) - int(scan_a.get("q_vuln", 0) or 0),
+            "crit_vuln": int(scan_b.get("crit_vuln", 0) or 0) - int(scan_a.get("crit_vuln", 0) or 0),
+        },
+    }
+
+
+def _history_compare_for_request(request: Request | None, scan_a: str, scan_b: str) -> dict[str, Any] | None:
+    user_id = _request_user_id(request)
+    if not user_id or not scan_history.is_configured():
+        return None
+    return scan_history.compare_scans(user_id, scan_a, scan_b)
 
 
 def _infer_cipher_bits(cipher_name: str, fallback: Any = 0) -> int:
@@ -1093,16 +1203,28 @@ async def auth_admin_check(request: Request, user: dict[str, Any] = Depends(requ
 
 
 @app.get("/api/scan/demo")
-async def run_demo_scan():
+async def run_demo_scan(request: Request):
     """Run a demo scan with simulated bank assets."""
     global _latest_scan
     _latest_scan = generate_demo_results()
+    summary = json.loads(_latest_scan.model_dump_json())
+    history_scan_id = _save_user_scan_history(
+        request,
+        list(summary.get("results", [])),
+        mode="demo",
+        domain="",
+        details=summary,
+    )
+    if history_scan_id:
+        summary["scan_id"] = history_scan_id
     _cache_pipeline_from_scan_summary(_latest_scan, mode="demo", domain="")
+    if history_scan_id:
+        _latest_scan = ScanSummary.model_validate(summary)
     return _latest_scan.model_dump(mode="json")
 
 
 @app.post("/api/scan/domain/{domain}")
-async def scan_domain(domain: str):
+async def scan_domain(domain: str, request: Request):
     """Scan a real domain for cryptographic configuration."""
     global _latest_scan, _latest_trimode
     import asyncio
@@ -1156,6 +1278,17 @@ async def scan_domain(domain: str):
         )
         _latest_trimode = fingerprints
         _latest_scan = _build_legacy_scan_summary_from_fingerprints(fingerprints)
+        summary = json.loads(_latest_scan.model_dump_json())
+        history_scan_id = _save_user_scan_history(
+            request,
+            list(summary.get("results", [])),
+            mode="live",
+            domain=domain,
+            details=summary,
+        )
+        if history_scan_id:
+            summary["scan_id"] = history_scan_id
+            _latest_scan = ScanSummary.model_validate(summary)
         _cache_pipeline_from_scan_summary(_latest_scan, mode="live", domain=domain)
         return _latest_scan.model_dump(mode="json")
 
@@ -1719,7 +1852,7 @@ async def discover_domain(domain: str, include_ct: bool = True, include_port_sca
 # ── Phase 7: PQC Classification + Agility + Database ────────────────────────
 
 @app.get("/api/classify/demo")
-async def classify_demo():
+async def classify_demo(request: Request):
     """Classify all 21 demo assets with Phase 7 tri-mode classifier.
 
     Returns ClassifiedAsset list with best/typical/worst Q-Scores,
@@ -1751,10 +1884,30 @@ async def classify_demo():
         results_json=json.dumps(classified),
         classified_assets=classified,
     )
+    history_scan_id = _save_user_scan_history(
+        request,
+        classified,
+        mode="demo",
+        domain="bank.com",
+        details={
+            "mode": "demo",
+            "scan_id": scan_id,
+            "total_assets": len(classified),
+            "avg_worst_score": avg,
+            "summary": {
+                "fully_quantum_safe": counts.get("FULLY_QUANTUM_SAFE", 0),
+                "pqc_transition": counts.get("PQC_TRANSITION", 0),
+                "quantum_vulnerable": counts.get("QUANTUM_VULNERABLE", 0),
+                "critically_vulnerable": counts.get("CRITICALLY_VULNERABLE", 0),
+                "unknown": counts.get("UNKNOWN", 0),
+            },
+            "assets": classified,
+        },
+    )
 
     return JSONResponse(content={
         "mode": "demo",
-        "scan_id": scan_id,
+        "scan_id": history_scan_id or scan_id,
         "total_assets": len(classified),
         "avg_worst_score": avg,
         "summary": {
@@ -1780,7 +1933,7 @@ async def classify_single(hostname: str, port: int = 443):
 
 
 @app.post("/api/classify/live/{domain}")
-async def classify_live(domain: str):
+async def classify_live(domain: str, request: Request):
     """Discover + tri-mode probe + Phase 7 classify a live domain."""
     try:
         import asyncio
@@ -1824,11 +1977,32 @@ async def classify_live(domain: str):
             results_json=json.dumps(classified),
             classified_assets=classified,
         )
+        history_scan_id = _save_user_scan_history(
+            request,
+            classified,
+            mode="live",
+            domain=domain,
+            details={
+                "mode": "live",
+                "domain": domain,
+                "scan_id": scan_id,
+                "total_assets": len(classified),
+                "avg_worst_score": avg,
+                "summary": {
+                    "fully_quantum_safe": counts.get("FULLY_QUANTUM_SAFE", 0),
+                    "pqc_transition": counts.get("PQC_TRANSITION", 0),
+                    "quantum_vulnerable": counts.get("QUANTUM_VULNERABLE", 0),
+                    "critically_vulnerable": counts.get("CRITICALLY_VULNERABLE", 0),
+                    "unknown": counts.get("UNKNOWN", 0),
+                },
+                "assets": classified,
+            },
+        )
 
         return JSONResponse(content={
             "mode": "live",
             "domain": domain,
-            "scan_id": scan_id,
+            "scan_id": history_scan_id or scan_id,
             "total_assets": len(classified),
             "avg_worst_score": avg,
             "summary": {
@@ -1850,23 +2024,36 @@ async def classify_live(domain: str):
 # ── Phase 7: Database Endpoints ──────────────────────────────────────────────
 
 @app.get("/api/db/scans")
-async def db_list_scans(limit: int = 20):
+async def db_list_scans(request: Request, limit: int = 20):
     """List recent scans from the database."""
+    history_scans = _history_scans_for_request(request, limit)
+    if history_scans:
+        return JSONResponse(content=history_scans)
     return JSONResponse(content=db.list_scans(limit))
 
 
 @app.get("/api/db/scans/{scan_id}")
-async def db_get_scan(scan_id: int):
+async def db_get_scan(scan_id: str, request: Request):
     """Load a specific scan by ID."""
-    scan = db.load_scan(scan_id)
+    history_scan = _history_scan_for_request(request, scan_id)
+    if history_scan:
+        return JSONResponse(content=history_scan)
+    try:
+        sqlite_scan_id = int(scan_id)
+    except (TypeError, ValueError):
+        sqlite_scan_id = None
+    scan = db.load_scan(sqlite_scan_id) if sqlite_scan_id is not None else None
     if not scan:
         raise HTTPException(status_code=404, detail="Scan not found")
     return JSONResponse(content=scan)
 
 
 @app.get("/api/db/scans/latest")
-async def db_latest_scan():
+async def db_latest_scan(request: Request):
     """Load the most recent scan."""
+    history_scan = _history_latest_scan_for_request(request)
+    if history_scan:
+        return JSONResponse(content=history_scan)
     scan = db.load_latest_scan()
     if not scan:
         raise HTTPException(status_code=404, detail="No scans in database")
@@ -1874,7 +2061,7 @@ async def db_latest_scan():
 
 
 @app.get("/api/scan/latest")
-async def api_scan_latest(mode: str | None = None, domain: str | None = None, refresh: bool = False):
+async def api_scan_latest(request: Request, mode: str | None = None, domain: str | None = None, refresh: bool = False):
     """Return the latest stored scan with parsed asset data."""
     if mode is not None or domain or refresh:
         requested_mode = _normalize_pipeline_mode(mode)
@@ -1911,6 +2098,18 @@ async def api_scan_latest(mode: str | None = None, domain: str | None = None, re
             "asset_scores": assets,
         })
 
+    history_scan = _history_latest_scan_for_request(request)
+    if history_scan:
+        assets = _parse_scan_results(history_scan)
+        payload = _latest_scan_payload_from_assets(
+            assets,
+            scan_id=history_scan.get("id"),
+            mode=history_scan.get("mode", "live"),
+            domain=history_scan.get("domain", ""),
+        )
+        payload["average_q_score"] = history_scan.get("avg_score", payload["average_q_score"])
+        return JSONResponse(content={**history_scan, **payload})
+
     latest_scan = db.load_latest_scan()
     if latest_scan:
         assets = _parse_scan_results(latest_scan)
@@ -1936,8 +2135,31 @@ async def api_scan_latest(mode: str | None = None, domain: str | None = None, re
 
 
 @app.get("/api/history")
-async def api_history(limit: int = 6):
+async def api_history(request: Request, limit: int = 6):
     """Return recent scans enriched with parsed assets for charting."""
+    history_scans = _history_scans_for_request(request, limit)
+    if history_scans:
+        ordered = list(reversed(history_scans))
+        detailed = []
+        for scan in ordered:
+            full_scan = _history_scan_for_request(request, str(scan["id"])) or scan
+            assets = _parse_scan_results(full_scan)
+            detailed.append({
+                **full_scan,
+                "assets": assets,
+                "asset_scores": assets,
+                "enterprise_score": int(round(float(full_scan.get("avg_score", 0) or 0) * 10)),
+                "label": f"Scan #{full_scan.get('id', '?')}",
+            })
+
+        latest_mode = str(detailed[-1].get("mode", "live")).lower() if detailed else "live"
+        demo_mode = latest_mode == "demo"
+        return JSONResponse(content={
+            "scans": detailed,
+            "demo_mode": demo_mode,
+            "data_notice": _data_notice(demo_mode),
+        })
+
     scans = db.list_scans(limit)
     if scans:
         ordered = list(reversed(scans))
@@ -1981,8 +2203,20 @@ async def api_history(limit: int = 6):
 
 
 @app.get("/api/compare/latest")
-async def api_compare_latest():
+async def api_compare_latest(request: Request):
     """Compare the two most recent scans."""
+    history_scans = _history_scans_for_request(request, limit=2)
+    if len(history_scans) >= 2:
+        latest = history_scans[0]
+        previous = history_scans[1]
+        result = _history_compare_for_request(request, str(previous["id"]), str(latest["id"])) or {}
+        if "error" in result:
+            raise HTTPException(status_code=404, detail=result["error"])
+        demo_mode = str(latest.get("mode", "live")).lower() == "demo"
+        result["demo_mode"] = demo_mode
+        result["data_notice"] = _data_notice(demo_mode)
+        return JSONResponse(content=result)
+
     scans = db.list_scans(limit=2)
     if len(scans) < 2:
         raise HTTPException(status_code=404, detail="Need at least two scans to compare")
@@ -1999,19 +2233,79 @@ async def api_compare_latest():
     return JSONResponse(content=result)
 
 
+@app.get("/api/compare")
+async def api_compare(scan_a: str, scan_b: str, request: Request):
+    """Compare any two stored scans."""
+    history_result = _history_compare_for_request(request, scan_a, scan_b)
+    if history_result:
+        if "error" in history_result:
+            raise HTTPException(status_code=404, detail=history_result["error"])
+        demo_mode = str(history_result.get("scan_b", {}).get("mode", "live")).lower() == "demo"
+        history_result["demo_mode"] = demo_mode
+        history_result["data_notice"] = _data_notice(demo_mode)
+        return JSONResponse(content=history_result)
+
+    try:
+        sqlite_scan_a = int(scan_a)
+        sqlite_scan_b = int(scan_b)
+    except (TypeError, ValueError):
+        raise HTTPException(status_code=404, detail="Scan not found")
+
+    result = db.compare_scans(sqlite_scan_a, sqlite_scan_b)
+    if "error" in result:
+        raise HTTPException(status_code=404, detail=result["error"])
+    return JSONResponse(content=result)
+
+
 @app.get("/api/db/compare/{scan_a}/{scan_b}")
-async def db_compare_scans(scan_a: int, scan_b: int):
+async def db_compare_scans(scan_a: str, scan_b: str, request: Request):
     """Compare two scans and return delta analysis."""
-    result = db.compare_scans(scan_a, scan_b)
+    history_result = _history_compare_for_request(request, scan_a, scan_b)
+    if history_result:
+        if "error" in history_result:
+            raise HTTPException(status_code=404, detail=history_result["error"])
+        return JSONResponse(content=history_result)
+    try:
+        sqlite_scan_a = int(scan_a)
+        sqlite_scan_b = int(scan_b)
+    except (TypeError, ValueError):
+        raise HTTPException(status_code=404, detail="Scan not found")
+    result = db.compare_scans(sqlite_scan_a, sqlite_scan_b)
     if "error" in result:
         raise HTTPException(status_code=404, detail=result["error"])
     return JSONResponse(content=result)
 
 
 @app.get("/api/db/asset/{hostname}/history")
-async def db_asset_history(hostname: str, limit: int = 10):
+async def db_asset_history(hostname: str, request: Request, limit: int = 10):
     """Get score history for a specific asset."""
+    history = _history_asset_for_request(request, hostname, limit)
+    if history:
+        return JSONResponse(content=history)
     return JSONResponse(content=db.get_asset_history(hostname, limit))
+
+
+@app.delete("/api/db/scans/{scan_id}")
+async def db_delete_scan(scan_id: str, request: Request):
+    """Delete a stored scan and its related asset rows."""
+    user_id = _request_user_id(request)
+    if user_id and scan_history.is_configured():
+        deleted = scan_history.delete_scan(user_id, scan_id)
+        if not deleted:
+            raise HTTPException(status_code=404, detail="Scan not found")
+        return JSONResponse(content={"status": "deleted", "scan_id": scan_id})
+
+    try:
+        sqlite_scan_id = int(scan_id)
+    except (TypeError, ValueError):
+        raise HTTPException(status_code=404, detail="Scan not found")
+
+    scan = db.load_scan(sqlite_scan_id)
+    if not scan:
+        raise HTTPException(status_code=404, detail="Scan not found")
+    with db._connect() as conn:
+        conn.execute("DELETE FROM scans WHERE id=?", (sqlite_scan_id,))
+    return JSONResponse(content={"status": "deleted", "scan_id": scan_id})
 
 
 @app.get("/api/db/labels")
@@ -2047,7 +2341,7 @@ async def db_get_alerts(scan_id: int | None = None, severity: str | None = None,
 # ── Phase 8+9: Full Pipeline (Regression + Labels + CBOM v2 + Attestation) ──
 
 @app.get("/api/phase9/demo")
-async def phase9_demo_pipeline():
+async def phase9_demo_pipeline(request: Request):
     """Run the complete Phase 8+9 demo pipeline.
 
     Pipeline steps:
@@ -2113,12 +2407,19 @@ async def phase9_demo_pipeline():
         "attestation": cdxa,
         "attestation_summary": get_attestation_summary(cdxa),
     }
+    _save_user_scan_history(
+        request,
+        [a.model_dump(mode="json") for a in current_assets],
+        mode="demo",
+        domain="bank.com",
+        details=_latest_phase9,
+    )
 
     return JSONResponse(content=_latest_phase9)
 
 
 @app.post("/api/phase9/live/{domain}")
-async def phase9_live_pipeline(domain: str):
+async def phase9_live_pipeline(domain: str, request: Request):
     """Run the complete Phase 8+9 pipeline on a LIVE domain.
 
     Pipeline:
@@ -2234,7 +2535,7 @@ async def phase9_live_pipeline(domain: str):
             "version": "9.0.0",
             "mode": "live",
             "domain": domain,
-            "scan_id": scan_id,
+            "scan_id": history_scan_id or scan_id,
             "steps_completed": 8,
             "classification": {
                 "total_assets": len(current_assets),
@@ -2250,6 +2551,15 @@ async def phase9_live_pipeline(domain: str):
             "attestation": cdxa,
             "attestation_summary": get_attestation_summary(cdxa),
         }
+        history_scan_id = _save_user_scan_history(
+            request,
+            classified_dicts,
+            mode="live",
+            domain=domain,
+            details=_latest_phase9,
+        )
+        if history_scan_id:
+            _latest_phase9["scan_id"] = history_scan_id
 
         return JSONResponse(content=_latest_phase9)
 
@@ -2393,6 +2703,13 @@ async def api_cbom_latest(mode: str = "demo", domain: str | None = None):
     pipeline_result = await _ensure_latest_pipeline_result(mode=mode, domain=domain)
     demo_mode = pipeline_result.get("mode") == "demo"
     cbom = dict(pipeline_result.get("cbom", {}))
+    if not cbom:
+        if _latest_phase9.get("cbom"):
+            cbom = dict(_latest_phase9.get("cbom", {}))
+        elif _latest_classified:
+            cbom = generate_cbom_v2(_latest_classified, regression=None, data_mode="demo" if demo_mode else "live")
+        elif _latest_scan:
+            cbom = generate_cbom(_latest_scan)
     cbom["demo_mode"] = demo_mode
     cbom["data_notice"] = _data_notice(demo_mode)
     return JSONResponse(content=cbom)
