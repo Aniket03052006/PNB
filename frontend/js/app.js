@@ -154,6 +154,7 @@ let trimodeData = null;
 let historyData = null;
 let classifiedData = null;
 let dbScansData = null;
+let compareScanOptions = [];
 let phase9Data = null;
 let nistMatrixData = null;
 let enterpriseDashboardData = null;
@@ -2677,12 +2678,25 @@ function renderP7Agility(assets) {
 
 async function loadDbScans() {
     try {
-        const scans = await apiCall('/api/db/scans?limit=20');
+        const [scans, compareOptions] = await Promise.all([
+            apiCall('/api/db/scans?limit=20'),
+            apiCall('/api/scans?limit=20').catch(() => []),
+        ]);
         dbScansData = scans;
+        compareScanOptions = Array.isArray(compareOptions) && compareOptions.length ? compareOptions : scans;
         renderDbScans(scans);
     } catch (e) {
         console.warn('Failed to load DB scans:', e);
     }
+}
+
+function formatCompareScanOption(scan, index, total) {
+    if (!scan) return '';
+    const serial = displayScanSerial(scan.id, total - index);
+    const created = formatUiDateTime(scan.created_at || scan.scan_date, false);
+    const domain = scan.domain || scan.mode || 'scan';
+    const score = Number(scan.overall_score ?? scan.avg_score ?? 0) || 0;
+    return `${serial} • ${created} • Score ${score} • ${domain}`;
 }
 
 function renderDbScans(scans) {
@@ -2691,6 +2705,13 @@ function renderDbScans(scans) {
         container.innerHTML = '<div class="empty-state"><div class="empty-state-desc">No scans stored yet</div></div>';
         return;
     }
+
+    const compareOptions = Array.isArray(compareScanOptions) && compareScanOptions.length ? compareScanOptions : scans;
+    const optionHtml = compareOptions.map((scan, index) => `
+        <option value="${escHtml(String(scan.id))}">${escHtml(formatCompareScanOption(scan, index, compareOptions.length))}</option>
+    `).join('');
+    const defaultA = compareOptions[1]?.id ?? compareOptions[0]?.id ?? '';
+    const defaultB = compareOptions[0]?.id ?? '';
 
     let html = `<table class="asset-table"><thead><tr>
         <th>Serial</th><th>Date</th><th>Mode</th><th>Domain</th><th>Assets</th><th>Avg Score</th>
@@ -2721,7 +2742,28 @@ function renderDbScans(scans) {
     }
 
     html += '</tbody></table>';
-    container.innerHTML = html;
+    container.innerHTML = `
+        <div style="display:grid;gap:0.9rem;">
+            <div style="display:flex;flex-wrap:wrap;gap:0.75rem;align-items:end;padding:0.85rem 1rem;border:1px solid var(--border-subtle);border-radius:var(--radius-md);background:var(--bg-tertiary);">
+                <div style="display:grid;gap:0.3rem;flex:1 1 16rem;min-width:12rem;">
+                    <label for="compareScanA" style="font-size:0.74rem;font-weight:700;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.04em;">Scan A</label>
+                    <select id="compareScanA" class="scan-input">${optionHtml}</select>
+                </div>
+                <div style="display:grid;gap:0.3rem;flex:1 1 16rem;min-width:12rem;">
+                    <label for="compareScanB" style="font-size:0.74rem;font-weight:700;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.04em;">Scan B</label>
+                    <select id="compareScanB" class="scan-input">${optionHtml}</select>
+                </div>
+                <button class="btn btn-primary" type="button" onclick="compareSelectedScans()">Compare Scans</button>
+            </div>
+            <div id="p7CompareResultContainer"></div>
+            <div style="overflow-x:auto;">${html}</div>
+        </div>
+    `;
+
+    const compareScanA = document.getElementById('compareScanA');
+    const compareScanB = document.getElementById('compareScanB');
+    if (compareScanA && defaultA !== '') compareScanA.value = String(defaultA);
+    if (compareScanB && defaultB !== '') compareScanB.value = String(defaultB);
 }
 
 async function viewScan(scanId) {
@@ -2750,13 +2792,31 @@ async function compareScanPick(scanId) {
     }
     const other = dbScansData.find(s => s.id !== scanId);
     if (!other) { showToast('No other scan to compare against', 'info'); return; }
+    const compareScanA = document.getElementById('compareScanA');
+    const compareScanB = document.getElementById('compareScanB');
+    if (compareScanA) compareScanA.value = String(other.id);
+    if (compareScanB) compareScanB.value = String(scanId);
     await compareTwoScans(scanId, other.id);
+}
+
+async function compareSelectedScans() {
+    const scanA = document.getElementById('compareScanA')?.value;
+    const scanB = document.getElementById('compareScanB')?.value;
+    if (!scanA || !scanB) {
+        showToast('Select both scans before comparing', 'info');
+        return;
+    }
+    if (String(scanA) === String(scanB)) {
+        showToast('Choose two different scans', 'info');
+        return;
+    }
+    await compareTwoScans(scanA, scanB);
 }
 
 async function compareTwoScans(a, b) {
     showLoading(`Comparing ${lookupScanSerial(a)} vs ${lookupScanSerial(b)}...`);
     try {
-        const delta = await apiCall(`/api/db/compare/${a}/${b}`);
+        const delta = await apiCall(`/api/compare?scan_a=${encodeURIComponent(a)}&scan_b=${encodeURIComponent(b)}`);
         renderScanComparison(delta, a, b);
         showToast(`Comparison ready: ${lookupScanSerial(a)} vs ${lookupScanSerial(b)}`, 'success');
     } catch (e) {
@@ -2767,20 +2827,21 @@ async function compareTwoScans(a, b) {
 }
 
 function renderScanComparison(delta, idA, idB) {
-    const container = document.getElementById('p7DbScansContainer');
+    const container = document.getElementById('p7CompareResultContainer');
+    if (!container) return;
     const a = delta.scan_a || {};
     const b = delta.scan_b || {};
     const d = delta.delta || {};
     const labelA = lookupScanSerial(idA);
     const labelB = lookupScanSerial(idB);
-    const newAssets = Array.isArray(delta.new_assets) ? delta.new_assets : [];
-    const removedAssets = Array.isArray(delta.removed_assets) ? delta.removed_assets : [];
-    const changedAssets = Array.isArray(delta.changed_assets) ? delta.changed_assets : [];
+    const newAssets = Array.isArray(delta.new_assets) ? delta.new_assets : (Array.isArray(delta.new) ? delta.new.map((asset) => ({ asset })) : []);
+    const removedAssets = Array.isArray(delta.removed_assets) ? delta.removed_assets : (Array.isArray(delta.removed) ? delta.removed.map((asset) => ({ asset })) : []);
+    const changedAssets = Array.isArray(delta.changed_assets) ? delta.changed_assets : (Array.isArray(delta.changed) ? delta.changed : []);
     const regressions = Array.isArray(delta.regressions) ? delta.regressions : [];
 
     function diffBadge(val) {
         if (val > 0) return `<span style="color:var(--accent-green);font-weight:600;">+${val}</span>`;
-        if (val < 0) return `<span style="color:var(--accent-pink);font-weight:600;">${val}</span>`;
+        if (val < 0) return `<span style="color:var(--status-critical);font-weight:600;">${val}</span>`;
         return `<span style="color:var(--text-dim);">0</span>`;
     }
 
@@ -2792,15 +2853,15 @@ function renderScanComparison(delta, idA, idB) {
     }
 
     container.innerHTML = `
-        <div style="margin-bottom:12px;display:flex;align-items:center;gap:12px;">
+        <div style="margin-bottom:12px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
             <strong style="color:var(--text-primary);">${labelA} vs ${labelB}</strong>
-            <button class="btn" style="font-size:0.7rem;padding:2px 8px;" onclick="loadDbScans()">← Back to list</button>
+            <button class="btn" style="font-size:0.7rem;padding:2px 8px;" onclick="document.getElementById('p7CompareResultContainer').innerHTML=''">Clear</button>
         </div>
-        <table class="asset-table"><thead><tr>
+        <table class="asset-table" style="margin-bottom:1rem;"><thead><tr>
             <th>Metric</th><th>${labelA}</th><th>${labelB}</th><th>Delta</th>
         </tr></thead><tbody>
-            <tr><td>Total Assets</td><td>${a.total_assets || 0}</td><td>${b.total_assets || 0}</td><td>${diffBadge(d.total_assets || 0)}</td></tr>
-            <tr><td>Avg Score</td><td>${a.avg_score || 0}</td><td>${b.avg_score || 0}</td><td>${diffBadge(d.avg_score || 0)}</td></tr>
+            <tr><td>Total Assets</td><td>${a.total_assets || a.total || 0}</td><td>${b.total_assets || b.total || 0}</td><td>${diffBadge(d.total_assets || 0)}</td></tr>
+            <tr><td>Avg Score</td><td>${a.avg_score || a.avg || 0}</td><td>${b.avg_score || b.avg || 0}</td><td>${diffBadge(d.avg_score || 0)}</td></tr>
             <tr><td style="color:var(--status-safe)">Fully Safe</td><td>${a.fully_safe || 0}</td><td>${b.fully_safe || 0}</td><td>${diffBadge(d.fully_safe || 0)}</td></tr>
             <tr><td style="color:var(--status-transition)">PQC Transition</td><td>${a.pqc_trans || 0}</td><td>${b.pqc_trans || 0}</td><td>${diffBadge(d.pqc_trans || 0)}</td></tr>
             <tr><td style="color:var(--status-vulnerable)">Vulnerable</td><td>${a.q_vuln || 0}</td><td>${b.q_vuln || 0}</td><td>${diffBadge(d.q_vuln || 0)}</td></tr>
@@ -2820,8 +2881,8 @@ function renderScanComparison(delta, idA, idB) {
                 ${renderAssetList(changedAssets, 'No score changes detected.', (item) => `
                     <tr>
                         <td><strong>${escHtml(item.asset)}</strong></td>
-                        <td>Old: ${item.old}</td>
-                        <td>New: ${item.new}</td>
+                        <td>Old: ${item.old_score ?? item.old ?? '-'}</td>
+                        <td>New: ${item.new_score ?? item.new ?? '-'}</td>
                         <td>Delta: ${diffBadge(item.delta)}</td>
                         <td>${escHtml(item.reason || `${item.old_status || 'UNKNOWN'} → ${item.new_status || 'UNKNOWN'}`)}</td>
                     </tr>
@@ -2832,8 +2893,8 @@ function renderScanComparison(delta, idA, idB) {
                 ${renderAssetList(regressions, 'No regressions detected.', (item) => `
                     <tr>
                         <td><strong style="color:var(--status-critical);">${escHtml(item.asset)}</strong></td>
-                        <td>Old: ${item.old}</td>
-                        <td>New: ${item.new}</td>
+                        <td>Old: ${item.old_score ?? item.old ?? '-'}</td>
+                        <td>New: ${item.new_score ?? item.new ?? '-'}</td>
                         <td>Delta: <span style="color:var(--status-critical);font-weight:700;">${item.delta}</span></td>
                         <td>${escHtml(item.reason || 'Score drop ≥ 5 detected')}</td>
                     </tr>

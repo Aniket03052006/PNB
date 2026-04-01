@@ -480,6 +480,87 @@ def _history_compare_for_request(request: Request | None, scan_a: str, scan_b: s
     return scan_history.compare_scans(user_id, scan_a, scan_b)
 
 
+def _normalize_compare_payload(result: dict[str, Any], *, demo_mode: bool | None = None) -> dict[str, Any]:
+    if not isinstance(result, dict):
+        return result
+
+    new_assets = result.get("new_assets")
+    removed_assets = result.get("removed_assets")
+    changed_assets = result.get("changed_assets")
+
+    normalized = dict(result)
+    def _change_reason(item: dict[str, Any]) -> str | None:
+        if item.get("reason"):
+            return item.get("reason")
+        old_status = item.get("old_status")
+        new_status = item.get("new_status")
+        if old_status and new_status and old_status != new_status:
+            return f"Status changed from {old_status} to {new_status}"
+        return None
+
+    normalized["new"] = (
+        result.get("new")
+        if isinstance(result.get("new"), list)
+        else [item.get("asset", item) if isinstance(item, dict) else item for item in (new_assets or [])]
+    )
+    normalized["removed"] = (
+        result.get("removed")
+        if isinstance(result.get("removed"), list)
+        else [item.get("asset", item) if isinstance(item, dict) else item for item in (removed_assets or [])]
+    )
+    normalized["changed"] = (
+        result.get("changed")
+        if isinstance(result.get("changed"), list)
+        else [
+            {
+                "asset": item.get("asset"),
+                "old_score": item.get("old_score", item.get("old", item.get("old_worst", 0))),
+                "new_score": item.get("new_score", item.get("new", item.get("new_worst", 0))),
+                "delta": item.get("delta", 0),
+                "old_status": item.get("old_status"),
+                "new_status": item.get("new_status"),
+                "reason": _change_reason(item),
+            }
+            for item in (changed_assets or [])
+            if isinstance(item, dict)
+        ]
+    )
+
+    if not isinstance(new_assets, list):
+        normalized["new_assets"] = [{"asset": asset} for asset in normalized["new"]]
+    if not isinstance(removed_assets, list):
+        normalized["removed_assets"] = [{"asset": asset} for asset in normalized["removed"]]
+    if not isinstance(changed_assets, list):
+        normalized["changed_assets"] = list(normalized["changed"])
+    else:
+        normalized["changed_assets"] = [
+            {
+                **item,
+                "reason": _change_reason(item),
+            }
+            if isinstance(item, dict) else item
+            for item in changed_assets
+        ]
+
+    raw_regressions = result.get("regressions") or [
+        item for item in normalized["changed"]
+        if isinstance(item, dict) and float(item.get("delta", 0) or 0) <= -5
+    ]
+    normalized["regressions"] = [
+        {
+            **item,
+            "reason": item.get("reason") or _change_reason(item) or "Score drop ≥ 5 detected",
+        }
+        if isinstance(item, dict) else item
+        for item in raw_regressions
+    ]
+
+    if demo_mode is not None:
+        normalized["demo_mode"] = demo_mode
+        normalized["data_notice"] = _data_notice(demo_mode)
+    return normalized
+
+
 def _infer_cipher_bits(cipher_name: str, fallback: Any = 0) -> int:
     if fallback:
         try:
@@ -2032,6 +2113,39 @@ async def db_list_scans(request: Request, limit: int = 20):
     return JSONResponse(content=db.list_scans(limit))
 
 
+@app.get("/api/scans")
+@app.get("/scans")
+async def api_list_scans(request: Request, limit: int = 20):
+    """Return recent scans for scan selection and comparison."""
+    get_current_user(request)
+    history_scans = _history_scans_for_request(request, limit)
+    if history_scans:
+        return JSONResponse(content=[
+            {
+                "id": scan.get("id"),
+                "created_at": scan.get("scan_date"),
+                "overall_score": scan.get("avg_score", 0),
+                "mode": scan.get("mode", "live"),
+                "domain": scan.get("domain", ""),
+                "total_assets": scan.get("total_assets", 0),
+            }
+            for scan in history_scans
+        ])
+
+    sqlite_scans = db.list_scans(limit)
+    return JSONResponse(content=[
+        {
+            "id": scan.get("id"),
+            "created_at": scan.get("scan_date"),
+            "overall_score": scan.get("avg_score", 0),
+            "mode": scan.get("mode", "live"),
+            "domain": scan.get("domain", ""),
+            "total_assets": scan.get("total_assets", 0),
+        }
+        for scan in sqlite_scans
+    ])
+
+
 @app.get("/api/db/scans/{scan_id}")
 async def db_get_scan(scan_id: str, request: Request):
     """Load a specific scan by ID."""
@@ -2213,9 +2327,7 @@ async def api_compare_latest(request: Request):
         if "error" in result:
             raise HTTPException(status_code=404, detail=result["error"])
         demo_mode = str(latest.get("mode", "live")).lower() == "demo"
-        result["demo_mode"] = demo_mode
-        result["data_notice"] = _data_notice(demo_mode)
-        return JSONResponse(content=result)
+        return JSONResponse(content=_normalize_compare_payload(result, demo_mode=demo_mode))
 
     scans = db.list_scans(limit=2)
     if len(scans) < 2:
@@ -2228,22 +2340,20 @@ async def api_compare_latest(request: Request):
         raise HTTPException(status_code=404, detail=result["error"])
 
     demo_mode = str(latest.get("mode", "demo")).lower() == "demo"
-    result["demo_mode"] = demo_mode
-    result["data_notice"] = _data_notice(demo_mode)
-    return JSONResponse(content=result)
+    return JSONResponse(content=_normalize_compare_payload(result, demo_mode=demo_mode))
 
 
+@app.get("/compare")
 @app.get("/api/compare")
 async def api_compare(scan_a: str, scan_b: str, request: Request):
     """Compare any two stored scans."""
+    get_current_user(request)
     history_result = _history_compare_for_request(request, scan_a, scan_b)
     if history_result:
         if "error" in history_result:
             raise HTTPException(status_code=404, detail=history_result["error"])
         demo_mode = str(history_result.get("scan_b", {}).get("mode", "live")).lower() == "demo"
-        history_result["demo_mode"] = demo_mode
-        history_result["data_notice"] = _data_notice(demo_mode)
-        return JSONResponse(content=history_result)
+        return JSONResponse(content=_normalize_compare_payload(history_result, demo_mode=demo_mode))
 
     try:
         sqlite_scan_a = int(scan_a)
@@ -2254,7 +2364,8 @@ async def api_compare(scan_a: str, scan_b: str, request: Request):
     result = db.compare_scans(sqlite_scan_a, sqlite_scan_b)
     if "error" in result:
         raise HTTPException(status_code=404, detail=result["error"])
-    return JSONResponse(content=result)
+    demo_mode = str(result.get("scan_b", {}).get("mode", "demo")).lower() == "demo"
+    return JSONResponse(content=_normalize_compare_payload(result, demo_mode=demo_mode))
 
 
 @app.get("/api/db/compare/{scan_a}/{scan_b}")
@@ -2273,7 +2384,7 @@ async def db_compare_scans(scan_a: str, scan_b: str, request: Request):
     result = db.compare_scans(sqlite_scan_a, sqlite_scan_b)
     if "error" in result:
         raise HTTPException(status_code=404, detail=result["error"])
-    return JSONResponse(content=result)
+    return JSONResponse(content=_normalize_compare_payload(result))
 
 
 @app.get("/api/db/asset/{hostname}/history")

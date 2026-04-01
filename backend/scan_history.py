@@ -457,7 +457,7 @@ def get_assets(scan_id: str) -> dict[str, dict[str, Any]]:
                     str(row[0]): {
                         "score": int(row[1] or 0),
                         "status": str(row[2] or "UNKNOWN"),
-                        "metadata": row[3] or {},
+                        "metadata": json.loads(row[3]) if isinstance(row[3], str) else (row[3] or {}),
                     }
                     for row in rows
                 }
@@ -511,24 +511,31 @@ def compare_scans(user_id: str, scan_a_id: str, scan_b_id: str) -> dict[str, Any
         "new_assets": [],
         "removed_assets": [],
         "changed_assets": [],
+        "new": [],
+        "removed": [],
+        "changed": [],
         "regressions": [],
     }
 
     for asset in sorted(set(assets_b) - set(assets_a)):
-        results["new_assets"].append({
+        item = {
             "asset": asset,
             "score": assets_b[asset]["score"],
             "status": assets_b[asset]["status"],
             "metadata": assets_b[asset]["metadata"],
-        })
+        }
+        results["new_assets"].append(item)
+        results["new"].append(asset)
 
     for asset in sorted(set(assets_a) - set(assets_b)):
-        results["removed_assets"].append({
+        item = {
             "asset": asset,
             "score": assets_a[asset]["score"],
             "status": assets_a[asset]["status"],
             "metadata": assets_a[asset]["metadata"],
-        })
+        }
+        results["removed_assets"].append(item)
+        results["removed"].append(asset)
 
     for asset in sorted(set(assets_a) & set(assets_b)):
         old_score = int(assets_a[asset]["score"] or 0)
@@ -542,10 +549,18 @@ def compare_scans(user_id: str, scan_a_id: str, scan_b_id: str) -> dict[str, Any
         old_tls = old_metadata.get("tls_version") or ((old_metadata.get("fingerprint") or {}).get("tls") or {}).get("version")
         new_tls = new_metadata.get("tls_version") or ((new_metadata.get("fingerprint") or {}).get("tls") or {}).get("version")
         if old_tls and new_tls and old_tls != new_tls:
-            reason = f"TLS changed from {old_tls} to {new_tls}"
+            reason = (
+                f"TLS downgraded from {old_tls} to {new_tls}"
+                if str(new_tls) < str(old_tls)
+                else f"TLS upgraded from {old_tls} to {new_tls}"
+            )
+        elif assets_a[asset]["status"] != assets_b[asset]["status"]:
+            reason = f"Status changed from {assets_a[asset]['status']} to {assets_b[asset]['status']}"
 
         change = {
             "asset": asset,
+            "old_score": old_score,
+            "new_score": new_score,
             "old": old_score,
             "new": new_score,
             "delta": new_score - old_score,
@@ -556,14 +571,27 @@ def compare_scans(user_id: str, scan_a_id: str, scan_b_id: str) -> dict[str, Any
             "new_metadata": new_metadata,
         }
         results["changed_assets"].append(change)
+        results["changed"].append({
+            "asset": asset,
+            "old_score": old_score,
+            "new_score": new_score,
+            "delta": new_score - old_score,
+            "old_status": assets_a[asset]["status"],
+            "new_status": assets_b[asset]["status"],
+            "reason": reason,
+        })
 
         if change["delta"] <= -5:
             results["regressions"].append({
                 "asset": asset,
+                "old_score": old_score,
+                "new_score": new_score,
                 "old": old_score,
                 "new": new_score,
                 "delta": change["delta"],
                 "reason": reason,
+                "old_status": assets_a[asset]["status"],
+                "new_status": assets_b[asset]["status"],
             })
 
     return results
