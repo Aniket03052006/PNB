@@ -1,0 +1,459 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Secure sign in for the Q-ARMOR quantum cryptographic scanner dashboard.">
+    <title>Q-ARMOR | Authentication</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;600;700;800;900&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --maroon-900: #52001f;
+            --maroon-700: #7b0030;
+            --maroon-500: #a31e49;
+            --gold-500: #fec800;
+            --gold-200: #ffe8a3;
+            --ink-900: #171717;
+            --ink-700: #4b5563;
+            --ink-500: #6b7280;
+            --surface: #f7f3ef;
+            --panel: rgba(255, 255, 255, 0.84);
+            --line: rgba(123, 0, 48, 0.14);
+            --success: #166534;
+            --danger: #b91c1c;
+            --shadow: 0 32px 80px rgba(82, 0, 31, 0.18);
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            min-height: 100vh;
+            font-family: "Inter", sans-serif;
+            color: var(--ink-900);
+            background:
+                radial-gradient(circle at top left, rgba(254, 200, 0, 0.22), transparent 28%),
+                radial-gradient(circle at bottom right, rgba(163, 30, 73, 0.2), transparent 32%),
+                linear-gradient(135deg, #f7f3ef 0%, #fffaf6 48%, #f4ece6 100%);
+        }
+
+        .layout {
+            min-height: 100vh;
+            display: grid;
+            grid-template-columns: 1.1fr 0.9fr;
+        }
+
+        .hero {
+            padding: 64px 56px;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            background:
+                linear-gradient(160deg, rgba(82, 0, 31, 0.96), rgba(123, 0, 48, 0.88)),
+                var(--maroon-900);
+            color: #fff8f1;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .hero::before,
+        .hero::after {
+            content: "";
+            position: absolute;
+            border-radius: 999px;
+            opacity: 0.2;
+            pointer-events: none;
+        }
+
+        .hero::before {
+            width: 360px;
+            height: 360px;
+            top: -120px;
+            right: -80px;
+            background: radial-gradient(circle, var(--gold-500), transparent 70%);
+        }
+
+        .hero::after {
+            width: 460px;
+            height: 460px;
+            bottom: -240px;
+            left: -140px;
+            background: radial-gradient(circle, rgba(255, 255, 255, 0.28), transparent 70%);
+        }
+
+        .brand {
+            position: relative;
+            z-index: 1;
+        }
+
+        .brand-mark {
+            display: inline-flex;
+            align-items: center;
+            gap: 12px;
+            padding: 10px 16px;
+            border: 1px solid rgba(255, 255, 255, 0.16);
+            border-radius: 999px;
+            background: rgba(255, 255, 255, 0.08);
+            font-size: 0.82rem;
+            letter-spacing: 0.14em;
+            text-transform: uppercase;
+            font-weight: 700;
+        }
+
+        h1,
+        h2,
+        h3 {
+            font-family: "Public Sans", sans-serif;
+        }
+
+        .hero-copy {
+            position: relative;
+            z-index: 1;
+            max-width: 620px;
+        }
+
+        .hero-copy h1 {
+            margin: 22px 0 18px;
+            font-size: clamp(3rem, 5vw, 5.6rem);
+            line-height: 0.96;
+            letter-spacing: -0.06em;
+        }
+
+        .hero-copy p {
+            margin: 0;
+            max-width: 520px;
+            color: rgba(255, 248, 241, 0.82);
+            font-size: 1.02rem;
+            line-height: 1.75;
+        }
+
+        .hero-points {
+            position: relative;
+            z-index: 1;
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 16px;
+            margin-top: 36px;
+        }
+
+        .hero-card {
+            padding: 18px;
+            border-radius: 24px;
+            background: rgba(255, 255, 255, 0.08);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(16px);
+        }
+
+        .hero-card strong {
+            display: block;
+            font-family: "Public Sans", sans-serif;
+            font-size: 1.5rem;
+            margin-bottom: 8px;
+            color: var(--gold-500);
+        }
+
+        .hero-card span {
+            display: block;
+            font-size: 0.88rem;
+            color: rgba(255, 248, 241, 0.76);
+            line-height: 1.5;
+        }
+
+        .panel-wrap {
+            padding: 40px 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .panel {
+            width: min(100%, 520px);
+            padding: 36px;
+            border-radius: 32px;
+            background: var(--panel);
+            border: 1px solid rgba(255, 255, 255, 0.8);
+            box-shadow: var(--shadow);
+            backdrop-filter: blur(20px);
+        }
+
+        .panel-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+
+        .panel-header a {
+            color: var(--maroon-700);
+            font-weight: 600;
+            text-decoration: none;
+        }
+
+        .eyebrow {
+            font-size: 0.78rem;
+            letter-spacing: 0.18em;
+            text-transform: uppercase;
+            color: var(--maroon-500);
+            font-weight: 700;
+            margin-bottom: 8px;
+        }
+
+        .panel h2 {
+            margin: 0;
+            font-size: 2rem;
+            line-height: 1.05;
+            letter-spacing: -0.05em;
+        }
+
+        .panel-subtitle {
+            margin: 12px 0 0;
+            color: var(--ink-700);
+            line-height: 1.65;
+        }
+
+        .mode-switch {
+            display: inline-grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 8px;
+            width: 100%;
+            padding: 8px;
+            margin: 28px 0 18px;
+            border-radius: 20px;
+            background: rgba(123, 0, 48, 0.06);
+        }
+
+        .mode-switch button {
+            appearance: none;
+            border: none;
+            background: transparent;
+            color: var(--ink-700);
+            padding: 12px 14px;
+            border-radius: 14px;
+            font: inherit;
+            font-weight: 700;
+            cursor: pointer;
+            transition: background 160ms ease, color 160ms ease, transform 160ms ease;
+        }
+
+        .mode-switch button.active {
+            background: linear-gradient(135deg, var(--maroon-700), var(--maroon-500));
+            color: #fff;
+            transform: translateY(-1px);
+        }
+
+        form {
+            display: grid;
+            gap: 14px;
+        }
+
+        .field {
+            display: grid;
+            gap: 8px;
+        }
+
+        label {
+            font-size: 0.9rem;
+            font-weight: 600;
+            color: var(--ink-900);
+        }
+
+        input {
+            width: 100%;
+            padding: 14px 16px;
+            border: 1px solid var(--line);
+            border-radius: 16px;
+            background: rgba(255, 255, 255, 0.92);
+            font: inherit;
+            color: var(--ink-900);
+            transition: border-color 160ms ease, box-shadow 160ms ease;
+        }
+
+        input:focus {
+            outline: none;
+            border-color: rgba(123, 0, 48, 0.44);
+            box-shadow: 0 0 0 4px rgba(123, 0, 48, 0.08);
+        }
+
+        .helper {
+            font-size: 0.84rem;
+            color: var(--ink-500);
+            line-height: 1.5;
+        }
+
+        .submit {
+            margin-top: 6px;
+            appearance: none;
+            border: none;
+            border-radius: 18px;
+            padding: 15px 18px;
+            font: inherit;
+            font-weight: 800;
+            color: var(--maroon-900);
+            background: linear-gradient(135deg, var(--gold-500), var(--gold-200));
+            cursor: pointer;
+            box-shadow: 0 18px 30px rgba(254, 200, 0, 0.18);
+            transition: transform 160ms ease, box-shadow 160ms ease, opacity 160ms ease;
+        }
+
+        .submit:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 22px 34px rgba(254, 200, 0, 0.24);
+        }
+
+        .submit:disabled {
+            cursor: wait;
+            opacity: 0.7;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .status {
+            min-height: 24px;
+            margin-top: 14px;
+            font-size: 0.92rem;
+            font-weight: 600;
+        }
+
+        .status.success {
+            color: var(--success);
+        }
+
+        .status.error {
+            color: var(--danger);
+        }
+
+        .footnote {
+            margin-top: 18px;
+            padding-top: 18px;
+            border-top: 1px solid rgba(123, 0, 48, 0.1);
+            font-size: 0.84rem;
+            color: var(--ink-500);
+            line-height: 1.6;
+        }
+
+        .footnote code {
+            padding: 2px 6px;
+            border-radius: 999px;
+            background: rgba(123, 0, 48, 0.06);
+            color: var(--maroon-700);
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        @media (max-width: 1080px) {
+            .layout {
+                grid-template-columns: 1fr;
+            }
+
+            .hero {
+                min-height: auto;
+                padding: 44px 24px 28px;
+            }
+
+            .hero-points {
+                grid-template-columns: 1fr;
+            }
+
+            .panel-wrap {
+                padding: 20px 16px 40px;
+            }
+
+            .panel {
+                padding: 28px 20px;
+                border-radius: 28px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <main class="layout">
+        <section class="hero">
+            <div class="brand">
+                <div class="brand-mark">PNB Institutional Security Protocol</div>
+            </div>
+
+            <div class="hero-copy">
+                <div class="eyebrow" style="color: rgba(255, 248, 241, 0.72);">Secure Access</div>
+                <h1>Sign in before you scan.</h1>
+                <p>
+                    Q-ARMOR now validates every dashboard request with a Supabase-issued JWT. The browser can hold the publishable key, but authorization decisions still happen on the backend against your verified user and profile role.
+                </p>
+                <div class="hero-points">
+                    <div class="hero-card">
+                        <strong>JWT</strong>
+                        <span>Login stores the Supabase access token in <code>localStorage</code> under <code>token</code>.</span>
+                    </div>
+                    <div class="hero-card">
+                        <strong>JWKS</strong>
+                        <span>The backend verifies signatures using the same Supabase project URL and live signing keys.</span>
+                    </div>
+                    <div class="hero-card">
+                        <strong>RBAC</strong>
+                        <span>Admin-only actions resolve <code>profiles.role</code> from Postgres instead of trusting the JWT alone.</span>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section class="panel-wrap">
+            <div class="panel">
+                <div class="panel-header">
+                    <div>
+                        <div class="eyebrow">Q-ARMOR Access</div>
+                        <h2 id="authTitle">Welcome back</h2>
+                    </div>
+                    <a href="/">Back to site</a>
+                </div>
+
+                <p class="panel-subtitle" id="authSubtitle">
+                    Use your Supabase credentials to enter the scanner. We validate the token before any API action runs.
+                </p>
+
+                <div class="mode-switch" role="tablist" aria-label="Authentication mode">
+                    <button type="button" id="loginModeButton" class="active">Login</button>
+                    <button type="button" id="signupModeButton">Sign Up</button>
+                </div>
+
+                <form id="authForm" novalidate>
+                    <div class="field hidden" id="nameField">
+                        <label for="fullName">Full Name</label>
+                        <input id="fullName" name="fullName" type="text" placeholder="Aditi Sharma" autocomplete="name">
+                    </div>
+
+                    <div class="field">
+                        <label for="email">Email</label>
+                        <input id="email" name="email" type="email" placeholder="you@bank.com" autocomplete="email" required>
+                    </div>
+
+                    <div class="field">
+                        <label for="password">Password</label>
+                        <input id="password" name="password" type="password" placeholder="Minimum 6 characters" autocomplete="current-password" required>
+                    </div>
+
+                    <div class="helper" id="helperCopy">
+                        After login, open the browser console and run <code>localStorage.getItem("token")</code>. If you do not see a long JWT, stop and fix auth before scanning.
+                    </div>
+
+                    <button class="submit" id="submitButton" type="submit">Login to Dashboard</button>
+                </form>
+
+                <div class="status" id="authStatus" aria-live="polite"></div>
+
+                <div class="footnote">
+                    Signup stores the same access token when Supabase returns a session immediately. If your project requires email confirmation, you will see the confirmation message here and can log in after verifying your email.
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <script type="module" src="./js/supabase-client.js"></script>
+    <script type="module" src="./js/auth.js"></script>
+</body>
+</html>

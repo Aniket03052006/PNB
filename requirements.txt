@@ -15,8 +15,9 @@ rich>=13.0.0                  # Beautiful terminal tables and formatting
 
 # ── Phase 5: Enterprise Automation ───────────────────────────────────
 requests>=2.31.0              # Webhook notifications (Slack/Teams)
+python-jose[cryptography]==3.3.0
+psycopg2-binary==2.9.9
 
 # ── Production Deployment ────────────────────────────────────────────
 gunicorn>=22.0.0              # Production WSGI/ASGI server (optional)
 python-multipart==0.0.22      # Required for FastAPI form parsing
-

@@ -15,6 +15,114 @@ const API_BASE = (() => {
             : '';
     return configured.endsWith('/') ? configured.slice(0, -1) : configured;
 })();
+const DEFAULT_AUTH_TOKEN_KEY = 'token';
+let authUserContext = null;
+let dashboardAuthBootstrap = null;
+
+function getAuthTokenKey() {
+    return window.qArmorAuth?.TOKEN_KEY || DEFAULT_AUTH_TOKEN_KEY;
+}
+
+function getStoredToken() {
+    return localStorage.getItem(getAuthTokenKey());
+}
+
+function redirectToAuth(reason = 'login-required') {
+    const target = new URL('/auth', window.location.origin);
+    target.searchParams.set('reason', reason);
+    window.location.replace(target.toString());
+}
+
+async function clearStoredSession() {
+    try {
+        if (window.qArmorAuth?.signOut) {
+            await window.qArmorAuth.signOut();
+            return;
+        }
+    } catch (error) {
+        console.warn('Supabase sign-out failed:', error.message);
+    }
+
+    localStorage.removeItem(getAuthTokenKey());
+}
+
+function renderAuthUser(user) {
+    const emailEl = document.getElementById('authUserEmail');
+    const roleEl = document.getElementById('authUserRole');
+    if (!emailEl || !roleEl) return;
+
+    emailEl.textContent = user?.email || 'Authenticated user';
+    roleEl.textContent = user?.role ? `Role: ${user.role}` : 'Role: profile pending';
+}
+
+function buildAuthorizedHeaders(headers, token) {
+    const nextHeaders = new Headers(headers || {});
+    if (token && !nextHeaders.has('Authorization')) {
+        nextHeaders.set('Authorization', `Bearer ${token}`);
+    }
+    return nextHeaders;
+}
+
+async function ensureDashboardSession() {
+    if (dashboardAuthBootstrap) return dashboardAuthBootstrap;
+
+    dashboardAuthBootstrap = (async () => {
+        try {
+            if (window.qArmorAuthReady) {
+                await window.qArmorAuthReady;
+            }
+        } catch (error) {
+            console.warn('Supabase session bootstrap failed:', error.message);
+        }
+
+        const token = getStoredToken();
+        if (!token) {
+            redirectToAuth('missing-token');
+            throw new Error('Missing authentication token');
+        }
+
+        const response = await fetch(`${API_BASE}/api/auth/me`, {
+            headers: buildAuthorizedHeaders(null, token),
+        });
+
+        if (!response.ok) {
+            await clearStoredSession();
+            redirectToAuth(response.status === 401 ? 'session-expired' : 'auth-failed');
+            throw new Error(`Session validation failed (${response.status})`);
+        }
+
+        authUserContext = await response.json();
+        renderAuthUser(authUserContext);
+        return authUserContext;
+    })();
+
+    return dashboardAuthBootstrap;
+}
+
+async function authorizedFetch(resource, options = {}) {
+    await ensureDashboardSession();
+
+    const token = getStoredToken();
+    const response = await fetch(resource, {
+        ...options,
+        headers: buildAuthorizedHeaders(options.headers, token),
+    });
+
+    if (response.status === 401) {
+        await clearStoredSession();
+        redirectToAuth('session-expired');
+        throw new Error('Authentication expired');
+    }
+
+    return response;
+}
+
+async function logoutUser() {
+    await clearStoredSession();
+    redirectToAuth('signed-out');
+}
+
+window.logoutUser = logoutUser;
 
 /* ─── Toast Notification ─── */
 function showToast(message, type = 'error') {
@@ -52,7 +160,7 @@ let enterpriseDashboardData = null;
 
 /* ─── API Calls ─── */
 async function apiCall(endpoint, method = 'GET') {
-    const resp = await fetch(`${API_BASE}${endpoint}`, { method });
+    const resp = await authorizedFetch(`${API_BASE}${endpoint}`, { method });
     if (!resp.ok) {
         let detail = '';
         try {
@@ -69,6 +177,12 @@ async function apiCall(endpoint, method = 'GET') {
     }
     return resp.json();
 }
+
+document.addEventListener('DOMContentLoaded', () => {
+    ensureDashboardSession().catch((error) => {
+        console.warn('Dashboard auth bootstrap failed:', error.message);
+    });
+});
 
 function normalizeScanTarget(rawValue, opts = {}) {
     const allowPort = Boolean(opts.allowPort);
@@ -782,7 +896,7 @@ async function exportCBOM() {
         const url = new URL(`${API_BASE}/api/cbom/latest`, window.location.origin);
         url.searchParams.append('mode', mode);
 
-        const resp = await fetch(url.toString());
+        const resp = await authorizedFetch(url.toString());
         if (!resp.ok) throw new Error(`HTTP Error ${resp.status}`);
         const json = await resp.json();
         const blob = new Blob([JSON.stringify(json, null, 2)], { type: 'application/json' });
@@ -790,7 +904,7 @@ async function exportCBOM() {
         // Sync to backend
         let fd = new FormData();
         fd.append('file', blob, filename);
-        fetch('/api/reports/save', { method: 'POST', body: fd }).catch(e => console.warn(e));
+        authorizedFetch('/api/reports/save', { method: 'POST', body: fd }).catch(e => console.warn(e));
 
         const objUrl = URL.createObjectURL(blob);
         const a = document.createElement('a');
@@ -811,14 +925,14 @@ async function exportCDXA() {
         const dateStr = new Date().toISOString().slice(0,10);
         const filename = `Q_ARMOR_CDXA_${targetDomain}_${dateStr}.json`;
         
-        const resp = await fetch(`${API_BASE}/api/attestation/download`);
+        const resp = await authorizedFetch(`${API_BASE}/api/attestation/download`);
         if (!resp.ok) throw new Error(`HTTP Error ${resp.status}`);
         const blob = await resp.blob();
         
         // Sync to backend
         let fd = new FormData();
         fd.append('file', blob, filename);
-        fetch('/api/reports/save', { method: 'POST', body: fd }).catch(e => console.warn(e));
+        authorizedFetch('/api/reports/save', { method: 'POST', body: fd }).catch(e => console.warn(e));
 
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
@@ -2625,7 +2739,7 @@ function renderPhase9Attestation(attestFull, summary) {
 
 async function downloadPhase9CBOM() {
     try {
-        const resp = await fetch(`${API_BASE}/api/phase9/cbom/download`);
+        const resp = await authorizedFetch(`${API_BASE}/api/phase9/cbom/download`);
         if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
         const blob = await resp.blob();
         const url = URL.createObjectURL(blob);
@@ -2638,7 +2752,7 @@ async function downloadPhase9CBOM() {
 
 async function downloadPhase9CDXA() {
     try {
-        const resp = await fetch(`${API_BASE}/api/attestation/v2/download`);
+        const resp = await authorizedFetch(`${API_BASE}/api/attestation/v2/download`);
         if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
         const blob = await resp.blob();
         const url = URL.createObjectURL(blob);
@@ -3543,10 +3657,10 @@ async function downloadCBOM(format) {
     try {
         let resp;
         if (format === 'cdxa') {
-            resp = await fetch(`${API_BASE}/api/attestation/v2/download`);
-            if (!resp.ok) resp = await fetch(`${API_BASE}/api/attestation/download`);
+            resp = await authorizedFetch(`${API_BASE}/api/attestation/v2/download`);
+            if (!resp.ok) resp = await authorizedFetch(`${API_BASE}/api/attestation/download`);
         } else {
-            resp = await fetch(buildContextEndpoint('/api/cbom/latest'));
+            resp = await authorizedFetch(buildContextEndpoint('/api/cbom/latest'));
         }
         if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
         const blob = await resp.blob();
@@ -4206,7 +4320,7 @@ function buildPdfExecutiveHighlights() {
 function syncPdfToBackend(blob, filename) {
     const fd = new FormData();
     fd.append('file', blob, filename);
-    fetch('/api/reports/save', { method: 'POST', body: fd }).catch(e => console.warn(e));
+    authorizedFetch('/api/reports/save', { method: 'POST', body: fd }).catch(e => console.warn(e));
 }
 
 function reportTable(headers, rows, emptyMessage = 'No data available.') {

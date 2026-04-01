@@ -9,7 +9,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
-from fastapi import FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
@@ -63,6 +63,13 @@ from backend.scanner.label_registry import (
     registry_router, append_all_labels, auto_revoke_on_scan,
 )
 from backend.scanner import database as db
+from backend.auth import (
+    AuthConfigurationError,
+    get_current_user,
+    get_public_auth_config,
+    get_user_context,
+    require_admin,
+)
 
 logger = logging.getLogger("qarmor.app")
 
@@ -107,6 +114,50 @@ app.add_middleware(
     GZipMiddleware,
     minimum_size=int(os.environ.get("QARMOR_GZIP_MIN_SIZE", "512")),
 )
+
+PUBLIC_ROUTES = {
+    "/",
+    "/auth",
+    "/dashboard",
+    "/favicon.ico",
+    "/api/health",
+    "/api/auth/config",
+}
+PUBLIC_PREFIXES = (
+    "/static",
+    "/css",
+    "/js",
+    "/docs",
+    "/redoc",
+    "/openapi.json",
+)
+
+
+def _is_public_path(path: str) -> bool:
+    if path in PUBLIC_ROUTES:
+        return True
+    return any(path.startswith(prefix) for prefix in PUBLIC_PREFIXES)
+
+
+@app.middleware("http")
+async def enforce_api_auth(request: Request, call_next):
+    path = request.url.path
+    if request.method == "OPTIONS" or _is_public_path(path) or not path.startswith("/api/"):
+        return await call_next(request)
+
+    try:
+        get_current_user(request)
+    except HTTPException as exc:
+        return JSONResponse(
+            status_code=exc.status_code,
+            content={"detail": exc.detail},
+            headers=exc.headers or None,
+        )
+    except AuthConfigurationError as exc:
+        logger.exception("Authentication configuration error")
+        return JSONResponse(status_code=500, content={"detail": str(exc)})
+
+    return await call_next(request)
 
 # Ensure data directory exists for SQLite
 Path("data").mkdir(exist_ok=True)
@@ -993,6 +1044,15 @@ async def serve_landing():
     return HTMLResponse(content=index_file.read_text())
 
 
+@app.get("/auth", response_class=HTMLResponse)
+async def serve_auth():
+    """Serve the authentication page."""
+    auth_file = FRONTEND_DIR / "auth.html"
+    if not auth_file.exists():
+        raise HTTPException(status_code=404, detail="Authentication page not found")
+    return HTMLResponse(content=auth_file.read_text())
+
+
 @app.get("/dashboard", response_class=HTMLResponse)
 async def serve_dashboard():
     """Serve the Q-ARMOR dashboard."""
@@ -1006,6 +1066,30 @@ async def serve_dashboard():
 async def health_check():
     """Health check endpoint."""
     return {"status": "operational", "service": "Q-ARMOR", "version": "9.0.0"}
+
+
+@app.get("/api/auth/me")
+async def auth_me(request: Request):
+    """Return the current authenticated user and their profile role."""
+    return JSONResponse(content=get_user_context(request))
+
+
+@app.get("/api/auth/config")
+async def auth_config():
+    """Return the public frontend auth configuration for this deployment."""
+    return JSONResponse(content=get_public_auth_config())
+
+
+@app.get("/api/auth/admin-check")
+async def auth_admin_check(request: Request, user: dict[str, Any] = Depends(require_admin)):
+    """Validate that the current user is an admin."""
+    context = get_user_context(request)
+    return JSONResponse(content={
+        "ok": True,
+        "user_id": user.get("sub"),
+        "email": context.get("email"),
+        "role": context.get("role"),
+    })
 
 
 @app.get("/api/scan/demo")
@@ -1946,7 +2030,7 @@ async def db_verify_label(label_id: str):
 
 
 @app.post("/api/db/labels/{label_id}/revoke")
-async def db_revoke_label(label_id: str):
+async def db_revoke_label(label_id: str, _: dict[str, Any] = Depends(require_admin)):
     """Revoke a PQC label."""
     ok = db.revoke_label(label_id)
     if not ok:

@@ -1027,6 +1027,9 @@ Backend (Railway):
 - Runtime is pinned in `runtime.txt` (`python-3.12.3`).
 - Set environment variables:
     - `FRONTEND_URLS`: comma-separated Vercel origins (for CORS), example: `https://your-app.vercel.app,https://your-app-git-main.vercel.app`
+    - `SUPABASE_URL`: Supabase project URL used for JWT verification and frontend auth bootstrap
+    - `SUPABASE_PUBLISHABLE_KEY` or `SUPABASE_ANON_KEY`: public Supabase browser key returned to the auth page at runtime
+    - `SUPABASE_DB_URL`: Postgres connection string used for `profiles.role` admin lookups
     - `QARMOR_LIVE_SCAN_LIMIT`: recommended `20` for production
     - Optional: `QARMOR_LOCAL_FULL_SCAN=1`, `QARMOR_LOCAL_API_CRAWL=1` for deeper scans
     - Optional: `QARMOR_GZIP_MIN_SIZE=512` (response compression threshold)
@@ -1307,6 +1310,19 @@ python -m pytest tests/ -v
 
 | Variable | Default | Description |
 |----------|---------|-------------|
+| `FRONTEND_URLS` | (empty) | Comma-separated allowed frontend origins for CORS |
+| `FRONTEND_URL` | (empty) | Single frontend origin fallback when `FRONTEND_URLS` is not set |
+| `SUPABASE_URL` | `https://bfmkinyyoevrbqgpuzwx.supabase.co` | Supabase project URL used for JWT verification and frontend auth bootstrap |
+| `SUPABASE_PUBLISHABLE_KEY` | (empty) | Preferred public browser key served to the auth frontend at runtime |
+| `SUPABASE_ANON_KEY` | (empty) | Fallback public browser key if `SUPABASE_PUBLISHABLE_KEY` is not set |
+| `SUPABASE_DB_URL` | (empty) | Postgres connection string used for `profiles.role` admin lookups |
+| `SUPABASE_JWT_AUDIENCE` | `authenticated` | Expected JWT audience for Supabase access tokens |
+| `SUPABASE_TOKEN_STORAGE_KEY` | `token` | Browser storage key used for the Supabase access token |
+| `SUPABASE_JWKS_CACHE_TTL_SECONDS` | `3600` | JWKS cache lifetime before refetching signing keys |
+| `QARMOR_LIVE_SCAN_LIMIT` | `0` or `20` | Live scan asset cap; defaults to `20` when frontend origins are configured |
+| `QARMOR_LOCAL_FULL_SCAN` | `0` | Enables deeper local port scanning in live mode |
+| `QARMOR_LOCAL_API_CRAWL` | `0` | Enables API crawl expansion in live mode |
+| `QARMOR_GZIP_MIN_SIZE` | `512` | Minimum response size for gzip compression |
 | `QARMOR_SLACK_WEBHOOK` | (empty) | Slack Incoming Webhook URL for alerts |
 | `QARMOR_TEAMS_WEBHOOK` | (empty) | Microsoft Teams Webhook URL for alerts |
 
