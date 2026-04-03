@@ -9,7 +9,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
-from fastapi import Depends, FastAPI, HTTPException, Request
+from fastapi import Depends, FastAPI, HTTPException, Request, UploadFile
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
@@ -170,6 +170,59 @@ Path("data").mkdir(exist_ok=True)
 # Mount Phase 8+9 sub-routers
 app.include_router(registry_router)
 app.include_router(attestation_router)
+
+
+async def _populate_phase9_demo_cache() -> None:
+    """Run the demo Phase 8+9 pipeline and populate _latest_phase9 cache.
+
+    Called at startup and by the /api/phase9/demo endpoint.  Does not
+    require a Request object so it can be used outside an HTTP handler.
+    """
+    global _latest_classified, _latest_phase9
+    current_assets = [classify_trimode(fp) for fp in DEMO_TRIMODE_FINGERPRINTS]
+    _latest_classified = current_assets
+    baseline_fps = get_demo_baseline_fingerprints()
+    baseline_assets = [classify_trimode(fp) for fp in baseline_fps]
+    regression = detect_regressions_demo(current_assets, baseline_assets)
+    label_summary = label_classified_assets(
+        current_assets,
+        is_demo=True,
+        base_url="/api/registry/verify",
+    )
+    append_all_labels(label_summary)
+    revocations = auto_revoke_on_scan(current_assets, baseline_assets)
+    cbom = generate_cbom_v2(current_assets, regression, data_mode="demo")
+    set_latest_attestation_context(label_summary, cbom)
+    cdxa = generate_attestation_v2(label_summary, cbom)
+    _latest_phase9 = {
+        "pipeline": "Phase 8+9 Demo",
+        "version": "9.0.0",
+        "steps_completed": 8,
+        "classification": {
+            "total_assets": len(current_assets),
+            "assets": [a.model_dump(mode="json") for a in current_assets],
+        },
+        "regression": regression.model_dump(mode="json"),
+        "labels": label_summary.model_dump(mode="json"),
+        "registry": {
+            "labels_persisted": len(label_summary.labels),
+            "auto_revocations": revocations,
+        },
+        "cbom": cbom,
+        "attestation": cdxa,
+        "attestation_summary": get_attestation_summary(cdxa),
+    }
+
+
+@app.on_event("startup")
+async def _startup_populate_demo() -> None:
+    """Pre-warm the demo pipeline so Phase-9 GET endpoints return data immediately."""
+    try:
+        await _ensure_latest_pipeline_result(mode="demo")
+        await _populate_phase9_demo_cache()
+        logger.info("Startup demo pipeline populated — Phase-9 endpoints ready")
+    except Exception:
+        logger.warning("Startup demo pipeline failed — Phase-9 endpoints will return 404 until triggered manually")
 
 # Serve frontend static files
 FRONTEND_DIR = Path(__file__).parent.parent / "frontend"
@@ -2466,61 +2519,10 @@ async def phase9_demo_pipeline(request: Request):
       8. Generate signed CDXA attestation with FIPS compliance claims
       9. Return the full pipeline result
     """
-    global _latest_classified, _latest_phase9
-
-    # Step 1: Classify current assets
-    current_assets = [classify_trimode(fp) for fp in DEMO_TRIMODE_FINGERPRINTS]
-    _latest_classified = current_assets
-
-    # Step 2: Classify baseline (degraded) assets
-    baseline_fps = get_demo_baseline_fingerprints()
-    baseline_assets = [classify_trimode(fp) for fp in baseline_fps]
-
-    # Step 3: Regression detection
-    regression = detect_regressions_demo(current_assets, baseline_assets)
-
-    # Step 4: Phase 9 labeling
-    label_summary = label_classified_assets(
-        current_assets,
-        is_demo=True,
-        base_url="/api/registry/verify",
-    )
-
-    # Step 5: Persist labels to registry
-    append_all_labels(label_summary)
-
-    # Step 6: Auto-revoke stale labels
-    revocations = auto_revoke_on_scan(current_assets, baseline_assets)
-
-    # Step 7: CycloneDX 1.7 CBOM
-    cbom = generate_cbom_v2(current_assets, regression, data_mode="demo")
-
-    # Step 8: Signed CDXA attestation
-    set_latest_attestation_context(label_summary, cbom)
-    cdxa = generate_attestation_v2(label_summary, cbom)
-
-    # Build full result
-    _latest_phase9 = {
-        "pipeline": "Phase 8+9 Demo",
-        "version": "9.0.0",
-        "steps_completed": 8,
-        "classification": {
-            "total_assets": len(current_assets),
-            "assets": [a.model_dump(mode="json") for a in current_assets],
-        },
-        "regression": regression.model_dump(mode="json"),
-        "labels": label_summary.model_dump(mode="json"),
-        "registry": {
-            "labels_persisted": len(label_summary.labels),
-            "auto_revocations": revocations,
-        },
-        "cbom": cbom,
-        "attestation": cdxa,
-        "attestation_summary": get_attestation_summary(cdxa),
-    }
+    await _populate_phase9_demo_cache()
     _save_user_scan_history(
         request,
-        [a.model_dump(mode="json") for a in current_assets],
+        [a.model_dump(mode="json") for a in _latest_classified],
         mode="demo",
         domain="bank.com",
         details=_latest_phase9,
@@ -2646,7 +2648,7 @@ async def phase9_live_pipeline(domain: str, request: Request):
             "version": "9.0.0",
             "mode": "live",
             "domain": domain,
-            "scan_id": history_scan_id or scan_id,
+            "scan_id": scan_id,
             "steps_completed": 8,
             "classification": {
                 "total_assets": len(current_assets),
@@ -2722,6 +2724,17 @@ async def phase9_attestation():
     if not _latest_phase9:
         raise HTTPException(status_code=404, detail="Run /api/phase9/demo first.")
     return JSONResponse(content=_latest_phase9.get("attestation", {}))
+
+
+@app.post("/api/reports/save")
+async def save_report(file: UploadFile):
+    """Persist an exported report (CBOM/CDXA) to the data/reports directory."""
+    reports_dir = Path("data/reports")
+    reports_dir.mkdir(parents=True, exist_ok=True)
+    safe_name = Path(file.filename or "report.json").name
+    dest = reports_dir / safe_name
+    dest.write_bytes(await file.read())
+    return JSONResponse(content={"saved": str(dest)})
 
 
 # ── New Dashboard/Data APIs ─────────────────────────────────────────────────
