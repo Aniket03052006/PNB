@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import asyncio
-import inspect
 import json
 from datetime import datetime, timezone
 from typing import Any, Literal
@@ -11,13 +10,13 @@ from typing import Any, Literal
 from pydantic import BaseModel, Field
 
 from backend.cyber_rating import compute_enterprise_cyber_rating
-from backend.demo_data import DEMO_TRIMODE_FINGERPRINTS, _trimode_to_crypto
+from backend.demo_data import DEMO_TRIMODE_FINGERPRINTS
 from backend.models import ClassifiedAsset, DiscoveredAsset, PQCStatus, TriModeFingerprint
 from backend.scanner import database
 from backend.scanner.agility_assessor import assess_agility
 from backend.scanner.attestor import generate_attestation_v2, set_latest_attestation_context
 from backend.scanner.cbom_generator import generate_cbom_v2
-from backend.scanner.classifier import classify, classify_trimode
+from backend.scanner.classifier import classify_trimode
 from backend.scanner.discoverer import discover_assets
 from backend.scanner.label_registry import append_all_labels
 from backend.scanner.labeler import label_classified_assets
@@ -70,18 +69,6 @@ def _apply_negotiation_score(asset: ClassifiedAsset, adjustment: int) -> Classif
 
 def _classify_with_negotiation(fp: TriModeFingerprint, policy: NegotiationPolicy) -> ClassifiedAsset:
     """Classify a tri-mode fingerprint while honoring negotiation score policy."""
-    # Ensure classifier.classify receives fingerprint + policy as part of pipeline flow.
-    try:
-        sig = inspect.signature(classify)
-        if len(sig.parameters) >= 2:
-            classify(_trimode_to_crypto(fp), policy)
-        else:
-            classify(_trimode_to_crypto(fp))
-    except Exception:
-        # Classification still proceeds through tri-mode path even if legacy call fails.
-        pass
-
-    # Current codebase path: classify_trimode returns ClassifiedAsset.
     asset = classify_trimode(fp)
     return _apply_negotiation_score(asset, policy.negotiation_security_score)
 
@@ -101,11 +88,12 @@ def _regression_to_assessment_like(regression_summary: dict[str, Any]) -> list[d
         for entry in regression_summary.get(key, []):
             urgency = str(entry.get("urgency", "MEDIUM")).upper()
             risk = "HIGH" if urgency == "HIGH" else "MEDIUM"
+            hndl_vulnerable = urgency == "HIGH" or entry.get("category") == "score_regression"
             assessments.append(
                 {
                     "target": entry.get("hostname", "unknown"),
                     "port": entry.get("port", 443),
-                    "hndl_vulnerable": False,
+                    "hndl_vulnerable": hndl_vulnerable,
                     "overall_quantum_risk": risk,
                 }
             )

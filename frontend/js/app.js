@@ -1156,6 +1156,89 @@ function normalizeInventoryEntry(entry) {
     };
 }
 
+function showAssetDetailModal(entry) {
+    const existing = document.getElementById('assetDetailModal');
+    if (existing) existing.remove();
+
+    const row = normalizeInventoryEntry(entry);
+    const scoreColor = getScoreColor(row.score || 0);
+    const statusClass = getStatusClass(row.status);
+    const statusLabel = getStatusLabel(row.status);
+
+    // Tri-mode scores from ClassifiedAsset format (if available)
+    const best = entry.best_case_score ?? entry.best_case_q?.total ?? row.score;
+    const typical = entry.typical_score ?? entry.typical_q?.total ?? row.score;
+    const worst = entry.worst_case_score ?? entry.worst_case_q?.total ?? row.score;
+
+    function scoreBar(val, label) {
+        const c = getScoreColor(val);
+        return `<div style="margin-bottom:8px;">
+            <div style="display:flex;justify-content:space-between;font-size:0.72rem;margin-bottom:3px;">
+                <span style="color:var(--text-secondary);">${label}</span>
+                <span style="color:${c};font-weight:700;">${val}</span>
+            </div>
+            <div style="height:6px;background:rgba(255,255,255,0.08);border-radius:3px;">
+                <div style="height:100%;width:${val}%;background:${c};border-radius:3px;transition:width 0.4s ease;"></div>
+            </div>
+        </div>`;
+    }
+
+    const findings = entry.worst_case_q?.findings || entry.q_score?.findings || [];
+    const recommendations = entry.worst_case_q?.recommendations || entry.q_score?.recommendations || [];
+    const findingsHtml = findings.length
+        ? findings.map(f => `<li style="margin-bottom:4px;">${escHtml(f)}</li>`).join('')
+        : '<li style="color:var(--text-dim);">No findings recorded.</li>';
+    const recoHtml = recommendations.length
+        ? recommendations.map(r => `<li style="margin-bottom:4px;color:var(--accent-cyan);">${escHtml(r)}</li>`).join('')
+        : '<li style="color:var(--text-dim);">No remediation required.</li>';
+
+    const modal = document.createElement('div');
+    modal.id = 'assetDetailModal';
+    modal.style.cssText = 'position:fixed;inset:0;z-index:10000;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.65);backdrop-filter:blur(4px);';
+    modal.innerHTML = `
+        <div style="background:var(--surface-secondary,#1a1f2e);border:1px solid rgba(255,255,255,0.1);border-radius:14px;padding:28px 32px;max-width:640px;width:90%;max-height:85vh;overflow-y:auto;box-shadow:0 24px 64px rgba(0,0,0,0.5);">
+            <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px;">
+                <div>
+                    <div style="font-size:1.05rem;font-weight:700;color:var(--text-primary);">${escHtml(row.hostname)}<span style="color:var(--text-dim);font-weight:400;">:${row.port}</span></div>
+                    <div style="font-size:0.78rem;color:var(--text-secondary);margin-top:2px;">${row.assetType} asset</div>
+                </div>
+                <div style="margin-left:auto;display:flex;align-items:center;gap:10px;">
+                    <span class="status-badge status-badge--${statusClass}">${statusLabel}</span>
+                    <button onclick="document.getElementById('assetDetailModal').remove()" style="background:none;border:none;color:var(--text-dim);font-size:1.2rem;cursor:pointer;padding:0 4px;">✕</button>
+                </div>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:20px;">
+                <div>
+                    <div style="font-size:0.72rem;font-weight:700;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:10px;">TLS DETAILS</div>
+                    <table style="width:100%;font-size:0.78rem;border-collapse:collapse;">
+                        <tr><td style="color:var(--text-secondary);padding:3px 0;">Protocol</td><td style="color:var(--text-primary);font-weight:600;">${row.tlsVersion}</td></tr>
+                        <tr><td style="color:var(--text-secondary);padding:3px 0;">Key Exchange</td><td style="color:var(--text-primary);font-weight:600;">${row.keyExchange}</td></tr>
+                        <tr><td style="color:var(--text-secondary);padding:3px 0;">Cipher Suite</td><td style="color:var(--text-primary);font-size:0.72rem;">${row.cipherSuite}</td></tr>
+                        <tr><td style="color:var(--text-secondary);padding:3px 0;">Certificate</td><td style="color:var(--text-primary);font-size:0.72rem;">${row.certificate}</td></tr>
+                    </table>
+                </div>
+                <div>
+                    <div style="font-size:0.72rem;font-weight:700;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:10px;">TRI-MODE Q-SCORES</div>
+                    ${scoreBar(best, 'Best Case (Probe A — PQC)')}
+                    ${scoreBar(typical, 'Typical (Probe B — TLS 1.3)')}
+                    ${scoreBar(worst, 'Worst Case (Probe C — Downgrade)')}
+                </div>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+                <div>
+                    <div style="font-size:0.72rem;font-weight:700;color:#D97706;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:8px;">FINDINGS</div>
+                    <ul style="margin:0;padding-left:16px;font-size:0.75rem;color:var(--text-secondary);">${findingsHtml}</ul>
+                </div>
+                <div>
+                    <div style="font-size:0.72rem;font-weight:700;color:var(--accent-cyan);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:8px;">REMEDIATION</div>
+                    <ul style="margin:0;padding-left:16px;font-size:0.75rem;">${recoHtml}</ul>
+                </div>
+            </div>
+        </div>`;
+    modal.addEventListener('click', e => { if (e.target === modal) modal.remove(); });
+    document.body.appendChild(modal);
+}
+
 function renderAssetTable(results) {
     const container = document.getElementById('assetTableContainer');
     document.getElementById('assetCount').textContent = `${results.length} assets`;
@@ -1165,18 +1248,20 @@ function renderAssetTable(results) {
         return;
     }
 
-    const sorted = [...results].map(normalizeInventoryEntry).sort((a, b) => a.score - b.score);
+    const sorted = [...results].sort((a, b) => inventoryScore(a) - inventoryScore(b));
+    const normalised = sorted.map(normalizeInventoryEntry);
 
     let html = `<table class="asset-table"><thead><tr>
         <th>Asset</th><th>Type</th><th>TLS</th><th>Cipher Suite</th><th>Key Exchange</th><th>Certificate</th><th>Q-Score</th><th>Status</th>
     </tr></thead><tbody>`;
 
-    for (const row of sorted) {
+    for (let i = 0; i < normalised.length; i++) {
+        const row = normalised[i];
         const statusClass = getStatusClass(row.status);
         const statusLabel = getStatusLabel(row.status);
         const scoreColor = getScoreColor(row.score || 0);
 
-        html += `<tr>
+        html += `<tr style="cursor:pointer;" onclick="_assetDetailEntries[${i}] && showAssetDetailModal(_assetDetailEntries[${i}])">
             <td><span class="asset-hostname">${row.hostname}:${row.port}</span></td>
             <td><span class="asset-type">${row.assetType}</span></td>
             <td>${row.tlsVersion}</td>
@@ -1195,6 +1280,7 @@ function renderAssetTable(results) {
 
     html += '</tbody></table>';
     container.innerHTML = html;
+    window._assetDetailEntries = sorted;
 
     requestAnimationFrame(() => {
         container.querySelectorAll('.qscore-bar-fill').forEach(el => {
@@ -1980,20 +2066,20 @@ function renderTrimode(data) {
     const banner = document.getElementById('trimodeDemoBanner');
     if (banner) banner.style.display = data.mode === 'demo' ? '' : 'none';
 
-    // Build tri-mode table
-    const tbody = fps.map(fp => {
+    // Build tri-mode table with per-row expert-insight expansion
+    const tbody = fps.map((fp, idx) => {
         const st = fp.q_score?.status || 'UNKNOWN';
         const cls = getStatusClass(st);
         const lbl = getStatusLabel(st);
         const score = fp.q_score?.total ?? '—';
         const scColor = getScoreColor(score);
+        const insightId = `tmInsight_${idx}`;
 
-        function probeCell(p) {
+        function probeCell(p, mode) {
             if (!p) return '<span class="probe-err">—</span>';
             if (p.error) return `<span class="probe-err">${escHtml(p.error)}</span>`;
             const tls = p.tls_version || '—';
             const kex = p.key_exchange || '—';
-            const cipher = p.cipher_suite || '—';
             const bits = p.cipher_bits ? `${p.cipher_bits}b` : '';
 
             let colorClass = 'probe-warn';
@@ -2003,14 +2089,67 @@ function renderTrimode(data) {
             return `<span class="${colorClass}">${tls} | ${kex} | ${bits}</span>`;
         }
 
-        return `<tr>
+        function probeInsight(p, label, desc) {
+            if (!p) return '';
+            const tls = p.tls_version || '';
+            const kex = p.key_exchange || '';
+            const isPqc = kex.includes('ML-KEM') || kex.includes('MLKEM') || kex.includes('X25519MLKEM');
+            const isLegacy = tls.includes('1.0') || tls.includes('1.1') || kex === 'RSA';
+            const icon = isPqc ? '✅' : isLegacy ? '❌' : '⚠️';
+            const tone = isPqc ? '#16A34A' : isLegacy ? '#DC2626' : '#D97706';
+            let explanation = isPqc
+                ? 'Post-Quantum Cryptography enabled — resistant to CRQC Shor\'s algorithm attacks.'
+                : isLegacy
+                    ? 'Legacy TLS or RSA key exchange — vulnerable to harvest-now-decrypt-later (HNDL) attacks.'
+                    : 'Classical TLS 1.3 only — strong against today\'s threats but not quantum-resistant.';
+            if (p.error) explanation = `Probe failed: ${p.error}`;
+            return `<div style="margin-bottom:8px;padding:8px 12px;border-radius:6px;background:rgba(0,0,0,0.2);border-left:3px solid ${tone};">
+                <div style="font-weight:600;font-size:0.8rem;color:${tone};margin-bottom:2px;">${icon} ${label} — ${desc}</div>
+                <div style="font-size:0.75rem;color:var(--text-secondary);">${explanation}</div>
+                <div style="font-size:0.72rem;color:var(--text-dim);margin-top:4px;">TLS: ${tls || '—'} · KEX: ${kex || '—'} · Auth: ${p.authentication || '—'}</div>
+            </div>`;
+        }
+
+        const findings = fp.q_score?.findings || [];
+        const recommendations = fp.q_score?.recommendations || [];
+        const findingsHtml = findings.length
+            ? findings.map(f => `<li style="margin-bottom:3px;">${escHtml(f)}</li>`).join('')
+            : '<li style="color:var(--text-dim);">No findings — posture is clean.</li>';
+        const recommendationsHtml = recommendations.length
+            ? recommendations.map(r => `<li style="margin-bottom:3px;color:var(--accent-cyan);">${escHtml(r)}</li>`).join('')
+            : '<li style="color:var(--text-dim);">No remediation required.</li>';
+
+        const insightPanel = `<tr id="${insightId}" style="display:none;">
+            <td colspan="7" style="padding:0 12px 12px 12px;background:rgba(0,0,0,0.15);">
+                <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;padding-top:12px;">
+                    <div>${probeInsight(fp.probe_a, 'Probe A', 'PQC-capable')}</div>
+                    <div>${probeInsight(fp.probe_b, 'Probe B', 'TLS 1.3 classical')}</div>
+                    <div>${probeInsight(fp.probe_c, 'Probe C', 'TLS 1.2 downgrade')}</div>
+                </div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:8px;">
+                    <div>
+                        <div style="font-size:0.75rem;font-weight:700;color:#D97706;margin-bottom:6px;">FINDINGS</div>
+                        <ul style="margin:0;padding-left:18px;font-size:0.75rem;color:var(--text-secondary);">${findingsHtml}</ul>
+                    </div>
+                    <div>
+                        <div style="font-size:0.75rem;font-weight:700;color:var(--accent-cyan);margin-bottom:6px;">REMEDIATION</div>
+                        <ul style="margin:0;padding-left:18px;font-size:0.75rem;">${recommendationsHtml}</ul>
+                    </div>
+                </div>
+            </td>
+        </tr>`;
+
+        const mainRow = `<tr style="cursor:pointer;" onclick="document.getElementById('${insightId}').style.display=document.getElementById('${insightId}').style.display==='none'?'':'none'">
             <td><strong>${escHtml(fp.hostname)}</strong><br><span style="color:var(--text-dim);font-size:0.7rem">${fp.asset_type || 'web'} :${fp.port}</span></td>
             <td><span class="status-badge status-badge--${cls}">${lbl}</span></td>
             <td style="color:${scColor}; font-weight:600;">${score}</td>
             <td class="probe-cell"><span class="probe-label">A</span> ${probeCell(fp.probe_a)}</td>
             <td class="probe-cell"><span class="probe-label">B</span> ${probeCell(fp.probe_b)}</td>
             <td class="probe-cell"><span class="probe-label">C</span> ${probeCell(fp.probe_c)}</td>
+            <td style="color:var(--text-dim);font-size:0.7rem;">▼ insights</td>
         </tr>`;
+
+        return mainRow + insightPanel;
     }).join('');
 
     const container = document.getElementById('trimodeTableContainer');
@@ -2020,6 +2159,7 @@ function renderTrimode(data) {
                 <thead><tr>
                     <th>Asset</th><th>Status</th><th>Q-Score</th>
                     <th>Probe A (PQC)</th><th>Probe B (TLS 1.3)</th><th>Probe C (Downgrade)</th>
+                    <th></th>
                 </tr></thead>
                 <tbody>${tbody}</tbody>
             </table>`;
@@ -2227,21 +2367,9 @@ async function deleteScan(scanId) {
    ═══════════════════════════════════════════════════════════════════════════ */
 
 async function loadHistory() {
-    try {
-        const [histResp, baseResp] = await Promise.all([
-            apiCall('/api/scan/trimode/history'),
-            apiCall('/api/scan/trimode/baseline'),
-        ]);
-
-        historyData = histResp;
-        renderHistory(histResp);
-        renderBaseline(baseResp);
-
-        document.getElementById('historyEmpty').style.display = 'none';
-        document.getElementById('historyContent').style.display = '';
-    } catch (e) {
-        showToast('Failed to load history: ' + e.message, 'error');
-    }
+    // Delegate to loadLiveHistory which uses /api/history + /api/compare/latest
+    // and handles both stored scans and the demo fallback gracefully.
+    return loadLiveHistory();
 }
 
 async function loadLiveHistory() {
