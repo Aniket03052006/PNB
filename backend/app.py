@@ -33,6 +33,7 @@ from backend.demo_data import (
 from backend.cyber_rating import TIER_CRITERIA, compute_enterprise_cyber_rating
 from backend.pipeline import run_pipeline
 from backend.scanner.cbom_generator import generate_cbom, generate_cbom_v2
+from backend.scanner.cloud_detector import detect_cloud_provider, group_ips_by_subnet
 from backend.scanner.classifier import classify, classify_trimode
 from backend.scanner.prober import probe_tls, probe_trimode, probe_batch
 from backend.scanner.discoverer import discover_assets
@@ -175,12 +176,16 @@ app.include_router(attestation_router)
 async def _populate_phase9_demo_cache() -> None:
     """Run the demo Phase 8+9 pipeline and populate _latest_phase9 cache.
 
-    Called at startup and by the /api/phase9/demo endpoint.  Does not
-    require a Request object so it can be used outside an HTTP handler.
+    Uses latest classified assets from a previous scan if available,
+    otherwise falls back to the DEMO_TRIMODE_FINGERPRINTS.
     """
     global _latest_classified, _latest_phase9
-    current_assets = [classify_trimode(fp) for fp in DEMO_TRIMODE_FINGERPRINTS]
-    _latest_classified = current_assets
+    # Prefer classified assets from the most recent scan (live or demo)
+    if _latest_classified:
+        current_assets = _latest_classified
+    else:
+        current_assets = [classify_trimode(fp) for fp in DEMO_TRIMODE_FINGERPRINTS]
+        _latest_classified = current_assets
     baseline_fps = get_demo_baseline_fingerprints()
     baseline_assets = [classify_trimode(fp) for fp in baseline_fps]
     regression = detect_regressions_demo(current_assets, baseline_assets)
@@ -968,6 +973,11 @@ def _live_domain_assets(pipeline_result: dict[str, Any]) -> list[dict[str, Any]]
             "registrar": "Live DNS/CT Discovery",
             "company_name": _company_from_hostname(host),
             "status": _status_to_asset_state(str(asset.get("status", "UNKNOWN"))),
+            "pqc_status": str(asset.get("status", "UNKNOWN")),
+            "worst_case_score": int(asset.get("worst_case_score", 0)),
+            "typical_score": int(asset.get("typical_score", 0)),
+            "best_case_score": int(asset.get("best_case_score", 0)),
+            "ip_address": str(asset.get("ip") or ""),
         })
     return records
 
@@ -991,28 +1001,54 @@ def _live_ssl_assets(pipeline_result: dict[str, Any]) -> list[dict[str, Any]]:
     return records
 
 
-def _live_ip_assets(pipeline_result: dict[str, Any]) -> list[dict[str, Any]]:
+async def _live_ip_assets(pipeline_result: dict[str, Any]) -> list[dict[str, Any]]:
     detection_date = _pipeline_detection_date(pipeline_result)
     dedup: dict[str, dict[str, Any]] = {}
+    ip_to_hostname: dict[str, str] = {}
 
     for asset in pipeline_result.get("assets", []):
         ip = str(asset.get("ip") or "").strip()
         if not ip:
             continue
         port = int(asset.get("port", 443))
+        hostname = str(asset.get("hostname", ""))
         if ip not in dedup:
+            parts = ip.split(".")
+            subnet = ".".join(parts[:3]) + ".0/24" if len(parts) == 4 else ""
             dedup[ip] = {
                 "detection_date": detection_date,
                 "ip_address": ip,
                 "ports": [port],
-                "subnet": "",
+                "subnet": subnet,
                 "asn": "",
                 "netname": "Live Discovery",
                 "location": "",
-                "company": _company_from_hostname(str(asset.get("hostname", ""))),
+                "company": _company_from_hostname(hostname),
+                "cloud_provider": "unknown",
+                "cloud_display_name": "Unknown",
+                "is_cloud_hosted": False,
+                "pool": "self_hosted",
             }
+            ip_to_hostname[ip] = hostname
         elif port not in dedup[ip]["ports"]:
             dedup[ip]["ports"].append(port)
+
+    # Enrich with cloud detection (concurrent)
+    ips = list(dedup.keys())
+    if ips:
+        cloud_results = await asyncio.gather(
+            *[detect_cloud_provider(ip, ip_to_hostname.get(ip)) for ip in ips],
+            return_exceptions=True,
+        )
+        for ip, cloud_info in zip(ips, cloud_results):
+            if isinstance(cloud_info, dict):
+                dedup[ip]["cloud_provider"] = cloud_info["provider"]
+                dedup[ip]["cloud_display_name"] = cloud_info["display_name"]
+                dedup[ip]["is_cloud_hosted"] = cloud_info["is_cloud"]
+                dedup[ip]["pool"] = cloud_info["pool"]
+                # Use cloud provider as netname when identified
+                if cloud_info["is_cloud"]:
+                    dedup[ip]["netname"] = cloud_info["display_name"]
 
     return list(dedup.values())
 
@@ -1024,23 +1060,49 @@ def _live_software_assets(pipeline_result: dict[str, Any]) -> list[dict[str, Any
         host = str(asset.get("hostname", ""))
         if not host:
             continue
+        kex = str(asset.get("key_exchange") or "")
+        tls_ver = str(asset.get("tls_version") or "")
+        cipher = str(asset.get("cipher_suite") or "")
+        # Derive a human-readable product name from KEX
+        if "ML-KEM" in kex or "MLKEM" in kex:
+            product = "PQC TLS Stack (ML-KEM)"
+        elif "KYBER" in kex:
+            product = "PQC TLS Stack (Kyber)"
+        elif "X25519" in kex:
+            product = "Modern TLS Stack (X25519)"
+        elif "ECDHE" in kex:
+            product = "TLS Stack (ECDHE)"
+        elif "DHE" in kex or "EDH" in kex:
+            product = "TLS Stack (DHE)"
+        elif "RSA" in kex:
+            product = "Legacy TLS Stack (RSA KEX)"
+        else:
+            product = "TLS Stack"
+        # supported_ciphers may come from fingerprint probe_b
+        supported_ciphers = list(asset.get("supported_ciphers") or [])
         records.append({
             "detection_date": detection_date,
-            "product": str(asset.get("key_exchange") or "Crypto Stack"),
-            "version": str(asset.get("tls_version") or ""),
+            "product": product,
+            "version": tls_ver,
             "type": "CryptoProfile",
             "port": int(asset.get("port", 443)),
             "host": host,
             "company_name": _company_from_hostname(host),
+            "negotiated_cipher": cipher,
+            "key_exchange": kex,
+            "supported_ciphers": supported_ciphers,
+            "pqc_status": str(asset.get("status", "UNKNOWN")),
         })
     return records
 
 
-def _live_network_graph(pipeline_result: dict[str, Any]) -> dict[str, Any]:
+def _live_network_graph(pipeline_result: dict[str, Any], ip_cloud_map: dict[str, dict] | None = None) -> dict[str, Any]:
     nodes: list[dict[str, Any]] = []
     edges: list[dict[str, str]] = []
     ip_nodes: set[str] = set()
     domain_nodes: list[str] = []
+    pool_nodes_added: set[str] = set()
+    ip_cloud_map = ip_cloud_map or {}
 
     for asset in pipeline_result.get("assets", []):
         host = str(asset.get("hostname", "")).strip()
@@ -1049,6 +1111,9 @@ def _live_network_graph(pipeline_result: dict[str, Any]) -> dict[str, Any]:
 
         status = str(asset.get("status", "UNKNOWN"))
         ip = str(asset.get("ip") or "").strip()
+        cloud_info = ip_cloud_map.get(ip, {})
+        cloud_provider = cloud_info.get("provider", "unknown")
+        pool = cloud_info.get("pool", "self_hosted")
 
         nodes.append({
             "id": host,
@@ -1057,12 +1122,32 @@ def _live_network_graph(pipeline_result: dict[str, Any]) -> dict[str, Any]:
             "pqc_status": status,
             "display_tier": _status_to_display_tier(status),
             "ip_address": ip,
+            "cloud_provider": cloud_provider,
+            "pool": pool,
+            "is_cloud_hosted": cloud_info.get("is_cloud", False),
         })
         domain_nodes.append(host)
 
         if ip:
             ip_id = f"ip-{ip}"
             if ip_id not in ip_nodes:
+                # Add pool group node if not already added
+                pool_id = f"pool-{pool}"
+                if pool_id not in pool_nodes_added:
+                    pool_label = "Cloud-Hosted" if pool == "cloud" else "Self-Hosted"
+                    nodes.append({
+                        "id": pool_id,
+                        "label": pool_label,
+                        "type": "pool",
+                        "pqc_status": "UNKNOWN",
+                        "display_tier": "Pool",
+                        "ip_address": "",
+                        "cloud_provider": pool,
+                        "pool": pool,
+                        "is_cloud_hosted": pool == "cloud",
+                    })
+                    pool_nodes_added.add(pool_id)
+
                 nodes.append({
                     "id": ip_id,
                     "label": ip,
@@ -1070,8 +1155,15 @@ def _live_network_graph(pipeline_result: dict[str, Any]) -> dict[str, Any]:
                     "pqc_status": status,
                     "display_tier": _status_to_display_tier(status),
                     "ip_address": ip,
+                    "cloud_provider": cloud_provider,
+                    "cloud_display_name": cloud_info.get("display_name", ""),
+                    "pool": pool,
+                    "is_cloud_hosted": cloud_info.get("is_cloud", False),
                 })
                 ip_nodes.add(ip_id)
+                # Connect IP to its pool node
+                edges.append({"source": ip_id, "target": pool_id})
+
             edges.append({"source": host, "target": ip_id})
 
     for idx in range(len(domain_nodes) - 1):
@@ -1080,14 +1172,33 @@ def _live_network_graph(pipeline_result: dict[str, Any]) -> dict[str, Any]:
     return {"nodes": nodes, "edges": edges}
 
 
-def _derive_asset_discovery_payload(pipeline_result: dict[str, Any]) -> dict[str, Any]:
+async def _derive_asset_discovery_payload(pipeline_result: dict[str, Any]) -> dict[str, Any]:
     demo_mode = pipeline_result.get("mode") == "demo"
+    if demo_mode:
+        return {
+            "domains": get_demo_domain_assets(),
+            "ssl": get_demo_ssl_assets(),
+            "ip": get_demo_ip_assets(),
+            "software": get_demo_software_assets(),
+            "network_graph": get_demo_network_graph(),
+        }
+    # Live mode: run cloud detection, share results between ip assets and graph
+    ip_records = await _live_ip_assets(pipeline_result)
+    ip_cloud_map = {
+        r["ip_address"]: {
+            "provider": r["cloud_provider"],
+            "display_name": r["cloud_display_name"],
+            "is_cloud": r["is_cloud_hosted"],
+            "pool": r["pool"],
+        }
+        for r in ip_records if r.get("ip_address")
+    }
     return {
-        "domains": get_demo_domain_assets() if demo_mode else _live_domain_assets(pipeline_result),
-        "ssl": get_demo_ssl_assets() if demo_mode else _live_ssl_assets(pipeline_result),
-        "ip": get_demo_ip_assets() if demo_mode else _live_ip_assets(pipeline_result),
-        "software": get_demo_software_assets() if demo_mode else _live_software_assets(pipeline_result),
-        "network_graph": get_demo_network_graph() if demo_mode else _live_network_graph(pipeline_result),
+        "domains": _live_domain_assets(pipeline_result),
+        "ssl": _live_ssl_assets(pipeline_result),
+        "ip": ip_records,
+        "software": _live_software_assets(pipeline_result),
+        "network_graph": _live_network_graph(pipeline_result, ip_cloud_map=ip_cloud_map),
     }
 
 
@@ -1218,10 +1329,10 @@ def _compute_home_summary(pipeline_result: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def _build_report_section(report_type: str, pipeline_result: dict[str, Any]) -> dict[str, Any]:
+async def _build_report_section(report_type: str, pipeline_result: dict[str, Any]) -> dict[str, Any]:
     """Build a report section for the reporting API."""
     home_summary = _compute_home_summary(pipeline_result)
-    assets_payload = _derive_asset_discovery_payload(pipeline_result)
+    assets_payload = await _derive_asset_discovery_payload(pipeline_result)
 
     if report_type == "executive":
         return {
@@ -1354,6 +1465,11 @@ async def run_demo_scan(request: Request):
     _cache_pipeline_from_scan_summary(_latest_scan, mode="demo", domain="")
     if history_scan_id:
         _latest_scan = ScanSummary.model_validate(summary)
+    # Warm the enterprise pipeline cache so /api/assets/* serve real data immediately
+    try:
+        await _ensure_latest_pipeline_result(mode="demo", force_refresh=True)
+    except Exception as _exc:
+        logger.warning("Demo pipeline warm-up failed: %s", _exc)
     return _latest_scan.model_dump(mode="json")
 
 
@@ -1424,6 +1540,11 @@ async def scan_domain(domain: str, request: Request):
             summary["scan_id"] = history_scan_id
             _latest_scan = ScanSummary.model_validate(summary)
         _cache_pipeline_from_scan_summary(_latest_scan, mode="live", domain=domain)
+        # Warm the full enterprise pipeline cache so /api/assets/* serve real data
+        try:
+            await _ensure_latest_pipeline_result(mode="live", domain=domain, force_refresh=True)
+        except Exception as _exc:
+            logger.warning("Live pipeline warm-up failed for %s: %s", domain, _exc)
         return _latest_scan.model_dump(mode="json")
 
     except HTTPException:
@@ -2751,7 +2872,7 @@ async def api_assets_domains(mode: str = "demo", domain: str | None = None):
     """Return discovered domain assets for the dashboard."""
     pipeline_result = await _ensure_latest_pipeline_result(mode=mode, domain=domain)
     demo_mode = pipeline_result.get("mode") == "demo"
-    assets_payload = _derive_asset_discovery_payload(pipeline_result)
+    assets_payload = await _derive_asset_discovery_payload(pipeline_result)
     return JSONResponse(content={
         "items": assets_payload["domains"],
         "demo_mode": demo_mode,
@@ -2764,7 +2885,7 @@ async def api_assets_ssl(mode: str = "demo", domain: str | None = None):
     """Return SSL certificate assets for the dashboard."""
     pipeline_result = await _ensure_latest_pipeline_result(mode=mode, domain=domain)
     demo_mode = pipeline_result.get("mode") == "demo"
-    assets_payload = _derive_asset_discovery_payload(pipeline_result)
+    assets_payload = await _derive_asset_discovery_payload(pipeline_result)
     return JSONResponse(content={
         "items": assets_payload["ssl"],
         "demo_mode": demo_mode,
@@ -2777,7 +2898,7 @@ async def api_assets_ip(mode: str = "demo", domain: str | None = None):
     """Return IP assets for the dashboard."""
     pipeline_result = await _ensure_latest_pipeline_result(mode=mode, domain=domain)
     demo_mode = pipeline_result.get("mode") == "demo"
-    assets_payload = _derive_asset_discovery_payload(pipeline_result)
+    assets_payload = await _derive_asset_discovery_payload(pipeline_result)
     return JSONResponse(content={
         "items": assets_payload["ip"],
         "demo_mode": demo_mode,
@@ -2790,7 +2911,7 @@ async def api_assets_software(mode: str = "demo", domain: str | None = None):
     """Return exposed software assets for the dashboard."""
     pipeline_result = await _ensure_latest_pipeline_result(mode=mode, domain=domain)
     demo_mode = pipeline_result.get("mode") == "demo"
-    assets_payload = _derive_asset_discovery_payload(pipeline_result)
+    assets_payload = await _derive_asset_discovery_payload(pipeline_result)
     return JSONResponse(content={
         "items": assets_payload["software"],
         "demo_mode": demo_mode,
@@ -2803,7 +2924,8 @@ async def api_assets_network_graph(mode: str = "demo", domain: str | None = None
     """Return network graph data for the dashboard."""
     pipeline_result = await _ensure_latest_pipeline_result(mode=mode, domain=domain)
     demo_mode = pipeline_result.get("mode") == "demo"
-    graph = _derive_asset_discovery_payload(pipeline_result)["network_graph"]
+    assets_payload = await _derive_asset_discovery_payload(pipeline_result)
+    graph = assets_payload["network_graph"]
     graph["demo_mode"] = demo_mode
     graph["data_notice"] = _data_notice(demo_mode)
     return JSONResponse(content=graph)
@@ -2891,7 +3013,7 @@ async def api_reporting_generate(
 
     pipeline_result = await _ensure_latest_pipeline_result(mode=mode, domain=domain, force_refresh=refresh)
     demo_mode = pipeline_result.get("mode") == "demo"
-    report_data = _build_report_section(report_type, pipeline_result)
+    report_data = await _build_report_section(report_type, pipeline_result)
 
     if format == "html":
         payload_data: dict[str, Any] = {

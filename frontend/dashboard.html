@@ -60,6 +60,10 @@
             <button class="tab-btn" data-tab="history" onclick="switchTab('history')"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg> History</button>
             <button class="tab-btn" data-tab="phase7" onclick="switchTab('phase7')"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"></path><path d="M2 17l10 5 10-5"></path><path d="M2 12l10 5 10-5"></path></svg> Classification &amp; Agility</button>
             <button class="tab-btn" data-tab="phase9" onclick="switchTab('phase9')"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><polyline points="9 12 11 14 15 10"/></svg> Regression &amp; Certification</button>
+            <button class="tab-btn" data-tab="inventory" onclick="switchTab('inventory')"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg> Asset Inventory</button>
+            <button class="tab-btn" data-tab="discovery" onclick="switchTab('discovery')"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg> Asset Discovery</button>
+            <button class="tab-btn" data-tab="cyberrating" onclick="switchTab('cyberrating')"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg> Cyber Rating</button>
+            <button class="tab-btn" data-tab="reporting" onclick="switchTab('reporting')"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg> Reporting</button>
         </div>
 
         <!-- ═══════════════ TAB: OVERVIEW (Phase 1) ═══════════════ -->
@@ -208,6 +212,48 @@
                 </div>
 
                 <pre id="reportPreview" class="code-preview">Report output preview will appear here.</pre>
+            </div>
+
+            <!-- Overview Summary Cards (Phase 8) -->
+            <div id="overviewSummaryCards" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin-bottom:20px;">
+                <div class="card" style="padding:16px;">
+                    <div style="font-size:0.6rem;font-weight:800;text-transform:uppercase;letter-spacing:0.1em;color:var(--text-secondary);margin-bottom:10px;display:flex;align-items:center;gap:6px;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>Asset Discovery</div>
+                    <div style="display:flex;gap:16px;flex-wrap:wrap;">
+                        <div><div style="font-size:1.3rem;font-weight:800;color:var(--primary);" id="ovDomains">—</div><div style="font-size:0.6rem;color:var(--text-secondary);">Domains</div></div>
+                        <div><div style="font-size:1.3rem;font-weight:800;color:#0891b2;" id="ovIPs">—</div><div style="font-size:0.6rem;color:var(--text-secondary);">IPs</div></div>
+                        <div><div style="font-size:1.3rem;font-weight:800;color:#16a34a;" id="ovCloud">—</div><div style="font-size:0.6rem;color:var(--text-secondary);">Cloud</div></div>
+                    </div>
+                </div>
+                <div class="card" style="padding:16px;">
+                    <div style="font-size:0.6rem;font-weight:800;text-transform:uppercase;letter-spacing:0.1em;color:var(--text-secondary);margin-bottom:10px;display:flex;align-items:center;gap:6px;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#7c3aed" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>PQC Posture</div>
+                    <div style="margin-bottom:8px;">
+                        <div style="display:flex;justify-content:space-between;font-size:0.7rem;margin-bottom:3px;"><span>PQC Ready</span><strong id="ovPqcPct">—%</strong></div>
+                        <div style="height:6px;background:var(--border);border-radius:3px;"><div id="ovPqcBar" style="height:6px;background:#16a34a;border-radius:3px;width:0%;transition:width 0.6s;"></div></div>
+                    </div>
+                    <div>
+                        <div style="display:flex;justify-content:space-between;font-size:0.7rem;margin-bottom:3px;"><span>In Transition</span><strong id="ovTransPct">—%</strong></div>
+                        <div style="height:6px;background:var(--border);border-radius:3px;"><div id="ovTransBar" style="height:6px;background:#d97706;border-radius:3px;width:0%;transition:width 0.6s;"></div></div>
+                    </div>
+                </div>
+                <div class="card" style="padding:16px;">
+                    <div style="font-size:0.6rem;font-weight:800;text-transform:uppercase;letter-spacing:0.1em;color:var(--text-secondary);margin-bottom:10px;display:flex;align-items:center;gap:6px;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>CBOM Status</div>
+                    <div style="display:flex;gap:16px;flex-wrap:wrap;">
+                        <div><div style="font-size:1.3rem;font-weight:800;color:#dc2626;" id="ovVulnComp">—</div><div style="font-size:0.6rem;color:var(--text-secondary);">Vulnerable</div></div>
+                        <div><div style="font-size:1.3rem;font-weight:800;color:#d97706;" id="ovWeakCrypto">—</div><div style="font-size:0.6rem;color:var(--text-secondary);">Weak Crypto</div></div>
+                        <div><div style="font-size:1.3rem;font-weight:800;color:#16a34a;" id="ovSslCerts">—</div><div style="font-size:0.6rem;color:var(--text-secondary);">SSL Certs</div></div>
+                    </div>
+                </div>
+                <div class="card" style="padding:16px;">
+                    <div style="font-size:0.6rem;font-weight:800;text-transform:uppercase;letter-spacing:0.1em;color:var(--text-secondary);margin-bottom:10px;display:flex;align-items:center;gap:6px;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fec800" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>Cyber Rating</div>
+                    <div style="font-size:2rem;font-weight:900;color:var(--primary);" id="ovCyberScore">—</div>
+                    <div style="font-size:0.65rem;color:var(--text-secondary);margin-bottom:8px;">/ 1000</div>
+                    <div style="display:flex;gap:5px;flex-wrap:wrap;" id="ovTierBadges">
+                        <span style="background:#16a34a18;color:#16a34a;padding:2px 7px;border-radius:4px;font-size:0.6rem;font-weight:700;" id="ovEliteCt">A</span>
+                        <span style="background:#0891b218;color:#0891b2;padding:2px 7px;border-radius:4px;font-size:0.6rem;font-weight:700;" id="ovStdCt">B</span>
+                        <span style="background:#d9780618;color:#d97706;padding:2px 7px;border-radius:4px;font-size:0.6rem;font-weight:700;" id="ovLegacyCt">C</span>
+                        <span style="background:#dc262618;color:#dc2626;padding:2px 7px;border-radius:4px;font-size:0.6rem;font-weight:700;" id="ovCritCt">D</span>
+                    </div>
+                </div>
             </div>
 
             <!-- Main Grid: Asset Table + Q-Score Ring -->
@@ -799,6 +845,394 @@
             </div>
         </div><!-- /tab-phase9 -->
 
+        <!-- ═══════════════ TAB: ASSET INVENTORY ═══════════════ -->
+        <div class="tab-content" id="tab-inventory">
+
+            <!-- Stats Row (6 cards) -->
+            <div id="invStatsGrid" style="display:grid;grid-template-columns:repeat(6,1fr);gap:12px;margin-bottom:20px;"></div>
+
+            <!-- Charts Row -->
+            <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px;">
+                <div class="card" style="padding:16px;">
+                    <div style="font-size:0.6rem;font-weight:800;text-transform:uppercase;letter-spacing:0.12em;color:var(--text-secondary);margin-bottom:10px;">Asset Type Distribution</div>
+                    <div style="position:relative;height:160px;"><canvas id="invChartAssetType"></canvas></div>
+                </div>
+                <div class="card" style="padding:16px;">
+                    <div style="font-size:0.6rem;font-weight:800;text-transform:uppercase;letter-spacing:0.12em;color:var(--text-secondary);margin-bottom:10px;">Asset Risk Distribution</div>
+                    <div style="position:relative;height:160px;"><canvas id="invChartRisk"></canvas></div>
+                </div>
+                <div class="card" style="padding:16px;">
+                    <div style="font-size:0.6rem;font-weight:800;text-transform:uppercase;letter-spacing:0.12em;color:var(--text-secondary);margin-bottom:10px;">Certificate Expiry Timeline</div>
+                    <div style="position:relative;height:160px;"><canvas id="invChartCertExpiry"></canvas></div>
+                </div>
+                <div class="card" style="padding:16px;">
+                    <div style="font-size:0.6rem;font-weight:800;text-transform:uppercase;letter-spacing:0.12em;color:var(--text-secondary);margin-bottom:10px;">IP Version Breakdown</div>
+                    <div style="position:relative;height:160px;"><canvas id="invChartIPVersion"></canvas></div>
+                </div>
+            </div>
+
+            <!-- Filter & Table Card -->
+            <div class="card" style="margin-bottom:20px;overflow:hidden;">
+                <div style="padding:16px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+                    <div style="position:relative;flex:1;min-width:200px;">
+                        <svg style="position:absolute;left:10px;top:50%;transform:translateY(-50%);opacity:0.4;" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+                        <input id="invSearch" oninput="invApplyFilters()" placeholder="Search assets, IPs, types…" style="width:100%;padding:8px 12px 8px 32px;border:1px solid var(--border);border-radius:6px;font-size:0.8rem;background:var(--surface);color:var(--text-primary);outline:none;"/>
+                    </div>
+                    <select id="invFilterType" onchange="invApplyFilters()" style="padding:8px 12px;border:1px solid var(--border);border-radius:6px;font-size:0.8rem;background:var(--surface);color:var(--text-primary);outline:none;">
+                        <option value="">Type: All</option>
+                        <option value="Web App">Web App</option>
+                        <option value="API">API</option>
+                        <option value="Server">Server</option>
+                        <option value="Gateway">Gateway</option>
+                    </select>
+                    <select id="invFilterRisk" onchange="invApplyFilters()" style="padding:8px 12px;border:1px solid var(--border);border-radius:6px;font-size:0.8rem;background:var(--surface);color:var(--text-primary);outline:none;">
+                        <option value="">Risk: All</option>
+                        <option value="critical">Critical</option>
+                        <option value="high">High</option>
+                        <option value="medium">Medium</option>
+                        <option value="low">Low</option>
+                    </select>
+                    <button onclick="invScanAll()" class="btn btn-primary" style="font-size:0.78rem;padding:8px 16px;">
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:5px;"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg>Scan All
+                    </button>
+                    <button onclick="invExportCSV()" class="btn" style="font-size:0.78rem;padding:8px 12px;">
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                    </button>
+                </div>
+                <div style="overflow-x:auto;">
+                    <table style="width:100%;border-collapse:collapse;font-size:0.78rem;" id="invAssetTable">
+                        <thead>
+                            <tr style="background:var(--surface);border-bottom:1px solid var(--border);">
+                                <th style="padding:10px 12px;text-align:left;font-size:0.6rem;font-weight:800;text-transform:uppercase;letter-spacing:0.12em;color:var(--text-secondary);white-space:nowrap;">Asset Name</th>
+                                <th style="padding:10px 12px;text-align:left;font-size:0.6rem;font-weight:800;text-transform:uppercase;letter-spacing:0.12em;color:var(--text-secondary);white-space:nowrap;">URL</th>
+                                <th style="padding:10px 12px;text-align:left;font-size:0.6rem;font-weight:800;text-transform:uppercase;letter-spacing:0.12em;color:var(--text-secondary);white-space:nowrap;">IPv4</th>
+                                <th style="padding:10px 12px;text-align:left;font-size:0.6rem;font-weight:800;text-transform:uppercase;letter-spacing:0.12em;color:var(--text-secondary);white-space:nowrap;">IPv6</th>
+                                <th style="padding:10px 12px;text-align:left;font-size:0.6rem;font-weight:800;text-transform:uppercase;letter-spacing:0.12em;color:var(--text-secondary);white-space:nowrap;">Type</th>
+                                <th style="padding:10px 12px;text-align:left;font-size:0.6rem;font-weight:800;text-transform:uppercase;letter-spacing:0.12em;color:var(--text-secondary);white-space:nowrap;">Owner</th>
+                                <th style="padding:10px 12px;text-align:left;font-size:0.6rem;font-weight:800;text-transform:uppercase;letter-spacing:0.12em;color:var(--text-secondary);white-space:nowrap;">Risk</th>
+                                <th style="padding:10px 12px;text-align:left;font-size:0.6rem;font-weight:800;text-transform:uppercase;letter-spacing:0.12em;color:var(--text-secondary);white-space:nowrap;">Cert Status</th>
+                                <th style="padding:10px 12px;text-align:left;font-size:0.6rem;font-weight:800;text-transform:uppercase;letter-spacing:0.12em;color:var(--text-secondary);white-space:nowrap;">Key Length</th>
+                                <th style="padding:10px 12px;text-align:left;font-size:0.6rem;font-weight:800;text-transform:uppercase;letter-spacing:0.12em;color:var(--text-secondary);white-space:nowrap;">Last Scan</th>
+                            </tr>
+                        </thead>
+                        <tbody id="invAssetTableBody"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Bottom Grid: Nameserver | Crypto Overview | Geo Map -->
+            <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:20px;">
+
+                <!-- Nameserver Records -->
+                <div class="card" style="padding:16px;">
+                    <div style="font-size:0.6rem;font-weight:800;text-transform:uppercase;letter-spacing:0.12em;color:var(--text-secondary);margin-bottom:12px;display:flex;align-items:center;gap:6px;">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>Nameserver Records
+                    </div>
+                    <div style="display:flex;gap:6px;margin-bottom:10px;">
+                        <input id="invDomainResolve" type="text" placeholder="domain.com" style="flex:1;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:0.78rem;background:var(--surface);color:var(--text-primary);outline:none;"/>
+                        <button onclick="invResolveDomain()" class="btn" style="font-size:0.72rem;padding:6px 10px;">Resolve</button>
+                    </div>
+                    <div id="invNSRecords" style="display:flex;flex-direction:column;gap:6px;"></div>
+                </div>
+
+                <!-- Crypto & Security Overview -->
+                <div class="card" style="padding:16px;overflow:hidden;">
+                    <div style="font-size:0.6rem;font-weight:800;text-transform:uppercase;letter-spacing:0.12em;color:var(--text-secondary);margin-bottom:12px;display:flex;align-items:center;gap:6px;">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>Crypto &amp; Security
+                    </div>
+                    <div style="overflow-x:auto;">
+                        <table style="width:100%;border-collapse:collapse;font-size:0.7rem;">
+                            <thead>
+                                <tr style="border-bottom:1px solid var(--border);">
+                                    <th style="padding:5px 8px;text-align:left;font-size:0.58rem;font-weight:800;text-transform:uppercase;color:var(--text-secondary);">Asset</th>
+                                    <th style="padding:5px 8px;text-align:left;font-size:0.58rem;font-weight:800;text-transform:uppercase;color:var(--text-secondary);">Key</th>
+                                    <th style="padding:5px 8px;text-align:left;font-size:0.58rem;font-weight:800;text-transform:uppercase;color:var(--text-secondary);">Cipher</th>
+                                    <th style="padding:5px 8px;text-align:left;font-size:0.58rem;font-weight:800;text-transform:uppercase;color:var(--text-secondary);">TLS</th>
+                                    <th style="padding:5px 8px;text-align:left;font-size:0.58rem;font-weight:800;text-transform:uppercase;color:var(--text-secondary);">CA</th>
+                                </tr>
+                            </thead>
+                            <tbody id="invCryptoBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Geographic Map -->
+                <div class="card" style="padding:16px;">
+                    <div style="font-size:0.6rem;font-weight:800;text-transform:uppercase;letter-spacing:0.12em;color:var(--text-secondary);margin-bottom:10px;display:flex;align-items:center;gap:6px;">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="10" r="3"/><path d="M12 21.7C17.3 17 20 13 20 10a8 8 0 1 0-16 0c0 3 2.7 6.9 8 11.7z"/></svg>Geographic Distribution
+                    </div>
+                    <div id="invLeafletMap" style="height:180px;border-radius:6px;z-index:1;"></div>
+                    <div id="invGeoStats" style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-top:8px;"></div>
+                </div>
+            </div>
+
+            <!-- Activity Feed -->
+            <div class="card" style="padding:16px;">
+                <div style="font-size:0.6rem;font-weight:800;text-transform:uppercase;letter-spacing:0.12em;color:var(--text-secondary);margin-bottom:12px;display:flex;align-items:center;gap:6px;">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>Recent Scans &amp; Activity
+                </div>
+                <div id="invActivityFeed" style="display:flex;flex-direction:column;gap:8px;"></div>
+            </div>
+
+        </div><!-- /tab-inventory -->
+
+        <!-- ═══════════════ TAB: ASSET DISCOVERY ═══════════════ -->
+        <div class="tab-content" id="tab-discovery">
+            <!-- Stats bar -->
+            <div id="discStatsGrid" style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px;"></div>
+
+            <!-- Sub-tab nav -->
+            <div class="card" style="margin-bottom:20px;overflow:hidden;">
+                <div style="padding:12px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+                    <button id="discTab-domains" class="disc-subtab disc-subtab--active" onclick="discSwitchTab('domains')"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg> Domains <span id="discTabCount-domains" style="font-size:0.65rem;background:rgba(123,0,48,0.12);color:var(--primary);padding:1px 6px;border-radius:10px;">0</span></button>
+                    <button id="discTab-ssl" class="disc-subtab" onclick="discSwitchTab('ssl')"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg> SSL Certs <span id="discTabCount-ssl" style="font-size:0.65rem;background:rgba(123,0,48,0.12);color:var(--primary);padding:1px 6px;border-radius:10px;">0</span></button>
+                    <button id="discTab-ip" class="disc-subtab" onclick="discSwitchTab('ip')"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="8" rx="2"/><rect x="2" y="14" width="20" height="8" rx="2"/><line x1="6" y1="6" x2="6.01" y2="6"/><line x1="6" y1="18" x2="6.01" y2="18"/></svg> IP / Subnets <span id="discTabCount-ip" style="font-size:0.65rem;background:rgba(123,0,48,0.12);color:var(--primary);padding:1px 6px;border-radius:10px;">0</span></button>
+                    <button id="discTab-software" class="disc-subtab" onclick="discSwitchTab('software')"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg> Software <span id="discTabCount-software" style="font-size:0.65rem;background:rgba(123,0,48,0.12);color:var(--primary);padding:1px 6px;border-radius:10px;">0</span></button>
+
+                    <div style="display:flex;gap:6px;margin-left:auto;flex-wrap:wrap;">
+                        <button class="disc-filter disc-filter--active" id="discFilter-All" onclick="discSetFilter('All')">All</button>
+                        <button class="disc-filter" id="discFilter-New" onclick="discSetFilter('New')">New</button>
+                        <button class="disc-filter" id="discFilter-Confirmed" onclick="discSetFilter('Confirmed')">Confirmed</button>
+                        <button class="disc-filter" id="discFilter-FP" onclick="discSetFilter('FP')">False Positive</button>
+                    </div>
+                </div>
+
+                <!-- Search + date range -->
+                <div style="padding:10px 20px;border-bottom:1px solid var(--border);display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+                    <div style="position:relative;flex:1;min-width:200px;">
+                        <svg style="position:absolute;left:10px;top:50%;transform:translateY(-50%);opacity:0.4;" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+                        <input id="discSearch" oninput="discApplyFilters()" placeholder="Search domains, IPs, certificates…" style="width:100%;padding:7px 10px 7px 30px;border:1px solid var(--border);border-radius:6px;font-size:0.78rem;background:var(--surface);color:var(--text-primary);outline:none;"/>
+                    </div>
+                    <input type="date" id="discDateFrom" onchange="discApplyFilters()" style="padding:7px 10px;border:1px solid var(--border);border-radius:6px;font-size:0.78rem;background:var(--surface);color:var(--text-primary);outline:none;"/>
+                    <span style="font-size:0.75rem;color:var(--text-secondary);">to</span>
+                    <input type="date" id="discDateTo" onchange="discApplyFilters()" style="padding:7px 10px;border:1px solid var(--border);border-radius:6px;font-size:0.78rem;background:var(--surface);color:var(--text-primary);outline:none;"/>
+                </div>
+
+                <!-- Table output -->
+                <div style="overflow-x:auto;" id="discTableWrap"></div>
+            </div>
+
+            <!-- Network Graph in Discovery -->
+            <div class="card" style="padding:16px;">
+                <div style="font-size:0.6rem;font-weight:800;text-transform:uppercase;letter-spacing:0.12em;color:var(--text-secondary);margin-bottom:12px;display:flex;align-items:center;gap:6px;">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>Asset Network Graph
+                </div>
+                <div id="discNetworkGraph" style="height:380px;border-radius:6px;"></div>
+            </div>
+        </div><!-- /tab-discovery -->
+
+        <!-- ═══════════════ TAB: CYBER RATING ═══════════════ -->
+        <div class="tab-content" id="tab-cyberrating">
+            <!-- Score hero -->
+            <div style="display:grid;grid-template-columns:auto 1fr;gap:20px;align-items:center;margin-bottom:20px;">
+                <div class="card" style="padding:28px 36px;text-align:center;min-width:180px;">
+                    <div style="font-size:0.6rem;font-weight:800;text-transform:uppercase;letter-spacing:0.12em;color:var(--text-secondary);margin-bottom:8px;">Enterprise PQC Score</div>
+                    <div id="crScore" style="font-size:3.2rem;font-weight:900;color:var(--primary);line-height:1;">—</div>
+                    <div style="font-size:0.72rem;color:var(--text-secondary);margin-top:4px;">/ 1000</div>
+                    <div id="crTierBadge" style="margin-top:10px;display:inline-block;padding:4px 14px;border-radius:999px;font-size:0.72rem;font-weight:700;">—</div>
+                </div>
+                <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;">
+                    <div class="card" style="padding:16px;text-align:center;">
+                        <div id="crTier1Count" style="font-size:1.6rem;font-weight:800;color:#16a34a;">—</div>
+                        <div style="font-size:0.62rem;font-weight:700;text-transform:uppercase;color:var(--text-secondary);">Elite-PQC</div>
+                    </div>
+                    <div class="card" style="padding:16px;text-align:center;">
+                        <div id="crTier2Count" style="font-size:1.6rem;font-weight:800;color:#0891b2;">—</div>
+                        <div style="font-size:0.62rem;font-weight:700;text-transform:uppercase;color:var(--text-secondary);">Standard</div>
+                    </div>
+                    <div class="card" style="padding:16px;text-align:center;">
+                        <div id="crTier3Count" style="font-size:1.6rem;font-weight:800;color:#d97706;">—</div>
+                        <div style="font-size:0.62rem;font-weight:700;text-transform:uppercase;color:var(--text-secondary);">Legacy</div>
+                    </div>
+                    <div class="card" style="padding:16px;text-align:center;">
+                        <div id="crCritCount" style="font-size:1.6rem;font-weight:800;color:#dc2626;">—</div>
+                        <div style="font-size:0.62rem;font-weight:700;text-transform:uppercase;color:var(--text-secondary);">Critical</div>
+                    </div>
+                </div>
+            </div>
+
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:20px;">
+                <!-- Per-URL PQC Scores -->
+                <div class="card" style="padding:16px;overflow:hidden;">
+                    <div style="font-size:0.6rem;font-weight:800;text-transform:uppercase;letter-spacing:0.12em;color:var(--text-secondary);margin-bottom:12px;">Per-URL PQC Scores</div>
+                    <div style="overflow-x:auto;max-height:340px;overflow-y:auto;">
+                        <table style="width:100%;border-collapse:collapse;font-size:0.78rem;">
+                            <thead><tr style="border-bottom:1px solid var(--border);position:sticky;top:0;background:var(--surface);">
+                                <th style="padding:8px 10px;text-align:left;font-size:0.6rem;font-weight:800;text-transform:uppercase;color:var(--text-secondary);">URL</th>
+                                <th style="padding:8px 10px;text-align:right;font-size:0.6rem;font-weight:800;text-transform:uppercase;color:var(--text-secondary);">PQC Score</th>
+                                <th style="padding:8px 10px;text-align:center;font-size:0.6rem;font-weight:800;text-transform:uppercase;color:var(--text-secondary);">Tier</th>
+                                <th style="padding:8px 10px;text-align:center;font-size:0.6rem;font-weight:800;text-transform:uppercase;color:var(--text-secondary);">PQC Support</th>
+                            </tr></thead>
+                            <tbody id="crUrlTable"></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Tier Reference Table -->
+                <div class="card" style="padding:16px;">
+                    <div style="font-size:0.6rem;font-weight:800;text-transform:uppercase;letter-spacing:0.12em;color:var(--text-secondary);margin-bottom:12px;">Rating Tier Reference</div>
+                    <table style="width:100%;border-collapse:collapse;font-size:0.78rem;">
+                        <thead><tr style="border-bottom:1px solid var(--border);">
+                            <th style="padding:8px 10px;text-align:left;font-size:0.6rem;font-weight:800;text-transform:uppercase;color:var(--text-secondary);">Tier</th>
+                            <th style="padding:8px 10px;text-align:left;font-size:0.6rem;font-weight:800;text-transform:uppercase;color:var(--text-secondary);">Score Range</th>
+                            <th style="padding:8px 10px;text-align:left;font-size:0.6rem;font-weight:800;text-transform:uppercase;color:var(--text-secondary);">Description</th>
+                        </tr></thead>
+                        <tbody>
+                            <tr style="border-bottom:1px solid var(--border);"><td style="padding:8px 10px;"><span style="background:#16a34a18;color:#16a34a;padding:2px 8px;border-radius:4px;font-size:0.7rem;font-weight:700;">Elite-PQC</span></td><td style="padding:8px 10px;font-size:0.78rem;font-weight:700;">&gt; 700</td><td style="padding:8px 10px;font-size:0.72rem;color:var(--text-secondary);">Post-quantum ready, FIPS 203/204/205</td></tr>
+                            <tr style="border-bottom:1px solid var(--border);"><td style="padding:8px 10px;"><span style="background:#0891b218;color:#0891b2;padding:2px 8px;border-radius:4px;font-size:0.7rem;font-weight:700;">Standard</span></td><td style="padding:8px 10px;font-size:0.78rem;font-weight:700;">400 – 700</td><td style="padding:8px 10px;font-size:0.72rem;color:var(--text-secondary);">Acceptable, TLS 1.2 with legacy allowed</td></tr>
+                            <tr style="border-bottom:1px solid var(--border);"><td style="padding:8px 10px;"><span style="background:#d9780618;color:#d97706;padding:2px 8px;border-radius:4px;font-size:0.7rem;font-weight:700;">Legacy</span></td><td style="padding:8px 10px;font-size:0.78rem;font-weight:700;">200 – 400</td><td style="padding:8px 10px;font-size:0.72rem;color:var(--text-secondary);">Weak, TLS 1.0/1.1, CBC/3DES ciphers</td></tr>
+                            <tr><td style="padding:8px 10px;"><span style="background:#dc262618;color:#dc2626;padding:2px 8px;border-radius:4px;font-size:0.7rem;font-weight:700;">Critical</span></td><td style="padding:8px 10px;font-size:0.78rem;font-weight:700;">&lt; 200</td><td style="padding:8px 10px;font-size:0.72rem;color:var(--text-secondary);">Insecure, SSL v2/v3, &lt;1024-bit keys</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Compliance Criteria Matrix -->
+            <div class="card" style="padding:16px;overflow:hidden;">
+                <div style="font-size:0.6rem;font-weight:800;text-transform:uppercase;letter-spacing:0.12em;color:var(--text-secondary);margin-bottom:12px;">Tier Compliance Criteria</div>
+                <div style="overflow-x:auto;">
+                    <table style="width:100%;border-collapse:collapse;font-size:0.75rem;">
+                        <thead><tr style="border-bottom:2px solid var(--border);">
+                            <th style="padding:8px 12px;text-align:left;font-size:0.6rem;font-weight:800;text-transform:uppercase;color:var(--text-secondary);">Criteria</th>
+                            <th style="padding:8px 12px;text-align:center;"><span style="background:#16a34a18;color:#16a34a;padding:2px 10px;border-radius:4px;font-size:0.68rem;font-weight:700;">Elite-PQC</span></th>
+                            <th style="padding:8px 12px;text-align:center;"><span style="background:#0891b218;color:#0891b2;padding:2px 10px;border-radius:4px;font-size:0.68rem;font-weight:700;">Standard</span></th>
+                            <th style="padding:8px 12px;text-align:center;"><span style="background:#d9780618;color:#d97706;padding:2px 10px;border-radius:4px;font-size:0.68rem;font-weight:700;">Legacy</span></th>
+                            <th style="padding:8px 12px;text-align:center;"><span style="background:#dc262618;color:#dc2626;padding:2px 10px;border-radius:4px;font-size:0.68rem;font-weight:700;">Critical</span></th>
+                        </tr></thead>
+                        <tbody id="crComplianceBody">
+                            <tr style="border-bottom:1px solid var(--border);"><td style="padding:8px 12px;font-weight:600;">TLS Version</td><td style="padding:8px 12px;text-align:center;color:#16a34a;">TLS 1.3 only</td><td style="padding:8px 12px;text-align:center;color:#0891b2;">TLS 1.2/1.3</td><td style="padding:8px 12px;text-align:center;color:#d97706;">TLS 1.0/1.1</td><td style="padding:8px 12px;text-align:center;color:#dc2626;">SSL v2/v3</td></tr>
+                            <tr style="border-bottom:1px solid var(--border);"><td style="padding:8px 12px;font-weight:600;">Key Exchange</td><td style="padding:8px 12px;text-align:center;color:#16a34a;">Kyber-1024 / X25519</td><td style="padding:8px 12px;text-align:center;color:#0891b2;">ECDHE &gt;2048-bit</td><td style="padding:8px 12px;text-align:center;color:#d97706;">RSA 2048-bit</td><td style="padding:8px 12px;text-align:center;color:#dc2626;">&lt;1024-bit / DH</td></tr>
+                            <tr style="border-bottom:1px solid var(--border);"><td style="padding:8px 12px;font-weight:600;">Cipher Suite</td><td style="padding:8px 12px;text-align:center;color:#16a34a;">AES-256-GCM, ChaCha20</td><td style="padding:8px 12px;text-align:center;color:#0891b2;">AES-128-GCM</td><td style="padding:8px 12px;text-align:center;color:#d97706;">AES-CBC / 3DES</td><td style="padding:8px 12px;text-align:center;color:#dc2626;">DES / RC4 / NULL</td></tr>
+                            <tr style="border-bottom:1px solid var(--border);"><td style="padding:8px 12px;font-weight:600;">Certificate Authority</td><td style="padding:8px 12px;text-align:center;color:#16a34a;">PQC CA (DigiCert PQC)</td><td style="padding:8px 12px;text-align:center;color:#0891b2;">Trusted CA (DigiCert)</td><td style="padding:8px 12px;text-align:center;color:#d97706;">Any valid CA</td><td style="padding:8px 12px;text-align:center;color:#dc2626;">Self-signed / Expired</td></tr>
+                            <tr><td style="padding:8px 12px;font-weight:600;">Security Headers</td><td style="padding:8px 12px;text-align:center;color:#16a34a;">HSTS + CSP + HPKP</td><td style="padding:8px 12px;text-align:center;color:#0891b2;">HSTS required</td><td style="padding:8px 12px;text-align:center;color:#d97706;">Partial headers</td><td style="padding:8px 12px;text-align:center;color:#dc2626;">No security headers</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div><!-- /tab-cyberrating -->
+
+        <!-- ═══════════════ TAB: REPORTING ═══════════════ -->
+        <div class="tab-content" id="tab-reporting">
+            <!-- Report type cards -->
+            <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:24px;" id="repTypeCards">
+                <div class="card rep-type-card rep-type-card--active" onclick="repSelectType('scheduled')" id="repCard-scheduled" style="padding:20px;cursor:pointer;border:2px solid var(--primary);">
+                    <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
+                        <div style="width:36px;height:36px;border-radius:8px;background:rgba(123,0,48,0.1);display:flex;align-items:center;justify-content:center;">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#7B0030" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                        </div>
+                        <div style="font-weight:700;font-size:0.88rem;">Scheduled Reporting</div>
+                    </div>
+                    <div style="font-size:0.75rem;color:var(--text-secondary);">Automate report delivery on weekly, monthly, or quarterly cadence.</div>
+                </div>
+                <div class="card rep-type-card" onclick="repSelectType('ondemand')" id="repCard-ondemand" style="padding:20px;cursor:pointer;border:2px solid transparent;">
+                    <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
+                        <div style="width:36px;height:36px;border-radius:8px;background:rgba(123,0,48,0.06);display:flex;align-items:center;justify-content:center;">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#7B0030" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                        </div>
+                        <div style="font-weight:700;font-size:0.88rem;">On-Demand Reporting</div>
+                    </div>
+                    <div style="font-size:0.75rem;color:var(--text-secondary);">Generate any report type instantly with custom delivery options.</div>
+                </div>
+                <div class="card rep-type-card" onclick="repSelectType('executive')" id="repCard-executive" style="padding:20px;cursor:pointer;border:2px solid transparent;">
+                    <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
+                        <div style="width:36px;height:36px;border-radius:8px;background:rgba(123,0,48,0.06);display:flex;align-items:center;justify-content:center;">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#7B0030" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                        </div>
+                        <div style="font-weight:700;font-size:0.88rem;">Executive Summary</div>
+                    </div>
+                    <div style="font-size:0.75rem;color:var(--text-secondary);">High-level PQC posture overview for leadership and board review.</div>
+                </div>
+            </div>
+
+            <!-- Scheduled form -->
+            <div id="repForm-scheduled" class="card" style="padding:24px;margin-bottom:16px;">
+                <div style="font-size:0.72rem;font-weight:800;text-transform:uppercase;letter-spacing:0.12em;color:var(--text-secondary);margin-bottom:16px;">Schedule Report</div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px;">
+                    <div>
+                        <label style="font-size:0.75rem;font-weight:600;color:var(--text-secondary);display:block;margin-bottom:6px;">Report Type</label>
+                        <select id="repSchedType" class="scan-input" style="width:100%;padding:8px 12px;">
+                            <option>Executive Summary</option><option>Assets Discovery</option><option>Assets Inventory</option><option>CBOM Analysis</option><option>PQC Posture</option><option>Cyber Rating</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label style="font-size:0.75rem;font-weight:600;color:var(--text-secondary);display:block;margin-bottom:6px;">Frequency</label>
+                        <select id="repSchedFreq" class="scan-input" style="width:100%;padding:8px 12px;">
+                            <option>Weekly</option><option>Monthly</option><option>Quarterly</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label style="font-size:0.75rem;font-weight:600;color:var(--text-secondary);display:block;margin-bottom:6px;">Schedule Date</label>
+                        <input type="date" id="repSchedDate" class="scan-input" style="width:100%;padding:8px 12px;" />
+                    </div>
+                    <div>
+                        <label style="font-size:0.75rem;font-weight:600;color:var(--text-secondary);display:block;margin-bottom:6px;">Timezone</label>
+                        <select id="repSchedTZ" class="scan-input" style="width:100%;padding:8px 12px;">
+                            <option>Asia/Kolkata (IST)</option><option>UTC</option><option>America/New_York</option><option>Europe/London</option>
+                        </select>
+                    </div>
+                </div>
+                <div style="margin-bottom:14px;">
+                    <label style="font-size:0.75rem;font-weight:600;color:var(--text-secondary);display:block;margin-bottom:8px;">Include Sections</label>
+                    <div style="display:flex;gap:10px;flex-wrap:wrap;">
+                        <label style="display:flex;align-items:center;gap:6px;font-size:0.78rem;cursor:pointer;"><input type="checkbox" checked /> Discovery</label>
+                        <label style="display:flex;align-items:center;gap:6px;font-size:0.78rem;cursor:pointer;"><input type="checkbox" checked /> Inventory</label>
+                        <label style="display:flex;align-items:center;gap:6px;font-size:0.78rem;cursor:pointer;"><input type="checkbox" checked /> CBOM</label>
+                        <label style="display:flex;align-items:center;gap:6px;font-size:0.78rem;cursor:pointer;"><input type="checkbox" checked /> PQC Posture</label>
+                        <label style="display:flex;align-items:center;gap:6px;font-size:0.78rem;cursor:pointer;"><input type="checkbox" checked /> Cyber Rating</label>
+                    </div>
+                </div>
+                <div style="margin-bottom:16px;">
+                    <label style="font-size:0.75rem;font-weight:600;color:var(--text-secondary);display:block;margin-bottom:6px;">Delivery Email</label>
+                    <input type="email" id="repSchedEmail" placeholder="security@bank.com" class="scan-input" style="width:100%;padding:8px 12px;" />
+                </div>
+                <button onclick="repSchedule()" class="btn btn-primary" style="padding:10px 24px;">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:6px;"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>Schedule Report
+                </button>
+            </div>
+
+            <!-- On-demand form -->
+            <div id="repForm-ondemand" class="card" style="padding:24px;margin-bottom:16px;display:none;">
+                <div style="font-size:0.72rem;font-weight:800;text-transform:uppercase;letter-spacing:0.12em;color:var(--text-secondary);margin-bottom:16px;">Generate On-Demand Report</div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px;">
+                    <div>
+                        <label style="font-size:0.75rem;font-weight:600;color:var(--text-secondary);display:block;margin-bottom:6px;">Report Type</label>
+                        <select id="repOdType" class="scan-input" style="width:100%;padding:8px 12px;">
+                            <option>Executive</option><option>Assets Discovery</option><option>Assets Inventory</option><option>CBOM</option><option>PQC Posture</option><option>Cyber Rating</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label style="font-size:0.75rem;font-weight:600;color:var(--text-secondary);display:block;margin-bottom:6px;">File Format</label>
+                        <select id="repOdFormat" class="scan-input" style="width:100%;padding:8px 12px;">
+                            <option>PDF</option><option>JSON</option><option>CSV</option>
+                        </select>
+                    </div>
+                </div>
+                <div style="margin-bottom:14px;display:flex;gap:20px;flex-wrap:wrap;">
+                    <label style="display:flex;align-items:center;gap:6px;font-size:0.78rem;cursor:pointer;"><input type="checkbox" id="repOdCharts" checked /> Include Charts</label>
+                    <label style="display:flex;align-items:center;gap:6px;font-size:0.78rem;cursor:pointer;"><input type="checkbox" id="repOdPassword" /> Password Protect</label>
+                    <label style="display:flex;align-items:center;gap:6px;font-size:0.78rem;cursor:pointer;"><input type="checkbox" id="repOdSlack" /> Slack Notification</label>
+                </div>
+                <div style="margin-bottom:16px;">
+                    <label style="font-size:0.75rem;font-weight:600;color:var(--text-secondary);display:block;margin-bottom:6px;">Delivery Email (optional)</label>
+                    <input type="email" id="repOdEmail" placeholder="security@bank.com" class="scan-input" style="width:100%;padding:8px 12px;" />
+                </div>
+                <button onclick="repGenerateOnDemand()" class="btn btn-primary" style="padding:10px 24px;">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:6px;"><polygon points="5 3 19 12 5 21 5 3"/></svg>Generate Report
+                </button>
+            </div>
+
+            <!-- Executive summary panel -->
+            <div id="repForm-executive" class="card" style="padding:24px;display:none;">
+                <div style="font-size:0.72rem;font-weight:800;text-transform:uppercase;letter-spacing:0.12em;color:var(--text-secondary);margin-bottom:16px;">Executive Summary Preview</div>
+                <div id="repExecPreview" style="font-size:0.82rem;color:var(--text-secondary);line-height:1.7;">
+                    <p>Run a scan to generate the executive summary. The report will include PQC posture overview, critical findings, cyber rating, and remediation roadmap.</p>
+                </div>
+                <button onclick="repGenerateExec()" class="btn btn-primary" style="margin-top:16px;padding:10px 24px;">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:6px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Export Executive Report
+                </button>
+            </div>
+        </div><!-- /tab-reporting -->
+
         <!-- Footer -->
         <footer class="footer">
             <div class="footer-text">
@@ -831,6 +1265,9 @@
     </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/vis-network@9.1.9/standalone/umd/vis-network.min.js"></script>
     <script type="module" src="./js/supabase-client.js"></script>
     <script src="./js/app.js"></script>
 </body>

@@ -81,7 +81,7 @@ def _ip(hostname: str) -> str:
 # ─── 2 x FULLY_QUANTUM_SAFE ────────────────────────────────────────────────
 
 _netbanking = TriModeFingerprint(
-    hostname="netbanking.bank.com", port=443, asset_type=AssetType.WEB, ip=_ip("netbanking.bank.com"), mode="demo",
+    hostname="netbanking.pnb.bank.in", port=443, asset_type=AssetType.WEB, ip=_ip("netbanking.pnb.bank.in"), mode="demo",
     probe_a=ProbeProfile(
         mode="A", tls_version="TLSv1.3", cipher_suite="TLS_AES_256_GCM_SHA384", cipher_bits=256,
         key_exchange="ML-KEM-768", key_exchange_group="ML-KEM-768",
@@ -100,11 +100,11 @@ _netbanking = TriModeFingerprint(
         authentication="ML-DSA-65", signature_algorithm="ML-DSA-65",
         public_key_type="ML-DSA", public_key_bits=2048,
     ),
-    certificate=_cert("netbanking.bank.com", "DigiCert PQC Root CA", "ML-DSA-65", "ML-DSA", 2048, 730),
+    certificate=_cert("netbanking.pnb.bank.in", "DigiCert PQC Root CA", "ML-DSA-65", "ML-DSA", 2048, 730),
 )
 
 _auth = TriModeFingerprint(
-    hostname="auth.bank.com", port=443, asset_type=AssetType.WEB, ip=_ip("auth.bank.com"), mode="demo",
+    hostname="auth.pnb.bank.in", port=443, asset_type=AssetType.WEB, ip=_ip("auth.pnb.bank.in"), mode="demo",
     probe_a=ProbeProfile(
         mode="A", tls_version="TLSv1.3", cipher_suite="TLS_AES_256_GCM_SHA384", cipher_bits=256,
         key_exchange="ML-KEM-768", key_exchange_group="ML-KEM-768",
@@ -123,7 +123,7 @@ _auth = TriModeFingerprint(
         authentication="ML-DSA-65", signature_algorithm="ML-DSA-65",
         public_key_type="ML-DSA", public_key_bits=2048,
     ),
-    certificate=_cert("auth.bank.com", "GlobalSign PQC CA", "ML-DSA-65", "ML-DSA", 2048, 540),
+    certificate=_cert("auth.pnb.bank.in", "GlobalSign PQC CA", "ML-DSA-65", "ML-DSA", 2048, 540),
 )
 
 
@@ -155,10 +155,10 @@ def _pqc_transition_fp(hostname: str, asset_type: AssetType = AssetType.WEB) -> 
     )
 
 
-_api = _pqc_transition_fp("api.bank.com", AssetType.API)
-_mobileapi = _pqc_transition_fp("mobileapi.bank.com", AssetType.API)
-_upi = _pqc_transition_fp("upi.bank.com", AssetType.API)
-_cards = _pqc_transition_fp("cards.bank.com", AssetType.WEB)
+_api = _pqc_transition_fp("api.pnb.bank.in", AssetType.API)
+_mobileapi = _pqc_transition_fp("mobileapi.pnb.bank.in", AssetType.API)
+_upi = _pqc_transition_fp("upi.pnb.bank.in", AssetType.API)
+_cards = _pqc_transition_fp("cards.pnb.bank.in", AssetType.WEB)
 
 
 # ─── 11 x QUANTUM_VULNERABLE ───────────────────────────────────────────────
@@ -189,12 +189,12 @@ def _qv_ecdhe(hostname: str, asset_type: AssetType = AssetType.WEB) -> TriModeFi
     )
 
 
-_swift = _qv_ecdhe("swift.bank.com", AssetType.API)
-_imps = _qv_ecdhe("imps.bank.com", AssetType.API)
-_neft = _qv_ecdhe("neft.bank.com", AssetType.API)
-_fx = _qv_ecdhe("fx.bank.com", AssetType.WEB)
-_trade = _qv_ecdhe("trade.bank.com", AssetType.WEB)
-_custody = _qv_ecdhe("custody.bank.com", AssetType.WEB)
+_swift = _qv_ecdhe("swift.pnb.bank.in", AssetType.API)
+_imps = _qv_ecdhe("imps.pnb.bank.in", AssetType.API)
+_neft = _qv_ecdhe("neft.pnb.bank.in", AssetType.API)
+_fx = _qv_ecdhe("fx.pnb.bank.in", AssetType.WEB)
+_trade = _qv_ecdhe("trade.pnb.bank.in", AssetType.WEB)
+_custody = _qv_ecdhe("custody.pnb.bank.in", AssetType.WEB)
 
 
 # 5 with RSA KEX + RSA-2048, TLS 1.3 in A+B, TLS 1.2 accepted in C
@@ -223,11 +223,11 @@ def _qv_rsa(hostname: str, asset_type: AssetType = AssetType.WEB) -> TriModeFing
     )
 
 
-_loans = _qv_rsa("loans.bank.com")
-_corp = _qv_rsa("corp.bank.com")
-_sme = _qv_rsa("sme.bank.com")
-_kyc = _qv_rsa("kyc.bank.com", AssetType.API)
-_cms = _qv_rsa("cms.bank.com")
+_loans = _qv_rsa("loans.pnb.bank.in")
+_corp = _qv_rsa("corp.pnb.bank.in")
+_sme = _qv_rsa("sme.pnb.bank.in")
+_kyc = _qv_rsa("kyc.pnb.bank.in", AssetType.API)
+_cms = _qv_rsa("cms.pnb.bank.in")
 
 
 # ─── 3 x CRITICALLY_VULNERABLE ─────────────────────────────────────────────
@@ -258,15 +258,15 @@ def _crit_vuln(hostname: str, asset_type: AssetType = AssetType.WEB) -> TriModeF
     )
 
 
-_vpn = _crit_vuln("vpn.bank.com", AssetType.VPN)
-_reporting = _crit_vuln("reporting.bank.com")
-_legacy = _crit_vuln("legacy.bank.com")
+_vpn = _crit_vuln("vpn.pnb.bank.in", AssetType.VPN)
+_reporting = _crit_vuln("reporting.pnb.bank.in")
+_legacy = _crit_vuln("legacy.pnb.bank.in")
 
 
 # ─── 1 x UNKNOWN ───────────────────────────────────────────────────────────
 
 _staging = TriModeFingerprint(
-    hostname="staging.bank.com", port=443, asset_type=AssetType.WEB, ip=_ip("staging.bank.com"), mode="demo",
+    hostname="staging.pnb.bank.in", port=443, asset_type=AssetType.WEB, ip=_ip("staging.pnb.bank.in"), mode="demo",
     probe_a=ProbeProfile(mode="A", error="Connection timeout after 10s"),
     probe_b=ProbeProfile(mode="B", error="Connection timeout after 10s"),
     probe_c=ProbeProfile(mode="C", error="Connection timeout after 10s"),
@@ -302,11 +302,11 @@ def get_demo_baseline_fingerprints() -> list[TriModeFingerprint]:
 
     Differences from current:
       - 4 assets degraded: probe_c weakened by one tier
-      - imps.bank.com and kyc.bank.com removed (not yet discovered)
-      - neft.bank.com has a different certificate serial number
+      - imps.pnb.bank.in and kyc.pnb.bank.in removed (not yet discovered)
+      - neft.pnb.bank.in has a different certificate serial number
     """
-    excluded = {"imps.bank.com", "kyc.bank.com"}
-    degraded_hosts = {"swift.bank.com", "fx.bank.com", "trade.bank.com", "custody.bank.com"}
+    excluded = {"imps.pnb.bank.in", "kyc.pnb.bank.in"}
+    degraded_hosts = {"swift.pnb.bank.in", "fx.pnb.bank.in", "trade.pnb.bank.in", "custody.pnb.bank.in"}
 
     baseline: list[TriModeFingerprint] = []
     for fp in DEMO_TRIMODE_FINGERPRINTS:
@@ -330,7 +330,7 @@ def get_demo_baseline_fingerprints() -> list[TriModeFingerprint]:
                 public_key_bits=old_c.public_key_bits,
             )
 
-        if fp.hostname == "neft.bank.com":
+        if fp.hostname == "neft.pnb.bank.in":
             copy.certificate = copy.certificate.model_copy(
                 update={"serial_number": "0xBASELINE00NEFT"}
             )
@@ -694,7 +694,7 @@ def get_demo_network_graph() -> dict[str, list[dict[str, str]]]:
     nodes = [
         # FULLY_QUANTUM_SAFE (3)
         {
-            "id": "netbanking.bank.com",
+            "id": "netbanking.pnb.bank.in",
             "label": "netbanking",
             "type": "domain",
             "pqc_status": "FULLY_QUANTUM_SAFE",
@@ -702,7 +702,7 @@ def get_demo_network_graph() -> dict[str, list[dict[str, str]]]:
             "ip_address": "103.107.224.11",
         },
         {
-            "id": "auth.bank.com",
+            "id": "auth.pnb.bank.in",
             "label": "auth",
             "type": "domain",
             "pqc_status": "FULLY_QUANTUM_SAFE",
@@ -719,7 +719,7 @@ def get_demo_network_graph() -> dict[str, list[dict[str, str]]]:
         },
         # PQC_TRANSITION (3)
         {
-            "id": "api.bank.com",
+            "id": "api.pnb.bank.in",
             "label": "api",
             "type": "domain",
             "pqc_status": "PQC_TRANSITION",
@@ -727,7 +727,7 @@ def get_demo_network_graph() -> dict[str, list[dict[str, str]]]:
             "ip_address": "103.107.224.44",
         },
         {
-            "id": "mobileapi.bank.com",
+            "id": "mobileapi.pnb.bank.in",
             "label": "mobileapi",
             "type": "domain",
             "pqc_status": "PQC_TRANSITION",
@@ -744,7 +744,7 @@ def get_demo_network_graph() -> dict[str, list[dict[str, str]]]:
         },
         # QUANTUM_VULNERABLE (3)
         {
-            "id": "swift.bank.com",
+            "id": "swift.pnb.bank.in",
             "label": "swift",
             "type": "domain",
             "pqc_status": "QUANTUM_VULNERABLE",
@@ -752,7 +752,7 @@ def get_demo_network_graph() -> dict[str, list[dict[str, str]]]:
             "ip_address": "103.107.225.87",
         },
         {
-            "id": "loans.bank.com",
+            "id": "loans.pnb.bank.in",
             "label": "loans",
             "type": "domain",
             "pqc_status": "QUANTUM_VULNERABLE",
@@ -769,7 +769,7 @@ def get_demo_network_graph() -> dict[str, list[dict[str, str]]]:
         },
         # CRITICALLY_VULNERABLE (3)
         {
-            "id": "vpn.bank.com",
+            "id": "vpn.pnb.bank.in",
             "label": "vpn",
             "type": "domain",
             "pqc_status": "CRITICALLY_VULNERABLE",
@@ -777,7 +777,7 @@ def get_demo_network_graph() -> dict[str, list[dict[str, str]]]:
             "ip_address": "103.107.227.52",
         },
         {
-            "id": "legacy.bank.com",
+            "id": "legacy.pnb.bank.in",
             "label": "legacy",
             "type": "domain",
             "pqc_status": "CRITICALLY_VULNERABLE",
@@ -794,7 +794,7 @@ def get_demo_network_graph() -> dict[str, list[dict[str, str]]]:
         },
         # UNKNOWN (3)
         {
-            "id": "staging.bank.com",
+            "id": "staging.pnb.bank.in",
             "label": "staging",
             "type": "domain",
             "pqc_status": "UNKNOWN",
@@ -821,29 +821,29 @@ def get_demo_network_graph() -> dict[str, list[dict[str, str]]]:
 
     edges = [
         # Subnet proximity / IP linkage
-        {"source": "netbanking.bank.com", "target": "ip-103.107.224.63"},
-        {"source": "auth.bank.com", "target": "ip-103.107.224.63"},
-        {"source": "api.bank.com", "target": "ip-103.107.224.44"},
-        {"source": "mobileapi.bank.com", "target": "ip-103.107.224.44"},
-        {"source": "swift.bank.com", "target": "ip-103.107.224.63"},
-        {"source": "loans.bank.com", "target": "ip-103.107.224.63"},
-        {"source": "vpn.bank.com", "target": "ip-103.107.224.63"},
-        {"source": "legacy.bank.com", "target": "ip-103.107.224.63"},
-        {"source": "staging.bank.com", "target": "ip-103.107.224.44"},
+        {"source": "netbanking.pnb.bank.in", "target": "ip-103.107.224.63"},
+        {"source": "auth.pnb.bank.in", "target": "ip-103.107.224.63"},
+        {"source": "api.pnb.bank.in", "target": "ip-103.107.224.44"},
+        {"source": "mobileapi.pnb.bank.in", "target": "ip-103.107.224.44"},
+        {"source": "swift.pnb.bank.in", "target": "ip-103.107.224.63"},
+        {"source": "loans.pnb.bank.in", "target": "ip-103.107.224.63"},
+        {"source": "vpn.pnb.bank.in", "target": "ip-103.107.224.63"},
+        {"source": "legacy.pnb.bank.in", "target": "ip-103.107.224.63"},
+        {"source": "staging.pnb.bank.in", "target": "ip-103.107.224.44"},
         # Certificate linkage
-        {"source": "ssl-pqc-01", "target": "netbanking.bank.com"},
-        {"source": "ssl-pqc-01", "target": "auth.bank.com"},
-        {"source": "ssl-hybrid-01", "target": "api.bank.com"},
-        {"source": "ssl-hybrid-01", "target": "mobileapi.bank.com"},
-        {"source": "ssl-legacy-01", "target": "vpn.bank.com"},
-        {"source": "ssl-legacy-01", "target": "legacy.bank.com"},
-        {"source": "ssl-unknown-01", "target": "staging.bank.com"},
+        {"source": "ssl-pqc-01", "target": "netbanking.pnb.bank.in"},
+        {"source": "ssl-pqc-01", "target": "auth.pnb.bank.in"},
+        {"source": "ssl-hybrid-01", "target": "api.pnb.bank.in"},
+        {"source": "ssl-hybrid-01", "target": "mobileapi.pnb.bank.in"},
+        {"source": "ssl-legacy-01", "target": "vpn.pnb.bank.in"},
+        {"source": "ssl-legacy-01", "target": "legacy.pnb.bank.in"},
+        {"source": "ssl-unknown-01", "target": "staging.pnb.bank.in"},
         # Cross-tier operational relationships
-        {"source": "netbanking.bank.com", "target": "api.bank.com"},
-        {"source": "auth.bank.com", "target": "mobileapi.bank.com"},
-        {"source": "swift.bank.com", "target": "loans.bank.com"},
-        {"source": "vpn.bank.com", "target": "legacy.bank.com"},
-        {"source": "api.bank.com", "target": "staging.bank.com"},
+        {"source": "netbanking.pnb.bank.in", "target": "api.pnb.bank.in"},
+        {"source": "auth.pnb.bank.in", "target": "mobileapi.pnb.bank.in"},
+        {"source": "swift.pnb.bank.in", "target": "loans.pnb.bank.in"},
+        {"source": "vpn.pnb.bank.in", "target": "legacy.pnb.bank.in"},
+        {"source": "api.pnb.bank.in", "target": "staging.pnb.bank.in"},
         {"source": "ssl-hybrid-01", "target": "ssl-unknown-01"},
     ]
 

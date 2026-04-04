@@ -92,6 +92,7 @@ class ProbeProfile(BaseModel):
     hsts_enabled: bool = False
     certificate_serial: str | None = None
     error: str | None = None
+    supported_ciphers: list[str] = Field(default_factory=list)  # Full server cipher list
 
 
 class TriModeFingerprint(BaseModel):

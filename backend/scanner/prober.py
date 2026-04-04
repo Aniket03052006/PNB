@@ -277,6 +277,96 @@ async def _run_single_probe(
     return profile
 
 
+# ── Full cipher enumeration ──────────────────────────────────────────────────
+
+# TLS 1.2 cipher suites to test (from strong to insecure)
+_TLS12_CIPHERS = [
+    "ECDHE-RSA-AES256-GCM-SHA384",
+    "ECDHE-ECDSA-AES256-GCM-SHA384",
+    "ECDHE-RSA-AES128-GCM-SHA256",
+    "ECDHE-ECDSA-AES128-GCM-SHA256",
+    "ECDHE-RSA-CHACHA20-POLY1305",
+    "ECDHE-ECDSA-CHACHA20-POLY1305",
+    "DHE-RSA-AES256-GCM-SHA384",
+    "DHE-RSA-AES128-GCM-SHA256",
+    "ECDHE-RSA-AES256-SHA384",
+    "ECDHE-ECDSA-AES256-SHA384",
+    "ECDHE-RSA-AES128-SHA256",
+    "ECDHE-ECDSA-AES128-SHA256",
+    "ECDHE-RSA-AES256-SHA",
+    "ECDHE-ECDSA-AES256-SHA",
+    "DHE-RSA-AES256-SHA256",
+    "DHE-RSA-AES128-SHA256",
+    "AES256-GCM-SHA384",
+    "AES128-GCM-SHA256",
+    "AES256-SHA256",
+    "AES128-SHA256",
+    "AES256-SHA",
+    "AES128-SHA",
+    "DHE-RSA-AES256-SHA",
+    "DHE-RSA-AES128-SHA",
+    "ECDHE-RSA-DES-CBC3-SHA",
+    "EDH-RSA-DES-CBC3-SHA",
+    "DES-CBC3-SHA",
+    "RC4-SHA",
+    "RC4-MD5",
+    "EXP-RC4-MD5",
+    "NULL-SHA256",
+    "NULL-SHA",
+]
+
+# TLS 1.3 cipher suites (always the same 5, but test which are accepted)
+_TLS13_CIPHERS = [
+    "TLS_AES_256_GCM_SHA384",
+    "TLS_AES_128_GCM_SHA256",
+    "TLS_CHACHA20_POLY1305_SHA256",
+    "TLS_AES_128_CCM_SHA256",
+    "TLS_AES_128_CCM_8_SHA256",
+]
+
+_CIPHER_SCAN_CONCURRENCY = 8
+
+
+async def _test_single_cipher(
+    hostname: str,
+    port: int,
+    cipher: str,
+    tls13: bool = False,
+    timeout: float = 5.0,
+) -> bool:
+    """Return True if the server accepts the given cipher."""
+    if tls13:
+        args = ["-tls1_3", "-ciphersuites", cipher]
+    else:
+        args = ["-tls1_2", "-cipher", cipher]
+    try:
+        info = await _run_openssl(hostname, port, extra_args=args, timeout=timeout)
+        return bool(info.get("version") and info.get("cipher"))
+    except Exception:
+        return False
+
+
+async def _scan_supported_ciphers(hostname: str, port: int, timeout: float = 5.0) -> list[str]:
+    """Return all cipher suites accepted by the server.
+
+    Tests TLS 1.3 and TLS 1.2 cipher suites concurrently.
+    Returns list of accepted cipher names, strongest first.
+    """
+    sem = asyncio.Semaphore(_CIPHER_SCAN_CONCURRENCY)
+
+    async def _test(cipher: str, tls13: bool) -> str | None:
+        async with sem:
+            ok = await _test_single_cipher(hostname, port, cipher, tls13=tls13, timeout=timeout)
+            return cipher if ok else None
+
+    tasks = (
+        [_test(c, tls13=True) for c in _TLS13_CIPHERS]
+        + [_test(c, tls13=False) for c in _TLS12_CIPHERS]
+    )
+    results = await asyncio.gather(*tasks, return_exceptions=True)
+    return [r for r in results if isinstance(r, str) and r]
+
+
 # ── Tri-mode probe ───────────────────────────────────────────────────────────
 
 
@@ -295,7 +385,7 @@ async def probe_trimode(
     t0 = time.monotonic()
     connect_host = ip or hostname
 
-    # Run all 3 probes concurrently
+    # Run all 3 probes + cipher scan concurrently
     probe_a_task = _run_single_probe(hostname, port, "A", extra_args=[
         "-groups", "ML-KEM-768:X25519MLKEM768:X25519:secp256r1",
     ])
@@ -305,11 +395,14 @@ async def probe_trimode(
     probe_c_task = _run_single_probe(hostname, port, "C", extra_args=[
         "-tls1_2",
     ])
+    cipher_scan_task = _scan_supported_ciphers(hostname, port)
 
-    probe_a, probe_b, probe_c = await asyncio.gather(
-        probe_a_task, probe_b_task, probe_c_task,
+    probe_a, probe_b, probe_c, supported_ciphers = await asyncio.gather(
+        probe_a_task, probe_b_task, probe_c_task, cipher_scan_task,
         return_exceptions=False,
     )
+    # Attach full cipher list to probe_b (the standard TLS 1.3 probe)
+    probe_b.supported_ciphers = supported_ciphers
 
     # Certificate (one extraction is enough — shared across probes)
     certificate = await _extract_certificate(hostname, port, connect_host=connect_host)

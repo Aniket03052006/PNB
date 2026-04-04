@@ -980,3 +980,101 @@ a:hover { text-decoration: underline; }
         padding: 36px 16px;
     }
 }
+
+/* ── Asset Inventory Tab ── */
+#invLeafletMap { height: 180px; border-radius: 6px; z-index: 1; }
+#invLeafletMap .leaflet-pane { z-index: 1 !important; }
+#invLeafletMap .leaflet-top, #invLeafletMap .leaflet-bottom { z-index: 2 !important; }
+.leaflet-container { background: #e8eaed; font-family: inherit; }
+
+#tab-inventory .card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 1px 4px rgba(0,0,0,0.06); }
+
+/* ── Discovery Tab ── */
+.disc-subtab {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 6px 14px; border: 1px solid var(--border); border-radius: 6px;
+    background: var(--surface); color: var(--text-secondary);
+    font-size: 0.78rem; font-weight: 600; cursor: pointer; transition: all 0.15s;
+}
+.disc-subtab--active, .disc-subtab:hover {
+    background: var(--primary); color: #fff; border-color: var(--primary);
+}
+.disc-filter {
+    padding: 4px 12px; border: 1px solid var(--border); border-radius: 999px;
+    background: var(--surface); color: var(--text-secondary);
+    font-size: 0.72rem; font-weight: 600; cursor: pointer; transition: all 0.15s;
+}
+.disc-filter--active { background: var(--primary); color: #fff; border-color: var(--primary); }
+#discNetworkGraph { border: 1px solid var(--border); }
+#discNetworkGraph .vis-network { border-radius: 6px; }
+
+/* ── Cyber Rating Tab ── */
+#tab-cyberrating .card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; }
+
+/* ── Reporting Tab ── */
+.rep-type-card { transition: border-color 0.2s, box-shadow 0.2s; }
+.rep-type-card:hover { box-shadow: 0 4px 12px rgba(123,0,48,0.12); }
+.rep-type-card--active { border-color: var(--primary) !important; }
+
+/* ── vis-network container ── */
+#networkVizMount .vis-network { border-radius: 6px; }
+.vis-tooltip {
+    background: var(--bg-secondary) !important; border: 1px solid var(--border) !important;
+    border-radius: 8px !important; padding: 8px 12px !important;
+    font-size: 0.78rem !important; font-family: inherit !important;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.12) !important; color: var(--text-primary) !important;
+}
+
+/* ── Global Card base ── */
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 1px 4px rgba(0,0,0,0.05); }
+
+/* ── Risk badges ── */
+.risk-badge { display:inline-block; padding:2px 8px; border-radius:4px; font-size:0.65rem; font-weight:800; text-transform:uppercase; letter-spacing:0.06em; }
+.risk-badge--critical { background:#dc262618; color:#dc2626; }
+.risk-badge--high     { background:#ea580c18; color:#ea580c; }
+.risk-badge--medium   { background:#d9780618; color:#d97706; }
+.risk-badge--low      { background:#16a34a18; color:#16a34a; }
+
+/* ── Table row hover + alternating ── */
+table tr:hover td { background: var(--primary-surface) !important; transition: background 0.1s; }
+table tr:nth-child(even) td { background: var(--bg-tertiary); }
+/* Sticky table headers */
+table thead th { position: sticky; top: 0; z-index: 2; background: var(--surface); }
+/* Scrollable table wrappers */
+.table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+
+/* ── Card polish ── */
+.card { transition: box-shadow 0.15s; }
+.card:hover { box-shadow: 0 4px 16px rgba(123,0,48,0.10); }
+/* Overview summary cards get a left accent on hover */
+#overviewSummaryCards .card:hover { border-left: 3px solid var(--primary); }
+#overviewSummaryCards .card { transition: border-left 0.15s, box-shadow 0.15s; }
+
+/* ── Loading skeleton ── */
+@keyframes shimmer { 0%{background-position:-400px 0} 100%{background-position:400px 0} }
+.skeleton {
+    border-radius: 4px; background: linear-gradient(90deg, var(--bg-tertiary) 25%, var(--surface-container) 50%, var(--bg-tertiary) 75%);
+    background-size: 800px 100%; animation: shimmer 1.4s infinite linear;
+}
+.skeleton-text  { height: 0.85em; margin: 4px 0; }
+.skeleton-title { height: 1.4em; width: 60%; margin-bottom: 8px; }
+
+/* ── Smooth tab transitions ── */
+.tab-content { animation: fadeIn 0.18s ease; }
+@keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+
+/* ── Chart container polish ── */
+.chart-container canvas { display: block; max-height: 260px; }
+.inv-chart-box { position: relative; height: 220px; }
+
+/* ── Tier/status color classes ── */
+.tier-elite   { color: #16a34a; }
+.tier-std     { color: #0891b2; }
+.tier-legacy  { color: #d97706; }
+.tier-critical{ color: #dc2626; }
+
+/* ── Scrollbar styling ── */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: var(--bg-tertiary); }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--text-dim); }

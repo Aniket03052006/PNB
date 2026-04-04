@@ -328,6 +328,30 @@ function renderHomeSummaryV2(home) {
 
     setTextSafe('homeVulnComponents', formatCount(cbom.vulnerable_component_count));
     setTextSafe('homeWeakCrypto', formatCount(cbom.weak_crypto_count));
+
+    // Phase 8 — overview summary cards (home data portion)
+    _updateOverviewCards_Home(discovery, inventory, posture, cbom);
+}
+
+function _updateOverviewCards_Home(discovery, inventory, posture, cbom) {
+    setTextSafe('ovDomains',    formatCount(discovery.domain_count    ?? 0));
+    setTextSafe('ovIPs',        formatCount(discovery.ip_count        ?? 0));
+    setTextSafe('ovCloud',      formatCount(discovery.cloud_asset_count ?? 0));
+    setTextSafe('ovVulnComp',   formatCount(cbom.vulnerable_component_count ?? 0));
+    setTextSafe('ovWeakCrypto', formatCount(cbom.weak_crypto_count    ?? 0));
+    setTextSafe('ovSslCerts',   formatCount(inventory.ssl_cert_count  ?? 0));
+
+    const pqcPct   = posture.pqc_adoption_pct   ?? 0;
+    const transPct = posture.transition_pct      ?? 0;
+    setTextSafe('ovPqcPct',   `${Math.round(pqcPct)}%`);
+    setTextSafe('ovTransPct', `${Math.round(transPct)}%`);
+    // Animate progress bars after a brief delay so they're visible
+    setTimeout(() => {
+        const pBar = document.getElementById('ovPqcBar');
+        const tBar = document.getElementById('ovTransBar');
+        if (pBar) pBar.style.width = `${Math.min(100, Math.round(pqcPct))}%`;
+        if (tBar) tBar.style.width = `${Math.min(100, Math.round(transPct))}%`;
+    }, 120);
 }
 
 function renderAssetDiscoveryV2(domains, ssl, ip, software, graph) {
@@ -574,21 +598,29 @@ function renderAdTable() {
             <th style="${thStyle}">IP Address</th>
             <th style="${thStyle}">Ports</th>
             <th style="${thStyle}">Subnet</th>
-            <th style="${thStyle}">ASN</th>
+            <th style="${thStyle}">Cloud Provider</th>
+            <th style="${thStyle}">Pool</th>
             <th style="${thStyle}">Netname</th>
-            <th style="${thStyle}">Location</th>
             <th style="${thStyle}">Company</th>
         </tr>`;
-        rows = filtered.map(d => `<tr>
+        const _cloudBadgeColor = { aws:'#ff9900', azure:'#0078d4', microsoft:'#0078d4', gcp:'#4285f4', cloudflare:'#f48120', fastly:'#e8131a', akamai:'#009bde', digitalocean:'#0080ff', oracle:'#c74634', alibaba:'#ff6a00', self_hosted:'#6b7280', unknown:'#6b7280' };
+        rows = filtered.map(d => {
+            const cp = d.cloud_provider || 'unknown';
+            const cpColor = _cloudBadgeColor[cp] || '#6b7280';
+            const cpLabel = d.cloud_display_name || (cp === 'self_hosted' ? 'Self-Hosted' : cp === 'unknown' ? '—' : cp.toUpperCase());
+            const poolLabel = d.pool === 'cloud' ? '☁ Cloud' : d.pool === 'self_hosted' ? '⬛ Self-Hosted' : '—';
+            const poolColor = d.pool === 'cloud' ? '#7c3aed' : '#6b7280';
+            return `<tr>
             <td style="${tdStyle}">${formatDate(d.timestamp || d.detection_date || d.last_seen)}</td>
             <td style="${tdStyle}"><strong>${escHtml(d.ip_address || '-')}</strong></td>
             <td style="${tdStyle}">${escHtml(Array.isArray(d.ports) ? d.ports.join(', ') : (d.port || '443'))}</td>
-            <td style="${tdStyle}">${escHtml(d.subnet || (d.ip_address ? d.ip_address+'/24' : '-'))}</td>
-            <td style="${tdStyle}">${escHtml(d.asn || 'AS15169')}</td>
-            <td style="${tdStyle}">${escHtml(d.netname || 'GOOGLE')}</td>
-            <td style="${tdStyle}">${escHtml(d.location || 'US')}</td>
+            <td style="${tdStyle}">${escHtml(d.subnet || (d.ip_address ? d.ip_address.split('.').slice(0,3).join('.')+'.0/24' : '-'))}</td>
+            <td style="${tdStyle}"><span style="background:${cpColor}18;color:${cpColor};padding:1px 7px;border-radius:4px;font-size:0.7rem;font-weight:700;">${escHtml(cpLabel)}</span></td>
+            <td style="${tdStyle}"><span style="color:${poolColor};font-weight:600;font-size:0.75rem;">${poolLabel}</span></td>
+            <td style="${tdStyle}">${escHtml(d.netname || d.cloud_display_name || '—')}</td>
             <td style="${tdStyle}">${escHtml(d.organization || d.company || '-')}</td>
-        </tr>`).join('');
+        </tr>`;
+        }).join('');
     } else if (state.currentTab === 'software') {
         thead = `<tr>
             <th style="${thStyle}">Detection Date</th>
@@ -621,6 +653,9 @@ function renderCyberPqcV2(cyber, heatmap, negotiation) {
     setTextSafe('cyberEnterpriseScore', formatCount(cyber.enterprise_score));
     setTextSafe('cyberTier', cyber.tier || '—');
     setTextSafe('cyberDisplayTier', cyber.display_tier || cyber.tier_label || '—');
+
+    // Phase 8 — overview summary cards (cyber data portion)
+    _updateOverviewCards_Cyber(cyber);
 
     const policies = negotiation.policies || {};
     const entries = Object.entries(policies);
@@ -698,6 +733,7 @@ async function loadEnterpriseDashboardData(opts = {}) {
         ]);
 
         enterpriseDashboardData = { home, domains, ssl, ip, software, graph, cyber, heatmap, negotiation };
+        window.enterpriseDashboardData = enterpriseDashboardData;
         renderEnterpriseNotice(home.demo_mode, home.data_notice);
         renderHomeSummaryV2(home);
         renderAssetDiscoveryV2(domains, ssl, ip, software, graph);
@@ -803,6 +839,9 @@ async function runDemoScan() {
 
         // Refresh new API-backed enterprise dashboard
         await loadEnterpriseDashboardData();
+
+        // Auto-populate Regression & Certification tab
+        try { await runPhase9Demo(); } catch(e) { console.warn('Phase 9 auto-run:', e.message); }
     } catch (e) {
         showToast('Scan failed: ' + e.message, 'error');
     } finally {
@@ -841,6 +880,8 @@ async function scanDomain() {
         }
         await loadEnterpriseDashboardData();
         await syncOverviewWithLatestScan(false);
+        // Auto-populate Regression & Certification with live data
+        try { await runPhase9Live(domain); } catch(e) { console.warn('Phase 9 live auto-run:', e.message); }
     } catch (e) {
         showToast('Scan failed: ' + e.message, 'error');
     } finally {
@@ -878,6 +919,8 @@ async function scanSingleHost() {
         renderDashboard(scanData);
         fetchPhase2Assessment();
         await loadEnterpriseDashboardData();
+        // Auto-populate Regression & Certification with live data for single host
+        try { await runPhase9Live(host); } catch(e) { console.warn('Phase 9 single-host auto-run:', e.message); }
     } catch (e) {
         showToast('Probe failed: ' + e.message, 'error');
     } finally {
@@ -3550,7 +3593,13 @@ function graphFilter(filter, btn) {
     NET.filter = filter;
     document.querySelectorAll('.graph-filter-btn').forEach((node) => node.classList.remove('active'));
     if (btn) btn.classList.add('active');
-    drawNet();
+    // Re-render vis network with filtered nodes
+    if (NET.rawNodes) {
+        const filtered = NET.rawNodes.filter(nodeVisible);
+        if (NET.view === 'graph') {
+            NET.visNetwork = buildVisNetwork('networkCanvasWrap', filtered, NET.rawEdges || []);
+        }
+    }
     renderNetworkTable();
 }
 
@@ -3567,6 +3616,11 @@ function toggleGraphView() {
 function nodeVisible(node) {
     if (NET.filter === 'all') return true;
     const tier = (node.pqc_status || node.display_tier || '').toLowerCase();
+    const pool = (node.pool || '').toLowerCase();
+    const t = (node.type || '').toLowerCase();
+    // Always show pool group nodes when filtering by pool
+    if (NET.filter === 'cloud') return pool === 'cloud' || t === 'pool';
+    if (NET.filter === 'self_hosted') return pool === 'self_hosted' || t === 'pool';
     if (NET.filter === 'elite') return tier.includes('elite') || tier.includes('fully');
     if (NET.filter === 'standard') return tier.includes('standard') || tier.includes('transition');
     if (NET.filter === 'vulnerable') return tier.includes('vulnerable') || tier.includes('critical') || tier.includes('legacy');
@@ -3735,74 +3789,150 @@ function renderNetworkTable() {
     `;
 }
 
+/* ── vis-network node/edge mapper ── */
+// Cloud provider badge colors for IP nodes
+const _CLOUD_COLORS = {
+    aws:          { bg: '#ff9900', border: '#cc7a00' },
+    azure:        { bg: '#0078d4', border: '#005a9e' },
+    microsoft:    { bg: '#0078d4', border: '#005a9e' },
+    gcp:          { bg: '#4285f4', border: '#2a56c6' },
+    cloudflare:   { bg: '#f48120', border: '#c8660e' },
+    fastly:       { bg: '#e8131a', border: '#b00d12' },
+    akamai:       { bg: '#009bde', border: '#007ab2' },
+    digitalocean: { bg: '#0080ff', border: '#0060c0' },
+    oracle:       { bg: '#c74634', border: '#9e3528' },
+    alibaba:      { bg: '#ff6a00', border: '#cc5500' },
+};
+
+function _visNodeColor(n) {
+    const t = (n.type || '').toLowerCase();
+    // Pool group nodes
+    if (t === 'pool') {
+        return n.pool === 'cloud'
+            ? { bg: '#7c3aed', border: '#5b21b6' }
+            : { bg: '#374151', border: '#1f2937' };
+    }
+    // IP nodes: color by cloud provider if known
+    if (t === 'ip' && n.cloud_provider && _CLOUD_COLORS[n.cloud_provider]) {
+        return _CLOUD_COLORS[n.cloud_provider];
+    }
+    const tier = (n.pqc_status || n.display_tier || '').toLowerCase();
+    if (tier.includes('fully') || tier.includes('elite')) return { bg: '#16a34a', border: '#15803d' };
+    if (tier.includes('transition') || tier.includes('standard')) return { bg: '#0891b2', border: '#0e7490' };
+    if (tier.includes('critical')) return { bg: '#dc2626', border: '#b91c1c' };
+    if (tier.includes('non_compliant') || tier.includes('legacy') || tier.includes('vulnerable')) return { bg: '#d97706', border: '#b45309' };
+    if (t === 'domain' || t === 'www') return { bg: '#16a34a', border: '#15803d' };
+    if (t === 'ip') return { bg: '#0891b2', border: '#0e7490' };
+    if (t === 'ssl') return { bg: '#2563eb', border: '#1d4ed8' };
+    if (t === 'ssh') return { bg: '#7c3aed', border: '#6d28d9' };
+    if (t === 'tag') return { bg: '#d97706', border: '#b45309' };
+    return { bg: '#6b7280', border: '#4b5563' };
+}
+
+function _visNodeShape(type) {
+    const t = (type || '').toLowerCase();
+    if (t === 'ssl') return 'diamond';
+    if (t === 'ssh') return 'triangle';
+    if (t === 'tag') return 'star';
+    if (t === 'pool') return 'square';
+    if (t === 'ip') return 'dot';
+    return 'dot';
+}
+
+function buildVisNetwork(containerId, rawNodes, rawEdges, opts = {}) {
+    const container = document.getElementById(containerId);
+    if (!container || typeof vis === 'undefined') return null;
+
+    const visNodes = rawNodes.map((n, i) => {
+        const c = _visNodeColor(n);
+        const tier = (n.pqc_status || n.display_tier || 'Unknown');
+        return {
+            id: n.id || i,
+            label: n.label || n.id || `Node ${i}`,
+            shape: _visNodeShape(n.type),
+            color: { background: c.bg, border: c.border, highlight: { background: c.bg, border: '#fec800' } },
+            font: { color: '#ffffff', size: 11, face: 'Inter, sans-serif' },
+            borderWidth: 2,
+            size: n.type === 'domain' ? 18 : 14,
+            title: `${n.label || n.id}\nType: ${n.type || '—'}${n.ip_address ? '\nIP: ' + n.ip_address : ''}${n.cloud_provider && n.cloud_provider !== 'unknown' ? '\nCloud: ' + n.cloud_provider.toUpperCase() : ''}${n.pool ? '\nPool: ' + (n.pool === 'cloud' ? 'Cloud-Hosted' : 'Self-Hosted') : ''}\nTier: ${tier}`,
+            _raw: n,
+        };
+    });
+
+    const visEdges = rawEdges.map((e, i) => ({
+        id: i,
+        from: e.source || e.from,
+        to: e.target || e.to,
+        color: { color: '#d1d5db', highlight: '#fec800', opacity: 0.8 },
+        width: 1.5,
+        smooth: { type: 'continuous' },
+    }));
+
+    const data = {
+        nodes: new vis.DataSet(visNodes),
+        edges: new vis.DataSet(visEdges),
+    };
+
+    const options = {
+        physics: {
+            enabled: true,
+            solver: 'forceAtlas2Based',
+            forceAtlas2Based: { gravitationalConstant: -50, centralGravity: 0.01, springLength: 120, springConstant: 0.08 },
+            stabilization: { iterations: 150, updateInterval: 25 },
+        },
+        interaction: { hover: true, tooltipDelay: 100, zoomView: true, dragView: true },
+        layout: { randomSeed: 42 },
+        nodes: { borderWidth: 2 },
+        edges: { arrows: { to: { enabled: false } } },
+        ...(opts.options || {}),
+    };
+
+    return new vis.Network(container, data, options);
+}
+
 function renderNetworkGraphSection(graphPayload) {
     const mount = document.getElementById('networkVizMount');
     if (!mount) return;
-    const nodes = Array.isArray(graphPayload.nodes) ? graphPayload.nodes : [];
-    const edges = Array.isArray(graphPayload.edges) ? graphPayload.edges : [];
+    const rawNodes = Array.isArray(graphPayload.nodes) ? graphPayload.nodes : [];
+    const rawEdges = Array.isArray(graphPayload.edges) ? graphPayload.edges : [];
 
-    if (!nodes.length) {
+    if (!rawNodes.length) {
         mount.innerHTML = `${bannerHtml(graphPayload)}<div class="viz-state"><div class="viz-state-content"><div class="viz-state-title">No network data</div><div class="viz-state-copy">Run or refresh the enterprise pipeline to map related assets.</div></div></div>`;
         return;
     }
 
     mount.innerHTML = `
         ${bannerHtml(graphPayload)}
-        <div id="graphControls" style="display:flex;align-items:center;gap:0.75rem;flex-wrap:wrap;margin-bottom:0.75rem">
-            <span style="font-size:0.8rem;color:var(--text-secondary)">Filter:</span>
+        <div id="graphControls" style="display:flex;align-items:center;gap:0.5rem;flex-wrap:wrap;margin-bottom:0.75rem">
+            <span style="font-size:0.8rem;color:var(--text-secondary)">PQC:</span>
             <button class="graph-filter-btn active" data-filter="all" onclick="graphFilter('all', this)">All</button>
             <button class="graph-filter-btn" data-filter="elite" onclick="graphFilter('elite', this)">Elite-PQC</button>
             <button class="graph-filter-btn" data-filter="standard" onclick="graphFilter('standard', this)">Standard</button>
             <button class="graph-filter-btn" data-filter="vulnerable" onclick="graphFilter('vulnerable', this)">Vulnerable</button>
+            <span style="font-size:0.8rem;color:var(--text-secondary);margin-left:0.5rem">Pool:</span>
+            <button class="graph-filter-btn" data-filter="cloud" onclick="graphFilter('cloud', this)" style="background:rgba(124,58,237,0.12);color:#7c3aed;border-color:#7c3aed44;">☁ Cloud</button>
+            <button class="graph-filter-btn" data-filter="self_hosted" onclick="graphFilter('self_hosted', this)" style="background:rgba(55,65,81,0.12);color:#9ca3af;border-color:#4b556344;">⬛ Self-Hosted</button>
             <button class="graph-view-toggle" id="graphViewToggleBtn" type="button" onclick="toggleGraphView()" style="margin-left:auto">Switch to Table</button>
         </div>
         <div class="network-view-shell">
-            <div id="networkCanvasWrap">
-                <canvas id="networkCanvas" style="width:100%;height:420px;display:block;cursor:grab"></canvas>
-            </div>
+            <div id="networkCanvasWrap" style="height:420px;border:1px solid var(--border);border-radius:6px;overflow:hidden;"></div>
             <div id="networkTableWrap" style="display:none"></div>
         </div>
-        <div id="networkTooltip" style="display:none;position:fixed;background:var(--bg-primary);border:0.0625rem solid var(--border-subtle);border-radius:0.5rem;padding:0.6rem 0.9rem;font-size:0.8rem;pointer-events:none;z-index:1000"></div>
+        <div style="display:flex;gap:16px;margin-top:10px;flex-wrap:wrap;font-size:0.72rem;color:var(--text-secondary);">
+            <span><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#16a34a;margin-right:5px;vertical-align:middle;"></span>Elite-PQC / Domain</span>
+            <span><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#0891b2;margin-right:5px;vertical-align:middle;"></span>Standard / IP</span>
+            <span><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#2563eb;margin-right:5px;vertical-align:middle;transform:rotate(45deg);"></span>SSL Cert</span>
+            <span><span style="display:inline-block;width:10px;height:10px;background:#d97706;margin-right:5px;vertical-align:middle;"></span>Legacy / TAG</span>
+            <span><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#dc2626;margin-right:5px;vertical-align:middle;"></span>Critical</span>
+        </div>
     `;
 
-    NET.nodes = nodes.map((node, index) => ({
-        ...node,
-        x: 320 + Math.cos(index / Math.max(nodes.length, 1) * Math.PI * 2) * 140,
-        y: 210 + Math.sin(index / Math.max(nodes.length, 1) * Math.PI * 2) * 140,
-        vx: 0,
-        vy: 0,
-    }));
-    NET.edges = edges;
-    NET.byId = new Map(NET.nodes.map((node) => [node.id, node]));
-    NET.canvas = document.getElementById('networkCanvas');
-    NET.ctx = NET.canvas?.getContext('2d') || null;
+    NET.rawNodes = rawNodes;
+    NET.rawEdges = rawEdges;
     NET.view = 'graph';
-    NET.drag = null;
-
-    resizeNetCanvas();
-    for (let step = 0; step < 300; step += 1) netSimStep();
-    drawNet();
+    NET.filter = 'all';
+    NET.visNetwork = buildVisNetwork('networkCanvasWrap', rawNodes, rawEdges);
     renderNetworkTable();
-
-    if (NET.canvas) {
-        NET.canvas.onmousedown = netMouseDown;
-        NET.canvas.onmousemove = netMouseMove;
-        NET.canvas.onmouseup = () => {
-            NET.drag = null;
-            NET.canvas.style.cursor = 'grab';
-        };
-        NET.canvas.onmouseleave = () => {
-            NET.drag = null;
-            NET.canvas.style.cursor = 'grab';
-            const tooltip = document.getElementById('networkTooltip');
-            if (tooltip) tooltip.style.display = 'none';
-        };
-    }
-
-    if (!NET.resizeBound) {
-        window.addEventListener('resize', resizeNetCanvas);
-        NET.resizeBound = true;
-    }
 }
 
 const HM_COLORS = {
@@ -4764,6 +4894,7 @@ loadEnterpriseDashboardData = async function loadEnterpriseDashboardDataInteract
         ]);
 
         enterpriseDashboardData = { home, domains, ssl, ip, software, graph, cyber, heatmap, negotiation };
+        window.enterpriseDashboardData = enterpriseDashboardData;
         assessmentNegotiationPolicies = negotiation.policies || {};
 
         renderEnterpriseNotice(home.demo_mode, home.data_notice);
@@ -4847,6 +4978,10 @@ switchTab = function switchTabInteractive(tabName) {
         } else {
             prepareOverviewVisualizations();
         }
+    }
+
+    if ((tabName === 'inventory' || tabName === 'discovery' || tabName === 'cyberrating' || tabName === 'reporting') && !enterpriseDashboardData) {
+        loadEnterpriseDashboardData({ notifyOnError: true });
     }
 
     if (tabName === 'phase9') {
@@ -5887,4 +6022,816 @@ async function exportAssessment() {
         btn.innerHTML = originalText;
         btn.disabled = false;
     }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   ASSET INVENTORY TAB — Full implementation
+   ═══════════════════════════════════════════════════════════════ */
+
+const INV_ASSETS_DEFAULT = [
+  { name: 'netbanking.pnb.bank.in',  url: 'https://netbanking.pnb.bank.in', ipv4: '103.109.224.11', ipv6: '2001:0db8::0011', type: 'Web App', owner: 'IT',       risk: 'high',     certStatus: 'Valid',    keyLength: '2048-bit', lastScan: '2 hrs ago',  cipher: 'ECDHE-RSA-AES256-GCM-SHA384',    tls: '1.2', ca: 'DigiCert'    },
+  { name: 'api.pnb.bank.in',         url: 'https://api.pnb.bank.in',        ipv4: '103.109.224.90', ipv6: '2001:0db8::0090', type: 'API',     owner: 'DevOps',   risk: 'medium',   certStatus: 'Expiring', keyLength: '4096-bit', lastScan: '5 hrs ago',  cipher: 'TLS_AES_256_GCM_SHA384',         tls: '1.3', ca: 'Let\'s Encrypt' },
+  { name: 'vpn.pnb.bank.in',         url: 'https://vpn.pnb.bank.in',        ipv4: '103.109.224.21', ipv6: '2001:0db8::0021', type: 'Gateway', owner: 'Infra',    risk: 'critical', certStatus: 'Expired',  keyLength: '1024-bit', lastScan: '1 hr ago',   cipher: 'TLS_RSA_WITH_DES_CBC_SHA',       tls: '1.0', ca: 'COMODO'       },
+  { name: 'mobile.pnb.bank.in',      url: 'https://mobile.pnb.bank.in',     ipv4: '103.109.224.10', ipv6: '2001:0db8::0010', type: 'Web App', owner: 'IT',       risk: 'low',      certStatus: 'Valid',    keyLength: '3072-bit', lastScan: '1 day ago',  cipher: 'ECDHE-ECDSA-AES256-GCM-SHA384',  tls: '1.2', ca: 'GlobalSign'  },
+  { name: 'portal.pnb.bank.in',      url: 'https://portal.pnb.bank.in',     ipv4: '103.109.224.12', ipv6: '2001:0db8::0012', type: 'Web App', owner: 'IT',       risk: 'medium',   certStatus: 'Valid',    keyLength: '2048-bit', lastScan: '5 days ago', cipher: 'TLS_AES_128_GCM_SHA256',         tls: '1.3', ca: 'DigiCert'    },
+  { name: 'gateway.pnb.bank.in',     url: 'https://gateway.pnb.bank.in',    ipv4: '103.109.225.1',  ipv6: '2001:0db8::0001', type: 'Gateway', owner: 'Infra',    risk: 'medium',   certStatus: 'Valid',    keyLength: '4096-bit', lastScan: '3 hrs ago',  cipher: 'ECDHE-RSA-AES256-GCM-SHA384',    tls: '1.3', ca: 'DigiCert'    },
+  { name: 'auth.pnb.bank.in',        url: 'https://auth.pnb.bank.in',       ipv4: '103.109.225.2',  ipv6: '2001:0db8::0002', type: 'API',     owner: 'Security', risk: 'low',      certStatus: 'Valid',    keyLength: '4096-bit', lastScan: '6 hrs ago',  cipher: 'ECDHE-ECDSA-AES256-GCM-SHA384',  tls: '1.3', ca: 'Entrust'     },
+  { name: 'legacy.pnb.bank.in',      url: 'https://legacy.pnb.bank.in',     ipv4: '40.101.72.212',  ipv6: '',                type: 'Server',  owner: 'IT',       risk: 'critical', certStatus: 'Expired',  keyLength: '1024-bit', lastScan: '2 days ago', cipher: 'TLS_RSA_WITH_3DES_EDE_CBC_SHA',  tls: '1.0', ca: 'COMODO'      },
+];
+
+// Live assets from a real scan override the defaults; populated by invInit()
+let INV_ASSETS = [...INV_ASSETS_DEFAULT];
+
+const INV_GEO = [
+  { region: 'USA',       count: 42, lat: 37.09,  lng: -95.71, color: '#7b0030' },
+  { region: 'Germany',   count: 18, lat: 51.16,  lng: 10.45,  color: '#7b0030' },
+  { region: 'India',     count: 37, lat: 20.59,  lng: 78.96,  color: '#fec800' },
+  { region: 'Singapore', count: 11, lat: 1.35,   lng: 103.82, color: '#7b0030' },
+];
+
+const INV_NS = [
+  { type: 'NS', hostname: 'ns1.pnb.bank.in',       ip: '103.109.224.1',  ipv6: '2001:0db8:pnb:10', ttl: 3600 },
+  { type: 'NS', hostname: 'ns2.pnb.bank.in',       ip: '103.109.224.2',  ipv6: '2001:0db8:pnb:11', ttl: 3600 },
+  { type: 'NS', hostname: 'ns3.pnb.bank.in',       ip: '103.109.224.3',  ipv6: '2001:0db8:pnb:12', ttl: 3600 },
+  { type: 'A',  hostname: 'netbanking.pnb.bank.in', ip: '103.109.224.11', ipv6: '2001:0db8::0011',  ttl: 300  },
+  { type: 'MX', hostname: 'mail.pnb.bank.in',       ip: '103.109.224.10', ipv6: '2001:0db8::0010',  ttl: 300  },
+];
+
+const INV_ACTIVITY = [
+  { type: 'error',   msg: 'Scan completed: 8 assets — 2 critical vulnerabilities found',     time: '10 min ago' },
+  { type: 'warning', msg: 'Weak cipher detected: vpn.pnb.bank.in (TLS 1.0 + DES)',          time: '1 hr ago'   },
+  { type: 'warning', msg: 'Certificate expiring soon: api.pnb.bank.in (< 30 days)',          time: '3 hrs ago'  },
+  { type: 'success', msg: 'New asset discovered: portal.pnb.bank.in',                        time: '5 hrs ago'  },
+  { type: 'info',    msg: 'PQC label issued: gateway.pnb.bank.in — Tier 2 (PQC Transition)', time: '6 hrs ago'  },
+];
+
+let invFiltered = [...INV_ASSETS];
+let invCharts = {};
+let invMap = null;
+
+/* ─── switchTab hook: init new tabs when first visited ─── */
+const _origSwitchTab = typeof switchTab === 'function' ? switchTab : null;
+switchTab = function(tab) {
+  if (_origSwitchTab) _origSwitchTab(tab);
+  if (tab === 'inventory')    setTimeout(invInit, 100);
+  if (tab === 'discovery')    setTimeout(discInit, 150);
+  if (tab === 'cyberrating')  setTimeout(crInit, 100);
+  if (tab === 'reporting')    setTimeout(repInit, 100);
+};
+
+function invInit() {
+  // Pull live scan data into INV_ASSETS when available
+  const liveData = window.enterpriseDashboardData;
+  if (liveData) {
+    const domainItems = liveData.domains?.items || [];
+    const sslItems = liveData.ssl?.items || [];
+    const ipItems = liveData.ip?.items || [];
+    if (domainItems.length > 0) {
+      const liveAssets = domainItems.map(item => {
+        const host = item.domain_name || item.hostname || item.name || '';
+        // find matching ssl cert for cert status
+        const matchSsl = sslItems.find(s => s.common_name === host || s.common_name === ('*.' + host.split('.').slice(1).join('.')));
+        // find matching ip
+        const matchIp = ipItems.find(ip => ip.ip_address === item.ip_address);
+        return {
+          name:       host,
+          url:        'https://' + host,
+          ipv4:       item.ip_address || item.ip || matchIp?.ip_address || '',
+          ipv6:       '',
+          type:       item.asset_type === 'api' ? 'API' : item.asset_type === 'vpn' ? 'Gateway' : 'Web App',
+          owner:      'IT',
+          risk:       item.pqc_status === 'CRITICALLY_VULNERABLE' ? 'critical'
+                    : item.pqc_status === 'QUANTUM_VULNERABLE'    ? 'high'
+                    : item.pqc_status === 'PQC_TRANSITION'        ? 'medium' : 'low',
+          certStatus: item.cert_days_left < 0 ? 'Expired' : item.cert_days_left < 30 ? 'Expiring' : 'Valid',
+          keyLength:  item.public_key_bits ? item.public_key_bits + '-bit' : '—',
+          lastScan:   item.detection_date || item.scanned_at || '—',
+          cipher:     item.cipher_suite || matchSsl?.negotiated_cipher || '—',
+          tls:        item.tls_version  || '—',
+          ca:         item.certificate_authority || item.issuer || matchSsl?.certificate_authority || '—',
+          company:    item.company_name || item.company || matchIp?.company || '—',
+        };
+      }).filter(a => a.name);
+      if (liveAssets.length > 0) INV_ASSETS = liveAssets;
+    }
+  }
+  invFiltered = [...INV_ASSETS];
+  invRenderStats();
+  invRenderCharts();
+  invRenderTable();
+  invRenderNS(INV_NS);
+  invRenderCrypto();
+  invRenderMap();
+  invRenderGeo();
+  invRenderActivity();
+}
+
+/* ─── Stats (6 cards) ─── */
+function invRenderStats() {
+  const el = document.getElementById('invStatsGrid');
+  if (!el) return;
+  const total    = INV_ASSETS.length;
+  const webApps  = INV_ASSETS.filter(a => a.type === 'Web App').length;
+  const apis     = INV_ASSETS.filter(a => a.type === 'API').length;
+  const servers  = INV_ASSETS.filter(a => a.type === 'Server').length;
+  const expiring = INV_ASSETS.filter(a => a.certStatus === 'Expiring' || a.certStatus === 'Expired').length;
+  const highRisk = INV_ASSETS.filter(a => a.risk === 'critical' || a.risk === 'high').length;
+
+  const card = (label, val, sub, borderColor, valColor = 'var(--text-primary)') =>
+    `<div style="background:var(--surface);border-radius:8px;padding:14px 16px;border-left:4px solid ${borderColor};box-shadow:0 1px 4px rgba(0,0,0,0.06);">
+       <div style="font-size:0.58rem;font-weight:800;text-transform:uppercase;letter-spacing:0.12em;color:var(--text-secondary);margin-bottom:4px;">${label}</div>
+       <div style="font-size:1.6rem;font-weight:900;color:${valColor};line-height:1;">${val}</div>
+       <div style="font-size:0.62rem;color:var(--text-secondary);margin-top:2px;">${sub}</div>
+     </div>`;
+
+  el.innerHTML =
+    card('Total Assets',         total,    'Monitored',        'var(--primary)') +
+    card('Public Web Apps',      webApps,  'Internet-facing',  '#2563eb') +
+    card('APIs',                 apis,     'Endpoints',        '#7c3aed') +
+    card('Servers',              servers,  'Infrastructure',   '#0891b2') +
+    card('Expiring Certs',       expiring, 'Action required',  '#d97706', '#d97706') +
+    card('High Risk Assets',     highRisk, 'Critical/High',    '#dc2626', '#dc2626');
+}
+
+/* ─── Charts ─── */
+function invRenderCharts() {
+  const brandRed  = '#7b0030';
+  const brandGold = '#fec800';
+  const colors4   = [brandRed, '#dc2626', '#d97706', '#16a34a'];
+  const colorsRisk = ['#dc2626', '#ea580c', '#d97706', '#16a34a'];
+
+  function makeChart(id, type, labels, data, colors, opts = {}) {
+    const canvas = document.getElementById(id);
+    if (!canvas) return;
+    if (invCharts[id]) { invCharts[id].destroy(); }
+    invCharts[id] = new Chart(canvas, {
+      type,
+      data: { labels, datasets: [{ data, backgroundColor: colors, borderWidth: type === 'bar' ? 0 : 2, borderColor: '#fff', borderRadius: type === 'bar' ? 4 : 0 }] },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { position: 'bottom', labels: { font: { size: 9, weight: '700' }, padding: 8, boxWidth: 10 } } },
+        scales: type === 'bar' ? { y: { beginAtZero: true, ticks: { font: { size: 9 } }, grid: { color: 'rgba(0,0,0,0.05)' } }, x: { ticks: { font: { size: 9 } }, grid: { display: false } } } : {},
+        ...opts,
+      }
+    });
+  }
+
+  const typeCounts = ['Web App', 'API', 'Server', 'Gateway'].map(t => INV_ASSETS.filter(a => a.type === t).length);
+  makeChart('invChartAssetType', 'doughnut', ['Web Apps', 'APIs', 'Servers', 'Gateways'], typeCounts, [brandRed, '#dc2626', '#d97706', '#2563eb']);
+
+  const riskCounts = ['critical', 'high', 'medium', 'low'].map(r => INV_ASSETS.filter(a => a.risk === r).length);
+  makeChart('invChartRisk', 'bar', ['Critical', 'High', 'Medium', 'Low'], riskCounts, colorsRisk);
+
+  makeChart('invChartCertExpiry', 'bar', ['0–30d', '30–60d', '60–90d', '>90d'], [3, 4, 2, 84], ['#dc2626', '#d97706', '#ca8a04', '#16a34a']);
+
+  const ipv6Count = INV_ASSETS.filter(a => a.ipv6 && a.ipv6.length > 0).length;
+  makeChart('invChartIPVersion', 'doughnut', ['IPv4 only', 'IPv6 enabled'], [INV_ASSETS.length - ipv6Count, ipv6Count], [brandRed, brandGold]);
+}
+
+/* ─── Table ─── */
+function invApplyFilters() {
+  const q    = (document.getElementById('invSearch')?.value || '').toLowerCase();
+  const type = document.getElementById('invFilterType')?.value || '';
+  const risk = document.getElementById('invFilterRisk')?.value || '';
+  invFiltered = INV_ASSETS.filter(a => {
+    const mq = !q || a.name.toLowerCase().includes(q) || a.ipv4.includes(q) || a.type.toLowerCase().includes(q);
+    const mt = !type || a.type === type;
+    const mr = !risk || a.risk === risk;
+    return mq && mt && mr;
+  });
+  invRenderTable();
+}
+
+function invRenderTable() {
+  const tbody = document.getElementById('invAssetTableBody');
+  if (!tbody) return;
+  if (!invFiltered.length) {
+    tbody.innerHTML = `<tr><td colspan="10" style="padding:24px;text-align:center;color:var(--text-secondary);font-size:0.8rem;">No assets match your filters.</td></tr>`;
+    return;
+  }
+  const riskBadge = r => {
+    const cfg = { critical: ['#dc2626','#fef2f2'], high: ['#ea580c','#fff7ed'], medium: ['#d97706','#fffbeb'], low: ['#16a34a','#f0fdf4'] };
+    const [fg, bg] = cfg[r] || ['#666','#f5f5f5'];
+    return `<span style="background:${bg};color:${fg};font-size:0.58rem;font-weight:800;padding:2px 8px;border-radius:999px;text-transform:uppercase;letter-spacing:0.06em;">${r}</span>`;
+  };
+  const certBadge = s => {
+    const cfg = { Valid: ['#16a34a','check_circle'], Expiring: ['#d97706','warning'], Expired: ['#dc2626','error'] };
+    const [color, icon] = cfg[s] || ['#666','help'];
+    return `<span style="color:${color};font-size:0.7rem;display:inline-flex;align-items:center;gap:3px;font-weight:700;"><span class="material-symbols-outlined" style="font-size:13px;">${icon}</span>${s}</span>`;
+  };
+  const keyBadge = k => {
+    const bits = parseInt(k);
+    const color = bits >= 4096 ? '#16a34a' : bits >= 2048 ? '#d97706' : '#dc2626';
+    return `<span style="background:${color}18;color:${color};font-size:0.62rem;font-weight:800;padding:1px 6px;border-radius:4px;font-family:monospace;">${k}</span>`;
+  };
+  tbody.innerHTML = invFiltered.map(a => `
+    <tr style="border-bottom:1px solid var(--border);transition:background 0.15s;" onmouseover="this.style.background='var(--surface)'" onmouseout="this.style.background=''">
+      <td style="padding:10px 12px;font-weight:700;color:var(--primary);white-space:nowrap;max-width:180px;overflow:hidden;text-overflow:ellipsis;" title="${a.name}">${a.name}</td>
+      <td style="padding:10px 12px;font-size:0.7rem;color:#2563eb;white-space:nowrap;"><a href="${a.url}" target="_blank" style="color:#2563eb;text-decoration:none;">${a.url.replace('https://','')}</a></td>
+      <td style="padding:10px 12px;font-family:monospace;font-size:0.72rem;white-space:nowrap;">${a.ipv4}</td>
+      <td style="padding:10px 12px;font-family:monospace;font-size:0.68rem;color:var(--text-secondary);white-space:nowrap;max-width:140px;overflow:hidden;text-overflow:ellipsis;" title="${a.ipv6}">${a.ipv6 || '<span style="color:var(--text-secondary);opacity:0.5;">—</span>'}</td>
+      <td style="padding:10px 12px;font-size:0.75rem;white-space:nowrap;">${a.type}</td>
+      <td style="padding:10px 12px;font-size:0.75rem;white-space:nowrap;">${a.owner}</td>
+      <td style="padding:10px 12px;white-space:nowrap;">${riskBadge(a.risk)}</td>
+      <td style="padding:10px 12px;white-space:nowrap;">${certBadge(a.certStatus)}</td>
+      <td style="padding:10px 12px;white-space:nowrap;">${keyBadge(a.keyLength)}</td>
+      <td style="padding:10px 12px;font-size:0.72rem;color:var(--text-secondary);white-space:nowrap;">${a.lastScan}</td>
+    </tr>`).join('');
+}
+
+/* ─── Nameserver Records ─── */
+function invRenderNS(records) {
+  const el = document.getElementById('invNSRecords');
+  if (!el) return;
+  el.innerHTML = records.map(r => `
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:7px 10px;background:var(--surface);border-radius:6px;border:1px solid var(--border);">
+      <div>
+        <div style="font-size:0.6rem;font-weight:800;text-transform:uppercase;color:var(--text-secondary);">${r.type}</div>
+        <div style="font-size:0.72rem;font-family:monospace;font-weight:600;color:var(--text-primary);">${r.hostname}</div>
+        <div style="font-size:0.62rem;color:var(--text-secondary);">${r.ip} · TTL ${r.ttl}</div>
+      </div>
+      <span class="material-symbols-outlined" style="font-size:14px;color:#16a34a;">check_circle</span>
+    </div>`).join('');
+}
+
+async function invResolveDomain() {
+  const domain = document.getElementById('invDomainResolve')?.value.trim();
+  if (!domain) return;
+  invRenderNS([
+    { type: 'A',  hostname: domain,        ip: '34.12.11.45', ipv6: '', ttl: 300 },
+    { type: 'NS', hostname: 'ns1.'+domain, ip: '192.0.2.10',  ipv6: '', ttl: 3600 },
+  ]);
+}
+
+/* ─── Crypto Overview ─── */
+function invRenderCrypto() {
+  const tbody = document.getElementById('invCryptoBody');
+  if (!tbody) return;
+  const keyColor = k => { const b = parseInt(k); return b >= 4096 ? '#16a34a' : b >= 2048 ? '#d97706' : '#dc2626'; };
+  const cipherWeak = c => c.includes('3DES') || c.includes('DES') || c.includes('RC4');
+  tbody.innerHTML = INV_ASSETS.slice(0, 5).map(a => `
+    <tr style="border-bottom:1px solid var(--border);">
+      <td style="padding:5px 8px;font-size:0.68rem;font-weight:700;color:var(--primary);white-space:nowrap;max-width:100px;overflow:hidden;text-overflow:ellipsis;" title="${a.name}">${a.name.split('.')[0]}</td>
+      <td style="padding:5px 8px;"><span style="background:${keyColor(a.keyLength)}18;color:${keyColor(a.keyLength)};font-size:0.6rem;font-weight:800;padding:1px 5px;border-radius:3px;font-family:monospace;">${a.keyLength}</span></td>
+      <td style="padding:5px 8px;font-size:0.62rem;font-family:monospace;color:${cipherWeak(a.cipher) ? '#dc2626' : 'var(--text-primary)'};font-weight:${cipherWeak(a.cipher) ? '800' : '400'};max-width:120px;overflow:hidden;text-overflow:ellipsis;" title="${a.cipher}">${a.cipher.substring(0,18)}…</td>
+      <td style="padding:5px 8px;font-size:0.68rem;font-weight:700;">${a.tls}</td>
+      <td style="padding:5px 8px;font-size:0.68rem;color:var(--text-secondary);">${a.ca}</td>
+    </tr>`).join('');
+}
+
+/* ─── Leaflet Map ─── */
+function invRenderMap() {
+  const el = document.getElementById('invLeafletMap');
+  if (!el || typeof L === 'undefined') return;
+  if (invMap) { invMap.remove(); invMap = null; }
+  invMap = L.map('invLeafletMap', { zoomControl: false, attributionControl: false }).setView([20, 20], 1);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 10 }).addTo(invMap);
+  INV_GEO.forEach(g => {
+    const icon = L.divIcon({
+      className: '',
+      html: `<div style="background:${g.color};width:12px;height:12px;border-radius:50%;border:2px solid #fff;box-shadow:0 0 0 3px ${g.color}44;"></div>`,
+      iconSize: [12, 12], iconAnchor: [6, 6]
+    });
+    L.marker([g.lat, g.lng], { icon })
+      .bindPopup(`<strong>${g.region}</strong><br/>${g.count} assets`, { maxWidth: 120 })
+      .addTo(invMap);
+  });
+}
+
+/* ─── Geo Stats ─── */
+function invRenderGeo() {
+  const el = document.getElementById('invGeoStats');
+  if (!el) return;
+  el.innerHTML = INV_GEO.map(g =>
+    `<div style="text-align:center;">
+       <div style="font-size:0.58rem;font-weight:800;text-transform:uppercase;color:var(--text-secondary);">${g.region}</div>
+       <div style="font-size:0.9rem;font-weight:900;color:var(--primary);">${g.count}</div>
+     </div>`).join('');
+}
+
+/* ─── Activity Feed ─── */
+function invRenderActivity() {
+  const el = document.getElementById('invActivityFeed');
+  if (!el) return;
+  const cfg = {
+    success: { color:'#16a34a', bg:'#f0fdf4', icon:'check_circle' },
+    error:   { color:'#dc2626', bg:'#fef2f2', icon:'error' },
+    warning: { color:'#d97706', bg:'#fffbeb', icon:'warning' },
+    info:    { color:'#2563eb', bg:'#eff6ff', icon:'info' },
+  };
+  el.innerHTML = INV_ACTIVITY.map(a => {
+    const c = cfg[a.type] || cfg.info;
+    return `<div style="display:flex;gap:10px;padding:10px 12px;background:${c.bg};border-left:3px solid ${c.color};border-radius:6px;">
+      <span class="material-symbols-outlined" style="font-size:15px;color:${c.color};margin-top:1px;">${c.icon}</span>
+      <div style="flex:1;">
+        <div style="font-size:0.78rem;font-weight:600;color:var(--text-primary);">${a.msg}</div>
+        <div style="font-size:0.65rem;color:var(--text-secondary);margin-top:2px;">${a.time}</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+/* ─── Scan All / Export ─── */
+function invScanAll() {
+  if (typeof showToast === 'function') showToast('Scanning all assets…', 'info');
+  setTimeout(() => {
+    invRenderActivity();
+    if (typeof showToast === 'function') showToast('Scan complete — ' + INV_ASSETS.length + ' assets analyzed', 'success');
+  }, 1500);
+}
+
+function invExportCSV() {
+  const headers = ['Asset Name','URL','IPv4','IPv6','Type','Owner','Risk','Cert Status','Key Length','Last Scan'];
+  const rows = INV_ASSETS.map(a => [a.name, a.url, a.ipv4, a.ipv6, a.type, a.owner, a.risk, a.certStatus, a.keyLength, a.lastScan]);
+  const csv = [headers, ...rows].map(r => r.map(c => `"${c}"`).join(',')).join('\n');
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url; link.download = 'asset-inventory.csv'; link.click();
+  URL.revokeObjectURL(url);
+  if (typeof showToast === 'function') showToast('CSV exported', 'success');
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   ASSET DISCOVERY TAB — Phase 3
+   ═══════════════════════════════════════════════════════════════ */
+
+const DISC_DEMO = {
+  domains: [
+    { detectionDate:'2026-03-10', domain:'www.cos.pnb.bank.in',    registrationDate:'2019-04-12', registrar:'NIXI', company:'PNB',  status:'Confirmed' },
+    { detectionDate:'2026-03-11', domain:'proxy.pnb.bank.in',      registrationDate:'2020-08-01', registrar:'NIXI', company:'PNB',  status:'Confirmed' },
+    { detectionDate:'2026-03-15', domain:'ibps.pnb.bank.in',       registrationDate:'2021-02-14', registrar:'NIXI', company:'PNB',  status:'New'       },
+    { detectionDate:'2026-03-18', domain:'netbanking.pnb.bank.in', registrationDate:'2018-11-03', registrar:'NIXI', company:'PNB',  status:'Confirmed' },
+    { detectionDate:'2026-03-20', domain:'api.pnb.bank.in',        registrationDate:'2022-06-20', registrar:'NIXI', company:'PNB',  status:'New'       },
+    { detectionDate:'2026-03-22', domain:'cdn.pnb.bank.in',        registrationDate:'2020-01-09', registrar:'NIXI', company:'PNB',  status:'FP'        },
+    { detectionDate:'2026-03-25', domain:'mobile.pnb.bank.in',     registrationDate:'2023-03-30', registrar:'NIXI', company:'PNB',  status:'New'       },
+  ],
+  ssl: [
+    { detectionDate:'2026-03-10', fingerprint:'A1:B2:C3:D4:E5', validFrom:'2025-01-01', commonName:'*.pnb.bank.in',    company:'PNB', ca:'DigiCert',    status:'Confirmed' },
+    { detectionDate:'2026-03-12', fingerprint:'F6:G7:H8:I9:J0', validFrom:'2025-06-15', commonName:'api.pnb.bank.in',  company:'PNB', ca:'Let\'s Encrypt', status:'New'    },
+    { detectionDate:'2026-03-14', fingerprint:'K1:L2:M3:N4:O5', validFrom:'2024-03-20', commonName:'legacy.pnb.bank.in',company:'PNB',ca:'COMODO',       status:'FP'        },
+    { detectionDate:'2026-03-16', fingerprint:'P6:Q7:R8:S9:T0', validFrom:'2025-09-01', commonName:'netbanking.pnb',    company:'PNB', ca:'Entrust',     status:'Confirmed' },
+    { detectionDate:'2026-03-20', fingerprint:'U1:V2:W3:X4:Y5', validFrom:'2026-01-10', commonName:'mobile.pnb.bank.in',company:'PNB',ca:'DigiCert',     status:'New'       },
+  ],
+  ip: [
+    { detectionDate:'2026-03-10', ip:'103.107.224.11', ports:'443,80,22', subnet:'103.107.224.0/24', asn:'AS9829', netname:'BSNL-NIB',   location:'Mumbai, IN',    company:'PNB',  status:'Confirmed' },
+    { detectionDate:'2026-03-11', ip:'103.107.224.29', ports:'443,8443',  subnet:'103.107.224.0/24', asn:'AS9829', netname:'BSNL-NIB',   location:'Delhi, IN',     company:'PNB',  status:'Confirmed' },
+    { detectionDate:'2026-03-15', ip:'40.101.72.212',  ports:'443,80',    subnet:'40.101.72.0/24',   asn:'AS8075', netname:'MSFT-GFS',   location:'Virginia, USA', company:'Azure',status:'New'       },
+    { detectionDate:'2026-03-18', ip:'34.12.11.45',    ports:'443',       subnet:'34.12.0.0/16',     asn:'AS15169',netname:'GOOGLE',      location:'Iowa, USA',     company:'GCP',  status:'New'       },
+    { detectionDate:'2026-03-22', ip:'35.11.44.10',    ports:'25,587,993',subnet:'35.11.0.0/16',     asn:'AS15169',netname:'GOOGLE',      location:'Oregon, USA',   company:'GCP',  status:'FP'        },
+  ],
+  software: [
+    { detectionDate:'2026-03-10', product:'Apache httpd',   version:'2.4.51', type:'Web Server', port:80,   host:'103.107.224.11', company:'PNB',  status:'Confirmed' },
+    { detectionDate:'2026-03-12', product:'OpenSSL',        version:'1.1.1t', type:'Crypto Lib', port:443,  host:'103.107.224.29', company:'PNB',  status:'Confirmed' },
+    { detectionDate:'2026-03-14', product:'nginx',          version:'1.18.0', type:'Web Server', port:80,   host:'40.101.72.212',  company:'Azure',status:'New'       },
+    { detectionDate:'2026-03-16', product:'OpenSSH',        version:'7.4',    type:'SSH Server', port:22,   host:'103.107.224.11', company:'PNB',  status:'New'       },
+    { detectionDate:'2026-03-18', product:'MySQL',          version:'5.7.39', type:'Database',   port:3306, host:'34.12.11.45',    company:'GCP',  status:'FP'        },
+    { detectionDate:'2026-03-20', product:'Spring Boot',    version:'2.7.9',  type:'Framework',  port:8080, host:'103.107.224.29', company:'PNB',  status:'New'       },
+  ],
+};
+
+let discCurrentTab = 'domains';
+let discCurrentFilter = 'All';
+let discVisNet = null;
+
+function discInit() {
+  // Try to use live data if available; normalize field names to match the table renderer
+  const live = window.adState?.data;
+  if (live) {
+    const today = new Date().toISOString().slice(0,10);
+    if (live.domains?.length) {
+      DISC_DEMO.domains = live.domains.map(d => ({
+        detectionDate:    d.detection_date || today,
+        domain:           d.domain_name || d.hostname || d.domain || d.name || '',
+        registrationDate: d.registration_date || '—',
+        registrar:        d.registrar || 'Live DNS/CT Discovery',
+        company:          d.company_name || d.company || '—',
+        status:           d.pqc_status === 'CRITICALLY_VULNERABLE' ? 'FP'
+                        : d.pqc_status === 'PQC_TRANSITION'        ? 'Confirmed' : 'New',
+        // preserve original fields for other uses
+        ...d,
+      }));
+    }
+    if (live.ssl?.length) {
+      DISC_DEMO.ssl = live.ssl.map(d => ({
+        detectionDate: d.detection_date || today,
+        fingerprint:   d.ssl_sha_fingerprint || d.serial_number || '—',
+        validFrom:     d.valid_from || d.not_before || '—',
+        commonName:    d.common_name || d.hostname || d.subject || '',
+        company:       d.company_name || d.company || '—',
+        ca:            d.certificate_authority || d.issuer || '—',
+        status:        d.cert_days_left < 0 ? 'FP' : d.cert_days_left < 30 ? 'New' : 'Confirmed',
+        ...d,
+      }));
+    }
+    if (live.ip?.length) {
+      DISC_DEMO.ip = live.ip.map(d => ({
+        detectionDate: d.detection_date || today,
+        ip:            d.ip_address || d.ip || '',
+        ports:         Array.isArray(d.ports) ? d.ports.join(',') : (d.ports || '443'),
+        subnet:        d.subnet || '—',
+        asn:           d.asn || '—',
+        netname:       d.cloud_display_name || d.netname || '—',
+        location:      d.location || (d.pool === 'cloud' ? (d.cloud_display_name || 'Cloud') : 'On-Premises'),
+        company:       d.company || d.company_name || (d.pool === 'cloud' ? (d.cloud_display_name || 'Cloud') : '—'),
+        status:        'Confirmed',
+        ...d,
+      }));
+    }
+    if (live.software?.length) {
+      DISC_DEMO.software = live.software.map(d => ({
+        detectionDate: d.detection_date || today,
+        product:       d.product || d.name || '—',
+        version:       d.version || d.tls_version || '—',
+        type:          d.type    || 'TLS Stack',
+        port:          d.port || 443,
+        host:          d.host || d.hostname || '—',
+        company:       d.company_name || d.company || '—',
+        status:        'Confirmed',
+        ...d,
+      }));
+    }
+  }
+  discRenderStats();
+  discUpdateCounts();
+  discRenderTable();
+  discRenderNetwork();
+}
+
+function discRenderStats() {
+  const el = document.getElementById('discStatsGrid');
+  if (!el) return;
+  const total = DISC_DEMO.domains.length + DISC_DEMO.ssl.length + DISC_DEMO.ip.length + DISC_DEMO.software.length;
+  const cards = [
+    { label:'Total Discovered', value: total,                    color:'var(--primary)' },
+    { label:'Domains',          value: DISC_DEMO.domains.length,  color:'#16a34a' },
+    { label:'SSL Certs',        value: DISC_DEMO.ssl.length,      color:'#2563eb' },
+    { label:'IPs / Subnets',    value: DISC_DEMO.ip.length,       color:'#0891b2' },
+  ];
+  el.innerHTML = cards.map(c => `
+    <div class="card" style="padding:16px;text-align:center;">
+      <div style="font-size:1.8rem;font-weight:900;color:${c.color};">${c.value}</div>
+      <div style="font-size:0.62rem;font-weight:700;text-transform:uppercase;color:var(--text-secondary);margin-top:4px;">${c.label}</div>
+    </div>`).join('');
+}
+
+function discUpdateCounts() {
+  ['domains','ssl','ip','software'].forEach(k => {
+    const el = document.getElementById(`discTabCount-${k}`);
+    if (el) el.textContent = (DISC_DEMO[k] || []).length;
+  });
+}
+
+function discSwitchTab(tab) {
+  discCurrentTab = tab;
+  discCurrentFilter = 'All';
+  document.querySelectorAll('.disc-subtab').forEach(b => b.classList.remove('disc-subtab--active'));
+  const btn = document.getElementById(`discTab-${tab}`);
+  if (btn) btn.classList.add('disc-subtab--active');
+  document.querySelectorAll('.disc-filter').forEach(b => b.classList.remove('disc-filter--active'));
+  const fb = document.getElementById('discFilter-All');
+  if (fb) fb.classList.add('disc-filter--active');
+  discRenderTable();
+}
+
+function discSetFilter(filter) {
+  discCurrentFilter = filter;
+  document.querySelectorAll('.disc-filter').forEach(b => b.classList.remove('disc-filter--active'));
+  const fb = document.getElementById(`discFilter-${filter}`);
+  if (fb) fb.classList.add('disc-filter--active');
+  discRenderTable();
+}
+
+function discApplyFilters() { discRenderTable(); }
+
+function discGetFiltered() {
+  const search = (document.getElementById('discSearch')?.value || '').toLowerCase();
+  const from   = document.getElementById('discDateFrom')?.value || '';
+  const to     = document.getElementById('discDateTo')?.value   || '';
+  let data = DISC_DEMO[discCurrentTab] || [];
+  if (discCurrentFilter !== 'All') data = data.filter(r => r.status === discCurrentFilter);
+  if (search) data = data.filter(r => JSON.stringify(r).toLowerCase().includes(search));
+  if (from)   data = data.filter(r => (r.detectionDate || '') >= from);
+  if (to)     data = data.filter(r => (r.detectionDate || '') <= to);
+  return data;
+}
+
+const DISC_STATUS_COLORS = { New:'#2563eb', Confirmed:'#16a34a', FP:'#6b7280' };
+function discStatusBadge(s) {
+  const c = DISC_STATUS_COLORS[s] || '#6b7280';
+  return `<span style="background:${c}18;color:${c};padding:2px 7px;border-radius:4px;font-size:0.65rem;font-weight:700;">${s}</span>`;
+}
+
+function discRenderTable() {
+  const wrap = document.getElementById('discTableWrap');
+  if (!wrap) return;
+  const data = discGetFiltered();
+  if (!data.length) {
+    wrap.innerHTML = `<div style="padding:32px;text-align:center;color:var(--text-secondary);font-size:0.82rem;">No records match the current filter.</div>`;
+    return;
+  }
+
+  let headers = [], rows = '';
+  if (discCurrentTab === 'domains') {
+    headers = ['Detection Date','Domain Name','Registration Date','Registrar','Company','Status'];
+    rows = data.map(r => `<tr>
+      <td style="padding:8px 12px;font-size:0.72rem;color:var(--text-secondary);">${r.detectionDate}</td>
+      <td style="padding:8px 12px;font-weight:600;color:var(--primary);">${r.domain}</td>
+      <td style="padding:8px 12px;font-size:0.72rem;">${r.registrationDate}</td>
+      <td style="padding:8px 12px;font-size:0.72rem;">${r.registrar}</td>
+      <td style="padding:8px 12px;font-size:0.72rem;">${r.company}</td>
+      <td style="padding:8px 12px;">${discStatusBadge(r.status)}</td>
+    </tr>`).join('');
+  } else if (discCurrentTab === 'ssl') {
+    headers = ['Detection Date','Fingerprint','Valid From','Common Name','Company','CA','Status'];
+    rows = data.map(r => `<tr>
+      <td style="padding:8px 12px;font-size:0.72rem;color:var(--text-secondary);">${r.detectionDate}</td>
+      <td style="padding:8px 12px;font-family:monospace;font-size:0.68rem;">${r.fingerprint}</td>
+      <td style="padding:8px 12px;font-size:0.72rem;">${r.validFrom}</td>
+      <td style="padding:8px 12px;font-weight:600;color:var(--primary);">${r.commonName}</td>
+      <td style="padding:8px 12px;font-size:0.72rem;">${r.company}</td>
+      <td style="padding:8px 12px;font-size:0.72rem;">${r.ca}</td>
+      <td style="padding:8px 12px;">${discStatusBadge(r.status)}</td>
+    </tr>`).join('');
+  } else if (discCurrentTab === 'ip') {
+    headers = ['Detection Date','IP Address','Ports','Subnet','ASN','Netname','Location','Status'];
+    rows = data.map(r => `<tr>
+      <td style="padding:8px 12px;font-size:0.72rem;color:var(--text-secondary);">${r.detectionDate}</td>
+      <td style="padding:8px 12px;font-family:monospace;font-weight:600;">${r.ip}</td>
+      <td style="padding:8px 12px;font-family:monospace;font-size:0.68rem;">${r.ports}</td>
+      <td style="padding:8px 12px;font-family:monospace;font-size:0.68rem;">${r.subnet}</td>
+      <td style="padding:8px 12px;font-size:0.68rem;">${r.asn}</td>
+      <td style="padding:8px 12px;font-size:0.68rem;">${r.netname}</td>
+      <td style="padding:8px 12px;font-size:0.72rem;">${r.location}</td>
+      <td style="padding:8px 12px;">${discStatusBadge(r.status)}</td>
+    </tr>`).join('');
+  } else {
+    headers = ['Detection Date','Product','Version','Type','Port','Host','Company','Status'];
+    rows = data.map(r => `<tr>
+      <td style="padding:8px 12px;font-size:0.72rem;color:var(--text-secondary);">${r.detectionDate}</td>
+      <td style="padding:8px 12px;font-weight:600;">${r.product}</td>
+      <td style="padding:8px 12px;font-family:monospace;font-size:0.68rem;">${r.version}</td>
+      <td style="padding:8px 12px;font-size:0.72rem;">${r.type}</td>
+      <td style="padding:8px 12px;font-family:monospace;font-size:0.72rem;">${r.port}</td>
+      <td style="padding:8px 12px;font-family:monospace;font-size:0.68rem;">${r.host}</td>
+      <td style="padding:8px 12px;font-size:0.72rem;">${r.company}</td>
+      <td style="padding:8px 12px;">${discStatusBadge(r.status)}</td>
+    </tr>`).join('');
+  }
+
+  wrap.innerHTML = `<table style="width:100%;border-collapse:collapse;font-size:0.78rem;">
+    <thead><tr style="border-bottom:2px solid var(--border);background:var(--surface);">
+      ${headers.map(h => `<th style="padding:8px 12px;text-align:left;font-size:0.6rem;font-weight:800;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-secondary);white-space:nowrap;">${h}</th>`).join('')}
+    </tr></thead>
+    <tbody>${rows}</tbody>
+  </table>`;
+}
+
+function discRenderNetwork() {
+  const rawNodes = window.enterpriseDashboardData?.graph?.nodes || [];
+  const rawEdges = window.enterpriseDashboardData?.graph?.edges || [];
+  if (!rawNodes.length) {
+    // Build a simple network from disc demo data
+    const demoNodes = [
+      ...DISC_DEMO.domains.slice(0,5).map((d,i) => ({ id:`d${i}`, label:(d.domain||d.hostname||'').split('.')[0], type:'domain', display_tier:'Standard' })),
+      ...DISC_DEMO.ip.slice(0,4).map((d,i) => ({ id:`ip${i}`, label:d.ip, type:'ip', display_tier:'PQC_TRANSITION' })),
+      ...DISC_DEMO.ssl.slice(0,3).map((d,i) => ({ id:`ssl${i}`, label:(d.commonName||d.hostname||'').substring(0,12), type:'ssl', display_tier:'Confirmed' })),
+    ];
+    const demoEdges = demoNodes.slice(1).map((n,i) => ({ source: demoNodes[0].id, target: n.id }));
+    discVisNet = buildVisNetwork('discNetworkGraph', demoNodes, demoEdges);
+  } else {
+    discVisNet = buildVisNetwork('discNetworkGraph', rawNodes, rawEdges);
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   CYBER RATING TAB — Phase 6
+   ═══════════════════════════════════════════════════════════════ */
+
+const CR_DEMO_URLS = [
+  { url:'netbanking.pnb.bank.in',  score:820, tier:'Elite-PQC'  },
+  { url:'auth.pnb.bank.in',        score:780, tier:'Elite-PQC'  },
+  { url:'api.pnb.bank.in',         score:640, tier:'Standard'   },
+  { url:'gateway.pnb.bank.in',     score:590, tier:'Standard'   },
+  { url:'portal.pnb.bank.in',      score:480, tier:'Standard'   },
+  { url:'mail.pnb.bank.in',        score:370, tier:'Legacy'      },
+  { url:'cdn.pnb.bank.in',         score:310, tier:'Legacy'      },
+  { url:'legacy.pnb.bank.in',      score:120, tier:'Critical'    },
+  { url:'vpn.pnb.bank.in',         score:95,  tier:'Critical'    },
+];
+
+const CR_TIER_COLORS = { 'Elite-PQC':'#16a34a', 'Standard':'#0891b2', 'Legacy':'#d97706', 'Critical':'#dc2626' };
+
+function crInit() {
+  // Try to use live cyber data
+  const live = window.enterpriseDashboardData?.cyber;
+  let score = 0, tier = 'Standard', urls = CR_DEMO_URLS;
+  if (live) {
+    score = live.enterprise_score || live.score || 0;
+    tier  = live.display_tier || live.tier || 'Standard';
+    if (live.url_scores && live.url_scores.length) {
+      urls = live.url_scores.map(u => ({ url: u.url || u.host, score: u.score || u.pqc_score || 0, tier: u.display_tier || u.tier || 'Standard' }));
+    }
+  } else {
+    score = Math.round(urls.reduce((s,u) => s + u.score, 0) / urls.length);
+  }
+  crRenderScore(score, tier);
+  crRenderCounts(urls);
+  crRenderUrlTable(urls);
+}
+
+function crTierColor(t) { return CR_TIER_COLORS[t] || '#6b7280'; }
+
+function crRenderScore(score, tier) {
+  const el = document.getElementById('crScore');
+  const badge = document.getElementById('crTierBadge');
+  if (el) el.textContent = score || '—';
+  if (badge) {
+    const c = crTierColor(tier);
+    badge.textContent = tier;
+    badge.style.cssText = `background:${c}18;color:${c};padding:4px 14px;border-radius:999px;font-size:0.72rem;font-weight:700;`;
+  }
+}
+
+function crRenderCounts(urls) {
+  const counts = { 'Elite-PQC':0, 'Standard':0, 'Legacy':0, 'Critical':0 };
+  urls.forEach(u => { if (counts[u.tier] !== undefined) counts[u.tier]++; });
+  const ids = { 'Elite-PQC':'crTier1Count', 'Standard':'crTier2Count', 'Legacy':'crTier3Count', 'Critical':'crCritCount' };
+  Object.entries(ids).forEach(([tier, id]) => {
+    const el = document.getElementById(id);
+    if (el) el.textContent = counts[tier];
+  });
+}
+
+function crRenderUrlTable(urls) {
+  const tbody = document.getElementById('crUrlTable');
+  if (!tbody) return;
+  const sorted = [...urls].sort((a,b) => b.score - a.score);
+  tbody.innerHTML = sorted.map(u => {
+    const c = crTierColor(u.tier);
+    const pct = Math.min(100, Math.round(u.score / 10));
+    return `<tr style="border-bottom:1px solid var(--border);">
+      <td style="padding:8px 10px;font-size:0.75rem;font-weight:500;">${u.url}</td>
+      <td style="padding:8px 10px;text-align:right;">
+        <div style="display:flex;align-items:center;gap:8px;justify-content:flex-end;">
+          <div style="flex:1;height:6px;background:var(--border);border-radius:3px;min-width:60px;">
+            <div style="height:6px;width:${pct}%;background:${c};border-radius:3px;"></div>
+          </div>
+          <span style="font-weight:700;font-size:0.82rem;">${u.score}</span>
+        </div>
+      </td>
+      <td style="padding:8px 10px;text-align:center;"><span style="background:${c}18;color:${c};padding:2px 8px;border-radius:4px;font-size:0.65rem;font-weight:700;">${u.tier}</span></td>
+      <td style="padding:8px 10px;text-align:center;font-size:1.1rem;color:${u.tier === 'Elite-PQC' ? '#16a34a' : '#dc2626'};">${u.tier === 'Elite-PQC' ? '✓' : '✗'}</td>
+    </tr>`;
+  }).join('');
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   REPORTING TAB — Phase 7
+   ═══════════════════════════════════════════════════════════════ */
+
+function repInit() {
+  // Populate exec preview with live data if available
+  repUpdateExecPreview();
+}
+
+function repSelectType(type) {
+  ['scheduled','ondemand','executive'].forEach(t => {
+    const card = document.getElementById(`repCard-${t}`);
+    const form = document.getElementById(`repForm-${t}`);
+    if (card) card.style.borderColor = t === type ? 'var(--primary)' : 'transparent';
+    if (form) form.style.display = t === type ? 'block' : 'none';
+  });
+}
+
+function repSchedule() {
+  const type  = document.getElementById('repSchedType')?.value || 'Executive Summary';
+  const freq  = document.getElementById('repSchedFreq')?.value || 'Weekly';
+  const email = document.getElementById('repSchedEmail')?.value || '';
+  const date  = document.getElementById('repSchedDate')?.value || '';
+  if (!email) { if (typeof showToast === 'function') showToast('Please enter a delivery email', 'error'); return; }
+  if (typeof showToast === 'function') showToast(`"${type}" report scheduled ${freq.toLowerCase()}${date ? ' from ' + date : ''}. Delivery to ${email}`, 'success');
+}
+
+function repGenerateOnDemand() {
+  const type   = document.getElementById('repOdType')?.value   || 'Executive';
+  const format = document.getElementById('repOdFormat')?.value || 'PDF';
+  const email  = document.getElementById('repOdEmail')?.value  || '';
+
+  if (typeof showToast === 'function') showToast(`Generating ${type} report as ${format}…`, 'info');
+
+  const data = window.enterpriseDashboardData || {};
+  const home = data.home || {};
+  const cyber = data.cyber || {};
+  const domains = (data.domains?.items || []);
+  const ssl = (data.ssl?.items || []);
+  const ip = (data.ip?.items || []);
+  const software = (data.software?.items || []);
+
+  const ts = new Date().toISOString().slice(0, 10);
+  const safeName = type.replace(/\s+/g, '_');
+  const filename = `Q_ARMOR_${safeName}_Report_${ts}`;
+
+  if (format === 'JSON') {
+    const payload = { generated: new Date().toISOString(), type, home, cyber, domains, ssl, ip, software };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+    _triggerDownload(blob, filename + '.json');
+    if (typeof showToast === 'function') showToast(`${type} JSON report downloaded.`, 'success');
+    return;
+  }
+
+  if (format === 'CSV') {
+    const rows = [['Type', 'Name/Host', 'Detection Date', 'Status', 'Company']];
+    domains.forEach(d => rows.push(['Domain', d.domain_name || '', d.detection_date || '', d.pqc_status || '', d.company_name || '']));
+    ssl.forEach(d => rows.push(['SSL', d.common_name || '', d.detection_date || '', d.certificate_authority || '', d.company_name || '']));
+    ip.forEach(d => rows.push(['IP', d.ip_address || '', d.detection_date || '', d.cloud_display_name || d.pool || '', d.company || '']));
+    software.forEach(d => rows.push(['Software', (d.product || '') + ' ' + (d.version || ''), d.detection_date || '', d.pqc_status || '', d.company_name || '']));
+    const csv = rows.map(r => r.map(v => '"' + String(v).replace(/"/g, '""') + '"').join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    _triggerDownload(blob, filename + '.csv');
+    if (typeof showToast === 'function') showToast(`${type} CSV report downloaded.`, 'success');
+    return;
+  }
+
+  // PDF — use the same export path as Executive Report
+  if (typeof exportAssessment === 'function') {
+    exportAssessment();
+  } else {
+    const fname = filename + '.pdf';
+    try {
+      openPrintableAssessmentReport(fname);
+      if (typeof showToast === 'function') showToast(`${type} PDF report ready — use browser print dialog to save.`, 'success');
+    } catch (e) {
+      if (typeof showToast === 'function') showToast('PDF export failed: ' + e.message, 'error');
+    }
+  }
+}
+
+function _triggerDownload(blob, filename) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+function repGenerateExec() {
+  if (typeof exportAssessment === 'function') {
+    exportAssessment();
+  } else {
+    if (typeof showToast === 'function') showToast('Run a scan first to generate an executive report.', 'info');
+  }
+}
+
+function _updateOverviewCards_Cyber(cyber) {
+    const score = cyber.enterprise_score ?? cyber.score ?? 0;
+    setTextSafe('ovCyberScore', score || '—');
+
+    // Tier counts from url_scores array if available
+    const urls = cyber.url_scores || cyber.assets || [];
+    const counts = { 'Elite-PQC': 0, 'Standard': 0, 'Legacy': 0, 'Critical': 0 };
+    urls.forEach(u => {
+        const t = u.display_tier || u.tier || '';
+        if (counts[t] !== undefined) counts[t]++;
+    });
+    // If no url breakdown, use demo CR_DEMO_URLS counts
+    if (!urls.length && typeof CR_DEMO_URLS !== 'undefined') {
+        CR_DEMO_URLS.forEach(u => { if (counts[u.tier] !== undefined) counts[u.tier]++; });
+    }
+
+    const tierLabels = { 'Elite-PQC': 'Elite', 'Standard': 'Std', 'Legacy': 'Legacy', 'Critical': 'Critical' };
+    const tierMap    = { 'Elite-PQC': 'ovEliteCt', 'Standard': 'ovStdCt', 'Legacy': 'ovLegacyCt', 'Critical': 'ovCritCt' };
+    Object.entries(tierMap).forEach(([tier, id]) => {
+        const el = document.getElementById(id);
+        if (el) el.textContent = counts[tier] ? `${counts[tier]} ${tierLabels[tier]}` : tierLabels[tier];
+    });
+}
+
+function repUpdateExecPreview() {
+  const el = document.getElementById('repExecPreview');
+  if (!el) return;
+  const cyber = window.enterpriseDashboardData?.cyber;
+  const home  = window.enterpriseDashboardData?.home;
+  const score = cyber?.enterprise_score || cyber?.score || '—';
+  const tier  = cyber?.display_tier || cyber?.tier || '—';
+  const domains = home?.asset_discovery_summary?.domain_count ?? home?.domain_count ?? '—';
+  const pqcPct  = home?.posture_of_pqc?.pqc_adoption_pct ?? home?.pqc_adoption_pct ?? '—';
+  el.innerHTML = `
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;">
+      <div style="padding:12px;border:1px solid var(--border);border-radius:6px;">
+        <div style="font-size:0.62rem;text-transform:uppercase;color:var(--text-secondary);font-weight:700;margin-bottom:4px;">Enterprise Score</div>
+        <div style="font-size:1.4rem;font-weight:900;color:var(--primary);">${score}<span style="font-size:0.8rem;font-weight:400;color:var(--text-secondary);"> / 1000</span></div>
+        <div style="font-size:0.72rem;color:var(--text-secondary);margin-top:2px;">Tier: ${tier}</div>
+      </div>
+      <div style="padding:12px;border:1px solid var(--border);border-radius:6px;">
+        <div style="font-size:0.62rem;text-transform:uppercase;color:var(--text-secondary);font-weight:700;margin-bottom:4px;">Assets</div>
+        <div style="font-size:1.4rem;font-weight:900;color:#0891b2;">${domains}</div>
+        <div style="font-size:0.72rem;color:var(--text-secondary);margin-top:2px;">Domains scanned</div>
+      </div>
+    </div>
+    <p style="font-size:0.82rem;color:var(--text-secondary);">PQC Adoption: <strong>${pqcPct}${typeof pqcPct === 'number' ? '%' : ''}</strong>. Click "Export Executive Report" to generate a full PDF with charts, findings, and remediation roadmap.</p>
+  `;
 }

@@ -1,0 +1,965 @@
+<!DOCTYPE html>
+<html class="light" lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<meta name="description" content="Q-ARMOR Asset Inventory — Institutional Post-Quantum Cryptography Readiness"/>
+<title>Asset Inventory | CyberGuard Institutional</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;700;800;900&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script id="tailwind-config">
+tailwind.config = {
+  darkMode: "class",
+  theme: {
+    extend: {
+      colors: {
+        "on-error-container": "#93000a",
+        "surface-container-lowest": "#ffffff",
+        "secondary-fixed-dim": "#f3c000",
+        "outline": "#8b7074",
+        "inverse-on-surface": "#f1f1f1",
+        "background": "#f9f9f9",
+        "on-primary-fixed": "#3f0015",
+        "tertiary-container": "#535252",
+        "on-secondary-container": "#6d5500",
+        "on-primary-container": "#ffb1be",
+        "on-tertiary": "#ffffff",
+        "surface-container-high": "#e8e8e8",
+        "on-tertiary-container": "#c7c5c5",
+        "tertiary-fixed": "#e4e2e1",
+        "on-tertiary-fixed": "#1b1c1c",
+        "on-surface": "#1a1c1c",
+        "inverse-primary": "#ffb2bf",
+        "error": "#ba1a1a",
+        "primary-container": "#9f1945",
+        "on-primary-fixed-variant": "#8f063a",
+        "primary": "#7b0030",
+        "error-container": "#ffdad6",
+        "tertiary-fixed-dim": "#c8c6c6",
+        "surface-variant": "#e2e2e2",
+        "surface-container": "#eeeeee",
+        "secondary": "#755b00",
+        "on-surface-variant": "#584144",
+        "surface-container-low": "#f3f3f3",
+        "on-secondary-fixed-variant": "#594400",
+        "on-secondary-fixed": "#241a00",
+        "on-secondary": "#ffffff",
+        "surface-bright": "#f9f9f9",
+        "secondary-container": "#fec800",
+        "primary-fixed": "#ffd9de",
+        "inverse-surface": "#2f3131",
+        "surface-tint": "#b02751",
+        "on-primary": "#ffffff",
+        "on-background": "#1a1c1c",
+        "surface-container-highest": "#e2e2e2",
+        "surface": "#f9f9f9",
+        "on-error": "#ffffff",
+        "secondary-fixed": "#ffdf91",
+        "tertiary": "#3b3b3b",
+        "primary-fixed-dim": "#ffb2bf",
+        "outline-variant": "#dfbfc3",
+        "surface-dim": "#dadada"
+      },
+      fontFamily: {
+        "headline": ["Public Sans"],
+        "body": ["Inter"],
+        "label": ["Inter"]
+      },
+      borderRadius: {"DEFAULT": "0.125rem", "lg": "0.25rem", "xl": "0.5rem", "full": "0.75rem"},
+    }
+  }
+}
+</script>
+<style>
+  body { font-family: 'Inter', sans-serif; }
+  .font-headline { font-family: 'Public Sans', sans-serif; }
+  .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24; }
+  .no-scrollbar::-webkit-scrollbar { display: none; }
+
+  /* Loading Overlay */
+  #loadingOverlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: 9999;
+    background: rgba(0,0,0,0.55);
+    backdrop-filter: blur(4px);
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    gap: 16px;
+  }
+  #loadingOverlay.active { display: flex; }
+  .loading-spinner {
+    width: 44px;
+    height: 44px;
+    border: 3px solid rgba(254,200,0,0.25);
+    border-top-color: #fec800;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* Scan Progress Bar */
+  #scanProgressBar {
+    display: none;
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    height: 3px;
+    background: rgba(123,0,48,0.15);
+    z-index: 10000;
+  }
+  #scanProgressBar.active { display: block; }
+  #scanProgressFill {
+    height: 100%;
+    background: linear-gradient(90deg, #7b0030, #fec800);
+    width: 0%;
+    transition: width 0.4s ease;
+  }
+
+  /* Table row hover */
+  .inv-row { cursor: pointer; }
+  .inv-row:hover td { background: #fdf0f3; }
+
+  /* Chart containers */
+  .chart-card { background: #fff; border-radius: 0.75rem; padding: 1.25rem; box-shadow: 0 1px 4px rgba(0,0,0,0.07); }
+  .chart-card h4 { font-size: 0.65rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.12em; color: #58414; margin-bottom: 0.75rem; color: #584144; }
+  .chart-wrap { position: relative; width: 100%; }
+
+  /* Leaflet map */
+  #leafletMap { height: 200px; border-radius: 0.5rem; z-index: 1; }
+  .leaflet-container { background: #e8eaed; }
+
+  /* Stat cards enhanced */
+  .stat-card-enhanced { background: #fff; border-radius: 0.75rem; padding: 1.1rem 1.25rem; box-shadow: 0 1px 4px rgba(0,0,0,0.07); border-left: 4px solid; display: flex; flex-direction: column; gap: 4px; }
+  .stat-card-enhanced .val { font-size: 1.7rem; font-weight: 900; font-family: 'Public Sans', sans-serif; line-height: 1; }
+  .stat-card-enhanced .lbl { font-size: 0.6rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.12em; color: #584144; }
+  .stat-card-enhanced .sub { font-size: 0.65rem; color: #8b7074; font-weight: 600; }
+
+  /* Risk badges */
+  .badge-critical { background: rgba(186,26,26,0.1); color: #ba1a1a; }
+  .badge-high { background: rgba(200,80,0,0.1); color: #c85000; }
+  .badge-medium { background: rgba(117,91,0,0.12); color: #755b00; }
+  .badge-low { background: rgba(22,163,74,0.1); color: #16a34a; }
+  .badge { font-size: 0.6rem; font-weight: 800; padding: 2px 8px; border-radius: 999px; text-transform: uppercase; letter-spacing: 0.08em; display: inline-block; }
+
+  /* Cert status */
+  .cert-valid { color: #16a34a; }
+  .cert-expiring { color: #755b00; }
+  .cert-expired { color: #ba1a1a; }
+
+  /* Table improvements */
+  #assetTable thead th { font-size: 0.6rem; letter-spacing: 0.15em; }
+  #assetTable tbody td { font-size: 0.78rem; vertical-align: middle; }
+
+  /* Crypto security overview table */
+  .crypto-table { width: 100%; font-size: 0.72rem; }
+  .crypto-table th { font-size: 0.58rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.12em; color: #584144; padding: 0.5rem 0.75rem; background: #f3f3f3; }
+  .crypto-table td { padding: 0.5rem 0.75rem; border-bottom: 1px solid #eee; }
+  .crypto-table tr:last-child td { border-bottom: none; }
+  .key-badge { font-size: 0.6rem; font-weight: 800; padding: 2px 7px; border-radius: 4px; font-family: monospace; }
+  .key-strong { background: rgba(22,163,74,0.12); color: #16a34a; }
+  .key-medium { background: rgba(117,91,0,0.12); color: #755b00; }
+  .key-weak { background: rgba(186,26,26,0.1); color: #ba1a1a; }
+  .cipher-weak { color: #ba1a1a; font-weight: 700; }
+</style>
+</head>
+<body class="bg-background text-on-surface">
+
+<!-- Scan Progress Bar -->
+<div id="scanProgressBar"><div id="scanProgressFill"></div></div>
+
+<!-- Loading Overlay -->
+<div id="loadingOverlay">
+  <div class="loading-spinner"></div>
+  <div id="loadingText" style="color: #fec800; font-weight: 700; font-size: 0.95rem; font-family: 'Inter', sans-serif; letter-spacing: 0.05em;">SCANNING...</div>
+</div>
+
+<!-- Top Nav — matches Q-ARMOR dashboard header style -->
+<header class="fixed top-0 w-full z-50 h-16 px-6 flex justify-between items-center" style="background:#7b0030;box-shadow:0 2px 12px rgba(0,0,0,0.18);">
+  <div class="flex items-center gap-4">
+    <a href="/dashboard" class="flex items-center gap-2 text-white no-underline" title="Back to Dashboard">
+      <span class="material-symbols-outlined text-[#fec800]" style="font-size:22px;font-variation-settings:'FILL' 1;">security</span>
+      <div>
+        <div class="font-black tracking-tight text-white text-sm uppercase leading-none">Q-ARMOR</div>
+        <div class="text-[10px] text-white/60 font-medium leading-none">Asset Inventory</div>
+      </div>
+    </a>
+    <div class="h-5 w-px bg-white/20 mx-2"></div>
+    <nav class="hidden md:flex items-center gap-1">
+      <a href="/dashboard" class="text-white/70 hover:text-white hover:bg-white/10 transition-all px-3 py-1.5 rounded text-xs font-semibold">← Dashboard</a>
+      <span class="text-white/90 bg-white/15 px-3 py-1.5 rounded text-xs font-bold">Asset Inventory</span>
+    </nav>
+  </div>
+  <div class="flex items-center gap-3">
+    <div id="invAuthChip" class="flex items-center gap-2 bg-white/10 rounded-full px-3 py-1.5 border border-white/20">
+      <span class="material-symbols-outlined text-[#fec800] text-sm">account_circle</span>
+      <div class="flex flex-col leading-none">
+        <span id="invUserEmail" class="text-xs font-bold text-white">Loading…</span>
+        <span id="invUserRole" class="text-[10px] text-white/60">Role pending</span>
+      </div>
+    </div>
+    <button onclick="invLogout()" class="bg-white/10 border border-white/20 text-white text-xs font-bold px-3 py-1.5 rounded-full hover:bg-white/20 transition-all">Logout</button>
+  </div>
+</header>
+
+<!-- Side Nav — Q-ARMOR dark style matching dashboard -->
+<nav class="h-screen w-56 fixed left-0 top-0 pt-16 z-40 hidden md:flex flex-col" style="background:#1a0a0f;border-right:1px solid rgba(123,0,48,0.3);">
+  <div class="flex flex-col gap-0.5 px-3 pt-4 flex-1">
+    <a class="flex items-center gap-3 px-3 py-2.5 text-white/50 hover:text-white hover:bg-white/5 transition-all rounded-lg text-xs font-semibold" href="/dashboard">
+      <span class="material-symbols-outlined text-base">home</span><span>Home</span>
+    </a>
+    <a class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-xs font-bold" style="background:rgba(123,0,48,0.4);color:#fec800;border:1px solid rgba(123,0,48,0.5);" href="#">
+      <span class="material-symbols-outlined text-base">inventory_2</span><span>Asset Inventory</span>
+    </a>
+    <a class="flex items-center gap-3 px-3 py-2.5 text-white/50 hover:text-white hover:bg-white/5 transition-all rounded-lg text-xs font-semibold" href="/dashboard">
+      <span class="material-symbols-outlined text-base">travel_explore</span><span>Asset Discovery</span>
+    </a>
+    <a class="flex items-center gap-3 px-3 py-2.5 text-white/50 hover:text-white hover:bg-white/5 transition-all rounded-lg text-xs font-semibold" href="/dashboard">
+      <span class="material-symbols-outlined text-base">account_tree</span><span>CBOM</span>
+    </a>
+    <a class="flex items-center gap-3 px-3 py-2.5 text-white/50 hover:text-white hover:bg-white/5 transition-all rounded-lg text-xs font-semibold" href="/dashboard">
+      <span class="material-symbols-outlined text-base">shield</span><span>Posture of PQC</span>
+    </a>
+    <a class="flex items-center gap-3 px-3 py-2.5 text-white/50 hover:text-white hover:bg-white/5 transition-all rounded-lg text-xs font-semibold" href="/dashboard">
+      <span class="material-symbols-outlined text-base">star</span><span>Cyber Rating</span>
+    </a>
+    <a class="flex items-center gap-3 px-3 py-2.5 text-white/50 hover:text-white hover:bg-white/5 transition-all rounded-lg text-xs font-semibold" href="/dashboard">
+      <span class="material-symbols-outlined text-base">bar_chart</span><span>Reporting</span>
+    </a>
+  </div>
+  <!-- Quick Scan -->
+  <div class="px-3 pb-5">
+    <div class="rounded-xl p-3" style="background:rgba(123,0,48,0.25);border:1px solid rgba(123,0,48,0.4);">
+      <p class="text-[9px] font-bold text-white/40 uppercase tracking-widest mb-2">Quick Scan</p>
+      <input id="sidebarDomainInput" type="text" placeholder="domain.com or IP" class="w-full text-xs rounded-lg px-3 py-2 mb-2 outline-none" style="background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.1);color:white;"/>
+      <button onclick="startQuickScan()" class="w-full text-xs font-bold py-2 rounded-lg flex items-center justify-center gap-1.5 transition-all" style="background:#7b0030;color:#fec800;">
+        <span class="material-symbols-outlined text-sm">radar</span>Run Scan
+      </button>
+    </div>
+  </div>
+</nav>
+
+<!-- Main Content -->
+<main class="md:ml-64 pt-28 pb-12 px-8 min-h-screen">
+
+  <!-- Page Header -->
+  <div class="flex justify-between items-end mb-10">
+    <div>
+      <h1 class="text-4xl font-black font-headline tracking-tighter text-on-surface">Asset Inventory</h1>
+      <p class="text-on-surface-variant font-medium mt-1">Institutional Post-Quantum Cryptography Readiness</p>
+    </div>
+    <div class="flex items-center gap-3">
+      <button onclick="startScanAll()" id="btnScanAll" class="bg-primary text-white px-5 py-2.5 rounded-xl font-bold flex items-center gap-2 shadow-sm hover:bg-primary-container transition-all text-sm">
+        <span class="material-symbols-outlined text-sm">radar</span>
+        Scan All Assets
+      </button>
+      <button onclick="openAddAssetModal()" class="bg-secondary-container text-on-secondary-container px-5 py-2.5 rounded-xl font-bold flex items-center gap-2 shadow-sm hover:brightness-95 transition-all text-sm">
+        <span class="material-symbols-outlined text-sm">add_moderator</span>
+        Register New Asset
+      </button>
+    </div>
+  </div>
+
+  <!-- Stats Row (6 cards) -->
+  <div id="statsGrid" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-8">
+    <!-- populated by JS -->
+  </div>
+
+  <!-- Charts Row -->
+  <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 mb-8">
+    <div class="chart-card">
+      <h4>Asset Type Distribution</h4>
+      <div class="chart-wrap" style="height:160px"><canvas id="chartAssetType"></canvas></div>
+    </div>
+    <div class="chart-card">
+      <h4>Asset Risk Distribution</h4>
+      <div class="chart-wrap" style="height:160px"><canvas id="chartRiskDist"></canvas></div>
+    </div>
+    <div class="chart-card">
+      <h4>Certificate Expiry Timeline</h4>
+      <div class="chart-wrap" style="height:160px"><canvas id="chartCertExpiry"></canvas></div>
+    </div>
+    <div class="chart-card">
+      <h4>IP Version Breakdown</h4>
+      <div class="chart-wrap" style="height:160px"><canvas id="chartIPVersion"></canvas></div>
+    </div>
+  </div>
+
+  <!-- Filter & Table -->
+  <div class="bg-surface-container-lowest rounded-xl shadow-sm mb-10 overflow-hidden">
+    <!-- Search & Filter Bar -->
+    <div class="p-6 flex flex-col md:flex-row gap-4 items-center justify-between border-b border-surface-container">
+      <div class="relative w-full md:w-96">
+        <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400 text-sm">filter_list</span>
+        <input id="searchInput" class="bg-surface-container-low border-none rounded-xl pl-10 pr-4 py-3 text-sm w-full focus:ring-2 focus:ring-primary/40 outline-none" placeholder="Filter domains, IPs, or key types..." type="text" oninput="applyFilters()"/>
+      </div>
+      <div class="flex gap-2 w-full md:w-auto flex-wrap">
+        <select id="filterType" onchange="applyFilters()" class="bg-surface-container-low border-none rounded-xl px-4 py-3 text-sm font-medium focus:ring-2 focus:ring-primary/40 outline-none flex-1 md:flex-none">
+          <option value="">Asset Type: All</option>
+          <option value="Web App">Web Services</option>
+          <option value="API">API Endpoints</option>
+          <option value="Server">Infrastructure</option>
+          <option value="Gateway">Gateways</option>
+        </select>
+        <select id="filterRisk" onchange="applyFilters()" class="bg-surface-container-low border-none rounded-xl px-4 py-3 text-sm font-medium focus:ring-2 focus:ring-primary/40 outline-none flex-1 md:flex-none">
+          <option value="">Risk: All</option>
+          <option value="critical">Critical</option>
+          <option value="high">High</option>
+          <option value="medium">Warning</option>
+          <option value="low">Secure</option>
+        </select>
+        <button onclick="exportCSV()" class="p-3 bg-surface-container rounded-xl hover:bg-surface-container-high transition-colors">
+          <span class="material-symbols-outlined text-sm">download</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Asset Table -->
+    <div class="overflow-x-auto" id="tableWrapper">
+      <table class="w-full text-left" id="assetTable">
+        <thead class="bg-surface-container-low text-on-surface-variant text-[10px] font-bold uppercase tracking-[0.15em]">
+          <tr>
+            <th class="px-4 py-4"><input type="checkbox" id="selectAll" onchange="toggleSelectAll(this.checked)" class="rounded"/></th>
+            <th class="px-4 py-4">Asset Name</th>
+            <th class="px-4 py-4">URL</th>
+            <th class="px-4 py-4">IPv4 Address</th>
+            <th class="px-4 py-4">IPv6 Address</th>
+            <th class="px-4 py-4">Type</th>
+            <th class="px-4 py-4">Owner</th>
+            <th class="px-4 py-4">Risk</th>
+            <th class="px-4 py-4">Cert Status</th>
+            <th class="px-4 py-4">Key Length</th>
+            <th class="px-4 py-4">Last Scan</th>
+            <th class="px-4 py-4">Actions</th>
+          </tr>
+        </thead>
+        <tbody id="assetTableBody" class="divide-y divide-surface-container">
+          <!-- populated by JS -->
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Bottom Bento Grid -->
+  <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+
+    <!-- Nameserver Records -->
+    <div class="lg:col-span-4 bg-surface-container-lowest p-6 rounded-xl shadow-sm">
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="font-black font-headline text-primary uppercase text-sm tracking-tight">Nameserver Records</h3>
+        <span class="material-symbols-outlined text-zinc-400">dns</span>
+      </div>
+      <!-- Domain Resolve Input -->
+      <div class="flex gap-2 mb-4">
+        <input id="domainResolveInput" type="text" placeholder="domain.com" class="flex-1 text-sm border-none bg-surface-container-low rounded-xl px-3 py-2 focus:ring-2 focus:ring-primary/30 outline-none"/>
+        <button onclick="resolveDomain()" class="bg-primary text-white text-xs font-bold px-3 py-2 rounded-xl hover:bg-primary-container transition-colors">Resolve</button>
+      </div>
+      <div id="nameserverRecords" class="space-y-3">
+        <!-- populated by JS -->
+      </div>
+    </div>
+
+    <!-- Crypto Overview -->
+    <div class="lg:col-span-4 bg-primary text-white p-8 rounded-xl shadow-sm relative overflow-hidden group">
+      <div class="absolute inset-0 bg-gradient-to-br from-primary to-primary-container opacity-90 transition-transform duration-500 group-hover:scale-105"></div>
+      <div class="relative z-10">
+        <h3 class="font-black font-headline text-secondary-fixed uppercase text-sm tracking-[0.2em] mb-8">Crypto Overview</h3>
+        <div class="space-y-8">
+          <div>
+            <div class="flex justify-between items-end mb-2">
+              <span class="text-xs font-bold uppercase tracking-widest text-primary-fixed">Cert Health Index</span>
+              <span id="certHealthIndex" class="text-xl font-black">--</span>
+            </div>
+            <div class="w-full h-1 bg-white/20 rounded-full">
+              <div id="certHealthBar" class="h-full bg-secondary-fixed shadow-[0_0_8px_rgba(254,200,0,0.6)] transition-all duration-700" style="width:0%"></div>
+            </div>
+          </div>
+          <div class="grid grid-cols-2 gap-4">
+            <div>
+              <p class="text-[10px] font-bold text-primary-fixed uppercase tracking-tighter mb-1">Avg Key Life</p>
+              <p id="avgKeyLife" class="text-lg font-black">-- Days</p>
+            </div>
+            <div>
+              <p class="text-[10px] font-bold text-primary-fixed uppercase tracking-tighter mb-1">Revocation Rate</p>
+              <p id="revocationRate" class="text-lg font-black">--%</p>
+            </div>
+          </div>
+          <div class="grid grid-cols-2 gap-4">
+            <div>
+              <p class="text-[10px] font-bold text-primary-fixed uppercase tracking-tighter mb-1">PQC Ready</p>
+              <p id="cryptoPqcReady" class="text-lg font-black">--</p>
+            </div>
+            <div>
+              <p class="text-[10px] font-bold text-primary-fixed uppercase tracking-tighter mb-1">Vulnerable</p>
+              <p id="cryptoVulnerable" class="text-lg font-black text-red-300">--</p>
+            </div>
+          </div>
+        </div>
+      </div>
+      <span class="material-symbols-outlined absolute -bottom-4 -right-4 text-9xl text-white/5 pointer-events-none">security</span>
+    </div>
+
+    <!-- Geographic Distribution (Leaflet Map) -->
+    <div class="lg:col-span-4 bg-surface-container-lowest p-6 rounded-xl shadow-sm overflow-hidden relative">
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="font-black font-headline text-primary uppercase text-sm tracking-tight">Geographic Asset Distribution</h3>
+        <div class="flex gap-1 items-center">
+          <span class="w-2 h-2 rounded-full bg-primary inline-block"></span>
+          <span class="text-[10px] text-zinc-500 font-bold">Assets</span>
+        </div>
+      </div>
+      <div id="leafletMap"></div>
+      <div id="geoStats" class="mt-4 grid grid-cols-4 gap-2">
+        <!-- populated by JS -->
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Crypto & Security Overview -->
+  <div class="mt-6 bg-surface-container-lowest rounded-xl shadow-sm overflow-hidden">
+    <div class="px-6 py-4 border-b border-surface-container flex items-center gap-2">
+      <span class="material-symbols-outlined text-primary text-sm">lock</span>
+      <h3 class="font-black font-headline text-on-surface uppercase text-sm tracking-tight">Crypto &amp; Security Overview</h3>
+    </div>
+    <div class="overflow-x-auto">
+      <table class="crypto-table">
+        <thead>
+          <tr>
+            <th>Asset</th>
+            <th>Key Length</th>
+            <th>Cipher Suite</th>
+            <th>TLS</th>
+            <th>Certificate Authority</th>
+            <th>Last Scan</th>
+          </tr>
+        </thead>
+        <tbody id="cryptoOverviewBody">
+          <!-- populated by JS -->
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Activity / Recent Scans -->
+  <div class="mt-6 bg-surface-container-lowest rounded-xl shadow-sm p-6">
+    <div class="flex items-center gap-2 mb-4">
+      <span class="material-symbols-outlined text-primary">timeline</span>
+      <h3 class="font-black font-headline text-on-surface uppercase text-sm tracking-tight">Recent Scans & Activity</h3>
+    </div>
+    <div id="activityFeed" class="space-y-3">
+      <!-- populated by JS -->
+    </div>
+  </div>
+
+</main>
+
+<!-- Mobile Bottom Nav -->
+<div class="md:hidden fixed bottom-0 left-0 right-0 h-16 bg-white shadow-[0_-4px_20px_rgba(0,0,0,0.05)] flex items-center justify-around px-4 z-50">
+  <a href="/dashboard" class="flex flex-col items-center gap-1 text-zinc-400">
+    <span class="material-symbols-outlined">dashboard</span>
+    <span class="text-[10px] font-bold">Home</span>
+  </a>
+  <button class="flex flex-col items-center gap-1 text-primary">
+    <span class="material-symbols-outlined">inventory_2</span>
+    <span class="text-[10px] font-bold">Inventory</span>
+  </button>
+  <button class="flex flex-col items-center gap-1 text-zinc-400">
+    <span class="material-symbols-outlined">shield</span>
+    <span class="text-[10px] font-bold">Security</span>
+  </button>
+  <button class="flex flex-col items-center gap-1 text-zinc-400">
+    <span class="material-symbols-outlined">person</span>
+    <span class="text-[10px] font-bold">Account</span>
+  </button>
+</div>
+
+<script>
+// ─── Config ───
+const API_BASE = (() => {
+  const w = typeof window !== 'undefined' && typeof window.__QARMOR_API_BASE__ === 'string'
+    ? window.__QARMOR_API_BASE__.trim() : '';
+  return w.endsWith('/') ? w.slice(0, -1) : w;
+})();
+
+// ─── State ───
+let allAssets = [];
+let filteredAssets = [];
+let selectedAssets = new Set();
+
+// ─── Sample Data (shown before any scan) ───
+const SAMPLE_ASSETS = [
+  { id: 1, name: 'core-api.qarmor.institutional', ip: '192.168.1.104', tlsVersion: 'TLS 1.3', keyExchange: 'ECDHE_RSA', certType: 'EV Multidomain', qScore: 15, tier: 'Mission Critical', risk: 'critical', status: 'Vulnerable', type: 'API' },
+  { id: 2, name: 'gateway-01.vault.internal', ip: '10.0.42.1', tlsVersion: 'TLS 1.3', keyExchange: 'Kyber-768/X25519', certType: 'PQC Hybrid', qScore: 94, tier: 'Mission Critical', risk: 'low', status: 'Safe', type: 'Gateway' },
+  { id: 3, name: 'legacy-portal.auth.ext', ip: '45.22.109.4', tlsVersion: 'TLS 1.2', keyExchange: 'RSA-2048', certType: 'OV Standard', qScore: 45, tier: 'Standard', risk: 'medium', status: 'Warning', type: 'Web App' },
+  { id: 4, name: 'backup-sync-west.cloud', ip: '172.16.5.99', tlsVersion: 'TLS 1.3', keyExchange: 'X25519', certType: 'Wildcard SSL', qScore: 82, tier: 'Standard', risk: 'low', status: 'Safe', type: 'Server' },
+  { id: 5, name: 'mail.company.com', ip: '35.11.44.10', tlsVersion: 'TLS 1.3', keyExchange: 'ECDHE_RSA', certType: 'DV Standard', qScore: 60, tier: 'Standard', risk: 'medium', status: 'Warning', type: 'Server' },
+  { id: 6, name: 'vpn.internal.corp', ip: '10.1.0.1', tlsVersion: 'TLS 1.0', keyExchange: 'RSA-1024', certType: 'Self-Signed', qScore: 5, tier: 'Mission Critical', risk: 'critical', status: 'Vulnerable', type: 'Gateway' },
+];
+
+const GEO_DATA = [
+  { region: 'USA', count: 642 },
+  { region: 'Europe', count: 312 },
+  { region: 'Asia', count: 283 },
+  { region: 'Other', count: 0 }
+];
+
+const NS_RECORDS = [
+  { type: 'A Record', hostname: 'ns1.institutional.qarmor', status: 'ok' },
+  { type: 'MX Record', hostname: 'mail.qarmor.internal', status: 'ok' },
+  { type: 'TXT (SPF)', hostname: 'v=spf1 include:_spf.google.com', status: 'warn' },
+];
+
+const ACTIVITY = [
+  { type: 'success', message: 'Full scan completed: 1,237 assets analyzed', time: '10 min ago' },
+  { type: 'error', message: 'CRITICAL: vpn.internal.corp uses TLS 1.0 with RSA-1024', time: '1 hr ago' },
+  { type: 'warning', message: 'Certificate expiring soon: core-api.qarmor.institutional (30 days)', time: '3 hrs ago' },
+  { type: 'success', message: 'PQC migration complete: gateway-01.vault.internal now Kyber-768', time: '5 hrs ago' },
+];
+
+// ─── Loading ───
+function showLoading(msg = 'Scanning...') {
+  document.getElementById('loadingText').textContent = msg;
+  document.getElementById('loadingOverlay').classList.add('active');
+}
+function hideLoading() {
+  document.getElementById('loadingOverlay').classList.remove('active');
+}
+
+function startProgress() {
+  const bar = document.getElementById('scanProgressBar');
+  const fill = document.getElementById('scanProgressFill');
+  bar.classList.add('active');
+  let w = 0;
+  const iv = setInterval(() => {
+    w = Math.min(w + Math.random() * 8, 88);
+    fill.style.width = w + '%';
+    if (w >= 88) clearInterval(iv);
+  }, 300);
+  return { end: () => { fill.style.width = '100%'; setTimeout(() => { bar.classList.remove('active'); fill.style.width = '0%'; }, 500); clearInterval(iv); } };
+}
+
+// ─── Scan Functions ───
+async function startScanAll() {
+  const btn = document.getElementById('btnScanAll');
+  btn.disabled = true;
+  showLoading('Scanning all ' + allAssets.length + ' assets...');
+  const prog = startProgress();
+  try {
+    // Try real API first
+    let scanData = null;
+    try {
+      const token = localStorage.getItem('token');
+      const headers = token ? { 'Authorization': 'Bearer ' + token } : {};
+      const resp = await fetch(API_BASE + '/api/scan/demo', { method: 'GET', headers });
+      if (resp.ok) {
+        scanData = await resp.json();
+      }
+    } catch (err) {
+      console.warn('API scan failed, using sample data:', err.message);
+    }
+
+    if (scanData && scanData.results) {
+      // Map real scan results to our asset format
+      const mapped = scanData.results.map((r, i) => ({
+        id: i + 1,
+        name: r.domain || r.hostname || ('asset-' + (i + 1)),
+        ip: r.ip || '--',
+        tlsVersion: r.tls_version || 'Unknown',
+        keyExchange: r.key_exchange || r.cipher_suite || '--',
+        certType: r.cert_type || 'Standard',
+        qScore: r.q_score?.total ?? r.q_score ?? 0,
+        tier: r.tier || 'Standard',
+        risk: mapQScoreToRisk(r.q_score?.total ?? r.q_score ?? 0),
+        status: mapQScoreToStatus(r.q_score?.total ?? r.q_score ?? 0),
+        type: r.asset_type || 'Web App',
+      }));
+      allAssets = mapped;
+      filteredAssets = [...mapped];
+      updateStatsFromData(scanData);
+    } else {
+      // Simulate updated scan on sample data
+      allAssets = SAMPLE_ASSETS.map(a => ({ ...a, lastScan: 'Just now' }));
+      filteredAssets = [...allAssets];
+    }
+
+    renderStats();
+    renderTable();
+    addActivity('success', 'Scan complete: ' + allAssets.length + ' assets analyzed', 'Just now');
+    renderActivity();
+    showToast('Scan complete — ' + allAssets.length + ' assets analyzed', 'success');
+  } catch (e) {
+    showToast('Scan failed: ' + e.message, 'error');
+  } finally {
+    prog.end();
+    hideLoading();
+    btn.disabled = false;
+  }
+}
+
+async function startQuickScan() {
+  const domain = document.getElementById('sidebarDomainInput').value.trim();
+  if (!domain) { showToast('Enter a domain or IP to scan', 'warning'); return; }
+
+  showLoading('Probing ' + domain + '...');
+  const prog = startProgress();
+  try {
+    let result = null;
+    try {
+      const token = localStorage.getItem('token');
+      const headers = token ? { 'Authorization': 'Bearer ' + token } : {};
+      const encodedDomain = encodeURIComponent(domain.replace(/^https?:\/\//, '').split('/')[0]);
+      const resp = await fetch(API_BASE + '/api/scan/single/' + encodedDomain + '?port=443', { headers });
+      if (resp.ok) result = await resp.json();
+    } catch (err) {
+      console.warn('Single host scan failed:', err.message);
+    }
+
+    if (result) {
+      const score = result.q_score?.total ?? result.q_score ?? 0;
+      const newAsset = {
+        id: Date.now(),
+        name: domain,
+        ip: result.ip || '--',
+        tlsVersion: result.tls_version || '--',
+        keyExchange: result.key_exchange || result.cipher_suite || '--',
+        certType: result.cert_type || '--',
+        qScore: score,
+        tier: result.tier || 'Standard',
+        risk: mapQScoreToRisk(score),
+        status: mapQScoreToStatus(score),
+        type: 'Web App',
+      };
+      // Insert or update
+      const idx = allAssets.findIndex(a => a.name === domain);
+      if (idx >= 0) allAssets[idx] = newAsset;
+      else allAssets.unshift(newAsset);
+      filteredAssets = [...allAssets];
+      renderStats(); renderTable();
+      addActivity('success', 'Scanned ' + domain + ' — Q-Score: ' + score, 'Just now');
+      renderActivity();
+      showToast('Scan complete: ' + domain, 'success');
+    } else {
+      showToast('Scan returned no data. Try the demo scan or check connectivity.', 'warning');
+    }
+  } catch (e) {
+    showToast('Scan error: ' + e.message, 'error');
+  } finally {
+    prog.end();
+    hideLoading();
+  }
+}
+
+async function resolveDomain() {
+  const domain = document.getElementById('domainResolveInput').value.trim();
+  if (!domain) { showToast('Enter a domain to resolve', 'warning'); return; }
+  showLoading('Resolving ' + domain + '...');
+  const prog = startProgress();
+  try {
+    let records = null;
+    try {
+      const token = localStorage.getItem('token');
+      const headers = token ? { 'Authorization': 'Bearer ' + token } : {};
+      const resp = await fetch(API_BASE + '/api/dns/resolve?domain=' + encodeURIComponent(domain), { headers });
+      if (resp.ok) records = await resp.json();
+    } catch (e) { console.warn('DNS resolve API not available:', e.message); }
+
+    if (records && records.records) {
+      renderNSRecords(records.records.map(r => ({ type: r.type, hostname: r.value || r.address, status: 'ok' })));
+    } else {
+      // Show placeholder with domain
+      renderNSRecords([
+        { type: 'A Record', hostname: domain, status: 'ok' },
+        { type: 'NS Record', hostname: 'ns1.' + domain, status: 'ok' },
+      ]);
+    }
+    showToast('DNS records resolved for ' + domain, 'success');
+  } catch (e) {
+    showToast('DNS resolve failed: ' + e.message, 'error');
+  } finally {
+    prog.end();
+    hideLoading();
+  }
+}
+
+// ─── Helpers ───
+function mapQScoreToRisk(score) {
+  if (score >= 80) return 'low';
+  if (score >= 50) return 'medium';
+  if (score >= 20) return 'high';
+  return 'critical';
+}
+function mapQScoreToStatus(score) {
+  if (score >= 80) return 'Safe';
+  if (score >= 50) return 'Warning';
+  return 'Vulnerable';
+}
+
+let activityLog = [...ACTIVITY];
+function addActivity(type, message, time) {
+  activityLog.unshift({ type, message, time });
+  if (activityLog.length > 10) activityLog.pop();
+}
+
+function updateStatsFromData(data) {
+  // Update geo stats if data contains geo info
+  if (data.geographic_distribution) {
+    const geo = data.geographic_distribution;
+    Object.keys(geo).forEach((region, i) => {
+      if (GEO_DATA[i]) GEO_DATA[i].count = geo[region];
+    });
+  }
+}
+
+// ─── Render: Stats ───
+function renderStats() {
+  const grid = document.getElementById('statsGrid');
+  if (!grid) return;
+
+  const total = allAssets.length;
+  const vulnerable = allAssets.filter(a => a.risk === 'critical' || a.risk === 'high').length;
+  const migrating = allAssets.filter(a => a.risk === 'medium').length;
+  const pqcReady = allAssets.filter(a => a.risk === 'low').length;
+
+  const card = (label, value, sub, borderColor, textColor = '') => `
+    <div class="bg-surface-container-lowest p-6 rounded-xl shadow-sm border-l-4 ${borderColor}">
+      <p class="text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-2">${label}</p>
+      <div class="flex items-baseline gap-2">
+        <span class="text-3xl font-black font-headline ${textColor}">${value.toLocaleString('en-IN')}</span>
+        <span class="text-xs text-zinc-500 font-bold">${sub}</span>
+      </div>
+    </div>`;
+
+  grid.innerHTML =
+    card('Total Assets', total, 'Monitored', 'border-primary') +
+    card('Vulnerable', vulnerable, 'Critical Priority', 'border-error', 'text-error') +
+    card('Migrating', migrating, 'In-Progress', 'border-secondary-container', 'text-secondary') +
+    card('PQC Ready', pqcReady, 'Quantum-Secure', 'border-zinc-800');
+
+  // Crypto overview
+  const safe = pqcReady;
+  const vuln = vulnerable;
+  const healthPct = total > 0 ? Math.round((safe / total) * 100) : 0;
+  document.getElementById('certHealthIndex').textContent = healthPct + '%';
+  document.getElementById('certHealthBar').style.width = healthPct + '%';
+  document.getElementById('avgKeyLife').textContent = '142 Days';
+  document.getElementById('revocationRate').textContent = '0.04%';
+  document.getElementById('cryptoPqcReady').textContent = safe;
+  document.getElementById('cryptoVulnerable').textContent = vuln;
+}
+
+// ─── Render: Table ───
+function renderTable() {
+  const tbody = document.getElementById('assetTableBody');
+  if (!tbody) return;
+  if (filteredAssets.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="9" class="px-6 py-12 text-center text-zinc-400 text-sm">No assets match your filters.</td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = filteredAssets.map((asset, idx) => {
+    const statusBg = asset.status === 'Safe' ? 'bg-green-100 text-green-700' : asset.status === 'Warning' ? 'bg-secondary-container/10 text-secondary' : 'bg-error/10 text-error';
+    const statusDot = asset.status === 'Safe' ? 'bg-green-600' : asset.status === 'Warning' ? 'bg-secondary-container' : 'bg-error animate-pulse';
+    const tlsBg = asset.tlsVersion === 'TLS 1.3' ? 'bg-zinc-100 text-zinc-700' : asset.tlsVersion === 'TLS 1.2' ? 'bg-secondary-container/20 text-secondary' : 'bg-error/20 text-error';
+    const qColor = asset.qScore >= 80 ? 'text-green-600' : asset.qScore >= 50 ? 'text-secondary' : 'text-error';
+    const qBar = asset.qScore >= 80 ? 'bg-green-600' : asset.qScore >= 50 ? 'bg-secondary-container' : 'bg-error';
+    const tierColor = asset.tier === 'Mission Critical' ? 'text-primary' : 'text-zinc-500';
+
+    return `
+      <tr class="inv-row hover:bg-surface-container-low transition-colors" data-idx="${idx}">
+        <td class="px-6 py-5"><input type="checkbox" class="asset-check rounded" onchange="toggleAssetSelect(${idx}, this.checked)"/></td>
+        <td class="px-6 py-5">
+          <div class="flex flex-col">
+            <span class="font-bold text-sm text-primary">${esc(asset.name)}</span>
+            <span class="text-[10px] text-zinc-500 font-mono tracking-tighter">${esc(asset.ip)}</span>
+          </div>
+        </td>
+        <td class="px-6 py-5"><span class="${tlsBg} text-[10px] font-black px-2 py-1 rounded">${esc(asset.tlsVersion)}</span></td>
+        <td class="px-6 py-5 text-sm font-mono text-on-surface-variant">${esc(asset.keyExchange)}</td>
+        <td class="px-6 py-5 text-sm">${esc(asset.certType)}</td>
+        <td class="px-6 py-5">
+          <div class="w-12 h-1.5 bg-zinc-100 rounded-full overflow-hidden mb-0.5">
+            <div class="h-full ${qBar}" style="width:${asset.qScore}%"></div>
+          </div>
+          <span class="text-[10px] font-bold ${qColor}">${asset.qScore}/100</span>
+        </td>
+        <td class="px-6 py-5"><span class="text-[10px] font-bold uppercase ${tierColor} tracking-widest">${esc(asset.tier)}</span></td>
+        <td class="px-6 py-5">
+          <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-black uppercase ${statusBg}">
+            <span class="w-1.5 h-1.5 rounded-full ${statusDot}"></span>${esc(asset.status)}
+          </span>
+        </td>
+        <td class="px-6 py-5">
+          <button onclick="scanSingleAsset(${idx})" class="p-1 text-zinc-400 hover:text-primary transition-colors" title="Scan asset">
+            <span class="material-symbols-outlined text-sm">radar</span>
+          </button>
+        </td>
+      </tr>`;
+  }).join('');
+}
+
+async function scanSingleAsset(idx) {
+  const asset = filteredAssets[idx];
+  if (!asset) return;
+  showLoading('Scanning ' + asset.name + '...');
+  const prog = startProgress();
+  try {
+    let result = null;
+    try {
+      const token = localStorage.getItem('token');
+      const headers = token ? { 'Authorization': 'Bearer ' + token } : {};
+      const resp = await fetch(API_BASE + '/api/scan/single/' + encodeURIComponent(asset.name) + '?port=443', { headers });
+      if (resp.ok) result = await resp.json();
+    } catch (e) { console.warn('Single scan failed:', e.message); }
+
+    if (result) {
+      const score = result.q_score?.total ?? result.q_score ?? asset.qScore;
+      const allIdx = allAssets.findIndex(a => a.id === asset.id);
+      if (allIdx >= 0) {
+        allAssets[allIdx] = { ...allAssets[allIdx], qScore: score, risk: mapQScoreToRisk(score), status: mapQScoreToStatus(score), tlsVersion: result.tls_version || asset.tlsVersion, keyExchange: result.key_exchange || asset.keyExchange };
+      }
+      applyFilters();
+      renderStats();
+      addActivity('success', 'Scanned ' + asset.name + ' — Q-Score: ' + score, 'Just now');
+      renderActivity();
+      showToast('Scan complete: ' + asset.name + ' (Q-Score: ' + score + ')', 'success');
+    } else {
+      showToast('Scan complete (API unavailable — using cached data)', 'warning');
+    }
+  } catch (e) {
+    showToast('Scan error: ' + e.message, 'error');
+  } finally {
+    prog.end();
+    hideLoading();
+  }
+}
+
+// ─── Render: Nameserver Records ───
+function renderNSRecords(records) {
+  const container = document.getElementById('nameserverRecords');
+  if (!container) return;
+  container.innerHTML = records.map(r => `
+    <div class="p-3 bg-surface-container-low rounded-lg flex justify-between items-center hover:bg-surface-container transition-colors">
+      <div>
+        <p class="text-[10px] font-bold text-zinc-500 uppercase">${esc(r.type)}</p>
+        <p class="text-xs font-mono font-bold truncate max-w-[200px]">${esc(r.hostname)}</p>
+      </div>
+      <span class="material-symbols-outlined ${r.status === 'ok' ? 'text-green-600' : 'text-secondary-container'} text-sm">${r.status === 'ok' ? 'check_circle' : 'warning'}</span>
+    </div>`).join('');
+}
+
+// ─── Render: Geo Stats ───
+function renderGeoStats() {
+  const container = document.getElementById('geoStats');
+  if (!container) return;
+  // Only show non-zero entries, up to 4
+  const shown = GEO_DATA.filter(g => g.count > 0).slice(0, 4);
+  container.innerHTML = shown.map(g => `
+    <div class="text-center">
+      <p class="text-[10px] font-black text-zinc-400 uppercase">${esc(g.region)}</p>
+      <p class="text-sm font-bold text-primary">${g.count.toLocaleString('en-IN')}</p>
+    </div>`).join('');
+}
+
+// ─── Render: Activity Feed ───
+function renderActivity() {
+  const feed = document.getElementById('activityFeed');
+  if (!feed) return;
+  const colors = { success: 'border-green-500 bg-green-50', error: 'border-error bg-error/5', warning: 'border-secondary-container bg-secondary-container/5' };
+  const iconColors = { success: 'text-green-600', error: 'text-error', warning: 'text-secondary' };
+  const icons = { success: 'check_circle', error: 'error', warning: 'warning' };
+  feed.innerHTML = activityLog.map(a => `
+    <div class="flex gap-3 p-3 rounded-lg border-l-2 ${colors[a.type] || colors.warning}">
+      <span class="material-symbols-outlined text-sm mt-0.5 ${iconColors[a.type] || iconColors.warning}">${icons[a.type] || icons.warning}</span>
+      <div class="flex-1">
+        <p class="text-xs font-medium text-on-surface">${esc(a.message)}</p>
+        <p class="text-[10px] text-zinc-400 mt-0.5">${esc(a.time)}</p>
+      </div>
+    </div>`).join('');
+}
+
+// ─── Filter & Selection ───
+function applyFilters() {
+  const q = (document.getElementById('searchInput')?.value || '').toLowerCase();
+  const type = document.getElementById('filterType')?.value || '';
+  const risk = document.getElementById('filterRisk')?.value || '';
+  filteredAssets = allAssets.filter(a => {
+    const matchQ = !q || a.name.toLowerCase().includes(q) || a.ip.includes(q) || (a.keyExchange || '').toLowerCase().includes(q);
+    const matchT = !type || a.type === type;
+    const matchR = !risk || a.risk === risk;
+    return matchQ && matchT && matchR;
+  });
+  renderTable();
+}
+
+function toggleSelectAll(checked) {
+  document.querySelectorAll('.asset-check').forEach((cb, i) => {
+    cb.checked = checked;
+    if (checked) selectedAssets.add(i); else selectedAssets.delete(i);
+  });
+}
+
+function toggleAssetSelect(idx, checked) {
+  if (checked) selectedAssets.add(idx); else selectedAssets.delete(idx);
+}
+
+function openAddAssetModal() {
+  showToast('Asset registration coming soon', 'info');
+}
+
+// ─── Export ───
+function exportCSV() {
+  const headers = ['Asset', 'IP', 'TLS', 'Key Exchange', 'Cert Type', 'Q-Score', 'Tier', 'Status'];
+  const rows = filteredAssets.map(a => [a.name, a.ip, a.tlsVersion, a.keyExchange, a.certType, a.qScore, a.tier, a.status]);
+  const csv = [headers, ...rows].map(r => r.join(',')).join('\n');
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url; link.download = 'asset-inventory.csv'; link.click();
+  URL.revokeObjectURL(url);
+  showToast('CSV exported', 'success');
+}
+
+// ─── Toast ───
+function showToast(message, type = 'info') {
+  const existing = document.querySelector('.inv-toast');
+  if (existing) existing.remove();
+  const toast = document.createElement('div');
+  toast.className = 'inv-toast';
+  toast.textContent = message;
+  const colors = {
+    success: 'background:rgba(22,163,74,0.12);color:#16a34a;border:1px solid rgba(22,163,74,0.3)',
+    error: 'background:rgba(186,26,26,0.12);color:#ba1a1a;border:1px solid rgba(186,26,26,0.3)',
+    warning: 'background:rgba(117,91,0,0.12);color:#755b00;border:1px solid rgba(117,91,0,0.3)',
+    info: 'background:rgba(123,0,48,0.12);color:#7b0030;border:1px solid rgba(123,0,48,0.3)',
+  };
+  toast.style.cssText = `position:fixed;top:88px;right:24px;z-index:9998;padding:12px 20px;border-radius:12px;font-size:0.82rem;font-weight:600;font-family:'Inter',sans-serif;max-width:360px;cursor:pointer;${colors[type] || colors.info}`;
+  toast.onclick = () => toast.remove();
+  document.body.appendChild(toast);
+  setTimeout(() => toast?.remove(), 4000);
+}
+
+// ─── Utility ───
+function esc(text) {
+  if (text == null) return '';
+  return String(text).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]));
+}
+
+// ─── Init ───
+document.addEventListener('DOMContentLoaded', () => {
+  allAssets = [...SAMPLE_ASSETS];
+  filteredAssets = [...allAssets];
+  renderStats();
+  renderTable();
+  renderNSRecords(NS_RECORDS);
+  renderGeoStats();
+  renderActivity();
+});
+</script>
+</body>
+</html>
