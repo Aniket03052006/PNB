@@ -2,16 +2,18 @@ services:
   - type: web
     name: q-armor-backend
     runtime: python
-    runtimeVersion: 3.12.3
     region: oregon
     plan: free
-    buildCommand: pip install -r requirements.txt
+    buildCommand: pip install --only-binary=pydantic-core,cryptography -r requirements.txt
     startCommand: uvicorn backend.app:app --host 0.0.0.0 --port $PORT --workers 1 --timeout-keep-alive 30
     healthCheckPath: /api/health
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.3
       - key: FRONTEND_URLS
-        sync: false  # set your Vercel URL in Render dashboard
+        sync: false
       - key: SUPABASE_URL
-        sync: false  # set in Render dashboard
+        sync: false
       - key: SUPABASE_ANON_KEY
         sync: false
       - key: SUPABASE_DB_URL
