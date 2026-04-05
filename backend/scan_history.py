@@ -76,7 +76,7 @@ def _connect():
     except ImportError as exc:
         raise RuntimeError("psycopg2 is required for scan history") from exc
 
-    conn = psycopg2.connect(SUPABASE_DB_URL, connect_timeout=10)
+    conn = psycopg2.connect(SUPABASE_DB_URL, connect_timeout=3)
     conn.autocommit = True
     try:
         yield conn

@@ -185,7 +185,7 @@ def _connect_db():
         import psycopg2
     except ImportError as exc:
         raise AuthConfigurationError("psycopg2 is required for role lookups") from exc
-    return psycopg2.connect(SUPABASE_DB_URL, connect_timeout=10)
+    return psycopg2.connect(SUPABASE_DB_URL, connect_timeout=3)
 
 
 def get_user_role(user_id: str) -> str | None:
@@ -202,7 +202,11 @@ def require_admin(request: Request) -> dict[str, Any]:
     if not user_id:
         raise _auth_error("Token payload is missing subject")
 
-    role = get_user_role(user_id)
+    try:
+        role = get_user_role(user_id)
+    except Exception as exc:
+        logger.warning("DB unavailable during admin check for %s: %s", user_id, exc)
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized")
     request.state.user_role = role
     if role != "admin":
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized")
