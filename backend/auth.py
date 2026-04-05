@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import base64
 import logging
 import os
 import time
@@ -115,10 +116,41 @@ def _select_signing_key(token: str) -> dict[str, Any]:
     raise _auth_error("Unable to match token signing key")
 
 
+def _rsa_jwk_to_pem(jwk_key: dict[str, Any]) -> bytes:
+    """Convert an RSA JWK public-key dict to PEM bytes.
+
+    Uses ``cryptography`` directly to avoid python-jose JWK parsing issues
+    that surface with cryptography>=42.
+    """
+    from cryptography.hazmat.primitives.asymmetric.rsa import RSAPublicNumbers
+    from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
+
+    def _b64url_to_int(val: str) -> int:
+        pad = (-len(val)) % 4
+        data = base64.urlsafe_b64decode(val + "=" * pad)
+        return int.from_bytes(data, "big")
+
+    try:
+        n = _b64url_to_int(jwk_key["n"])
+        e = _b64url_to_int(jwk_key["e"])
+        public_key = RSAPublicNumbers(e, n).public_key()
+        return public_key.public_bytes(Encoding.PEM, PublicFormat.SubjectPublicKeyInfo)
+    except Exception as exc:
+        raise AuthConfigurationError(f"Failed to build RSA public key from JWK: {exc}") from exc
+
+
 def verify_token(token: str) -> dict[str, Any]:
     """Validate a Supabase access token and return its payload."""
-    key = _select_signing_key(token)
-    algorithm = str(key.get("alg") or "RS256").strip().upper()
+    jwk_key = _select_signing_key(token)
+    algorithm = str(jwk_key.get("alg") or "RS256").strip().upper()
+
+    # Build the key object that python-jose accepts reliably.
+    # Passing a raw JWK dict to jwt.decode can break with cryptography>=42 due
+    # to internal API changes; constructing PEM via cryptography directly is stable.
+    if algorithm.startswith("RS") and jwk_key.get("kty") == "RSA":
+        key: Any = _rsa_jwk_to_pem(jwk_key)
+    else:
+        key = jwk_key
 
     try:
         payload = jwt.decode(
@@ -129,6 +161,7 @@ def verify_token(token: str) -> dict[str, Any]:
             issuer=SUPABASE_ISSUER,
         )
     except JWTError as exc:
+        logger.warning("JWT verification failed (%s): %s", type(exc).__name__, exc)
         raise _auth_error("Invalid or expired token") from exc
 
     return payload
@@ -181,7 +214,11 @@ def get_user_context(request: Request) -> dict[str, Any]:
     user_id = str(user.get("sub") or "").strip()
     role = getattr(request.state, "user_role", None)
     if role is None and user_id and SUPABASE_DB_URL:
-        role = get_user_role(user_id)
+        try:
+            role = get_user_role(user_id)
+        except (AuthConfigurationError, Exception) as exc:
+            logger.warning(f"Failed to look up role for user {user_id}: {exc}")
+            role = None
         request.state.user_role = role
 
     return {

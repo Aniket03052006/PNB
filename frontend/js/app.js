@@ -795,14 +795,70 @@ async function generateApiReport() {
     }
 }
 
+/* ─── Exponential progress bar ─── */
+let _loadingRafId  = null;   // requestAnimationFrame handle
+let _loadingPct    = 0;      // current displayed %
+let _loadingTarget = 0;      // target % (crawls toward 94 then holds)
+
+function _tickLoadingBar() {
+    const fill = document.getElementById('loadingBarFill');
+    const pctEl = document.getElementById('loadingPct');
+    if (!fill || !pctEl) return;
+
+    // Exponential ease: large jumps early, tiny crawl near the cap
+    // Formula: step = k * (cap - current)^1.6  — fast start, asymptotic approach
+    const cap  = 94;
+    const gap  = Math.max(0, cap - _loadingPct);
+    const step = Math.max(0.04, 0.008 * Math.pow(gap, 1.6));
+    _loadingPct = Math.min(cap, _loadingPct + step * 0.3);
+
+    fill.style.width  = _loadingPct.toFixed(1) + '%';
+    pctEl.textContent = Math.floor(_loadingPct) + '%';
+
+    if (_loadingPct < cap) {
+        _loadingRafId = requestAnimationFrame(_tickLoadingBar);
+    }
+}
+
 function showLoading(msg = 'Scanning cryptographic surface...') {
     const overlay = document.getElementById('loadingOverlay');
     overlay.querySelector('.loading-text').textContent = msg;
+
+    // Reset bar to 0 before showing
+    _loadingPct    = 0;
+    _loadingTarget = 0;
+    const fill  = document.getElementById('loadingBarFill');
+    const pctEl = document.getElementById('loadingPct');
+    if (fill)  { fill.style.transition = 'none'; fill.style.width = '0%'; }
+    if (pctEl) pctEl.textContent = '0%';
+
     overlay.classList.add('active');
+
+    // Kick off the exponential crawl after a tiny delay so the reset paint lands
+    cancelAnimationFrame(_loadingRafId);
+    setTimeout(() => {
+        if (fill) fill.style.transition = 'width 0.28s ease-out';
+        _loadingRafId = requestAnimationFrame(_tickLoadingBar);
+    }, 60);
 }
 
 function hideLoading() {
-    document.getElementById('loadingOverlay').classList.remove('active');
+    // Snap to 100% then fade the overlay out
+    cancelAnimationFrame(_loadingRafId);
+    const fill  = document.getElementById('loadingBarFill');
+    const pctEl = document.getElementById('loadingPct');
+    if (fill)  { fill.style.transition = 'width 0.18s ease-out'; fill.style.width = '100%'; }
+    if (pctEl) pctEl.textContent = '100%';
+
+    setTimeout(() => {
+        document.getElementById('loadingOverlay').classList.remove('active');
+        // Reset silently after fade finishes
+        setTimeout(() => {
+            _loadingPct = 0;
+            if (fill)  { fill.style.transition = 'none'; fill.style.width = '0%'; }
+            if (pctEl) pctEl.textContent = '0%';
+        }, 420);
+    }, 200);
 }
 
 /* ─── Tab Navigation ─── */
@@ -822,6 +878,7 @@ async function runDemoScan() {
     try {
         selectEnterpriseMode('demo');
         scanData = await apiCall('/api/scan/demo');
+        window.scanData = scanData;   // expose for inventory tab
         latestScanPayload = scanData;
         latestScanKey = '/api/scan/latest';
         renderDashboard(scanData);
@@ -861,27 +918,20 @@ async function scanDomain() {
     if (enterpriseDomainInput && !enterpriseDomainInput.value.trim()) {
         enterpriseDomainInput.value = domain;
     }
-    showLoading(`Discovering assets for ${domain}...`);
+    // Reset all tab-level caches so each tab reloads fresh data for this scan
+    enterpriseDashboardData = null;
+    assessmentData = null;
+    trimodeData = null;
+    phase9Data = null;
+    showLoading(`Scanning ${domain} — discovering assets and probing TLS...`);
     try {
         scanData = await apiCall(`/api/scan/domain/${encodeURIComponent(domain)}`, 'POST');
+        window.scanData = scanData;   // expose for inventory tab
         latestScanPayload = scanData;
         latestScanKey = '/api/scan/latest';
         renderDashboard(scanData);
         document.getElementById('btnExportCBOM').disabled = false;
         document.getElementById('btnExportPDF').disabled = false;
-        fetchPhase2Assessment();
-        try {
-            trimodeData = await apiCall('/api/scan/trimode/fingerprints');
-            trimodeData.mode = 'live';
-            trimodeData.total_assets = trimodeData.total || trimodeData.fingerprints?.length || 0;
-            renderTrimode(trimodeData);
-        } catch (trimodeError) {
-            console.warn('Tri-mode refresh failed:', trimodeError);
-        }
-        await loadEnterpriseDashboardData();
-        await syncOverviewWithLatestScan(false);
-        // Auto-populate Regression & Certification with live data
-        try { await runPhase9Live(domain); } catch(e) { console.warn('Phase 9 live auto-run:', e.message); }
     } catch (e) {
         showToast('Scan failed: ' + e.message, 'error');
     } finally {
@@ -900,6 +950,11 @@ async function scanSingleHost() {
         hostInput.value = port === 443 ? host : `${host}:${port}`;
     }
     selectEnterpriseMode('live', host);
+    // Reset tab-level caches for fresh loads
+    enterpriseDashboardData = null;
+    assessmentData = null;
+    trimodeData = null;
+    phase9Data = null;
     showLoading(`Probing ${host}${port === 443 ? '' : `:${port}`}...`);
     try {
         const result = await apiCall(`/api/scan/single/${encodeURIComponent(host)}?port=${port}`);
@@ -914,13 +969,10 @@ async function scanSingleHost() {
             remediation_roadmap: [],
             labels: [],
         };
+        window.scanData = scanData;   // expose for inventory tab
         latestScanPayload = scanData;
         latestScanKey = '/api/scan/latest';
         renderDashboard(scanData);
-        fetchPhase2Assessment();
-        await loadEnterpriseDashboardData();
-        // Auto-populate Regression & Certification with live data for single host
-        try { await runPhase9Live(host); } catch(e) { console.warn('Phase 9 single-host auto-run:', e.message); }
     } catch (e) {
         showToast('Probe failed: ' + e.message, 'error');
     } finally {
@@ -1109,6 +1161,43 @@ async function fetchPhase2Assessment() {
     }
 }
 
+
+/* ─── Tri-Mode Tab Lazy Loader ─── */
+async function _loadTrimodeTab() {
+    const empty = document.getElementById('trimodeEmpty');
+    if (empty) {
+        empty.style.display = 'block';
+        empty.innerHTML = `
+            <div class="viz-state">
+                <div class="viz-state-content">
+                    <div class="viz-spinner"></div>
+                    <div class="viz-state-title">Loading tri-mode results</div>
+                    <div class="viz-state-copy">Fetching probe A / B / C fingerprints from last scan...</div>
+                </div>
+            </div>`;
+    }
+    try {
+        const data = await apiCall('/api/scan/trimode/fingerprints');
+        data.mode = 'live';
+        data.total_assets = data.total || data.fingerprints?.length || 0;
+        trimodeData = data;
+        renderTrimode(trimodeData);
+    } catch (e) {
+        trimodeData = null;
+        if (empty) {
+            empty.style.display = 'block';
+            empty.innerHTML = `
+                <div class="viz-state">
+                    <div class="viz-state-content">
+                        <div class="viz-state-title">Tri-mode data unavailable</div>
+                        <div class="viz-state-copy">${e.message}</div>
+                        <button class="viz-retry" type="button" onclick="switchTab('trimode')">Retry</button>
+                    </div>
+                </div>`;
+        }
+        console.warn('Trimode tab load failed:', e);
+    }
+}
 
 /* ═══════════════════════════════════════════════════════════════════════════
    Phase 1 Rendering (Overview Tab)
@@ -4984,6 +5073,16 @@ switchTab = function switchTabInteractive(tabName) {
         loadEnterpriseDashboardData({ notifyOnError: true });
     }
 
+    // Lazy-load assessment data when user navigates to PQC Assessment tab
+    if (tabName === 'assessment' && !assessmentData && scanData) {
+        fetchPhase2Assessment();
+    }
+
+    // Lazy-load tri-mode fingerprints when user navigates to Tri-Mode tab
+    if (tabName === 'trimode' && !trimodeData && scanData) {
+        _loadTrimodeTab();
+    }
+
     if (tabName === 'phase9') {
         vizInit.cbom = true;
         initCBOM();
@@ -5045,18 +5144,22 @@ runDemoScan = async function runDemoScanInteractive() {
 scanDomain = async function scanDomainInteractive() {
     await originalScanDomain();
     latestCbomPayload = null;
-    if (isTabActive('overview') || vizInit.network || vizInit.heatmap || vizInit.cyber || vizInit.gauges) {
-        await loadEnterpriseDashboardData({ notifyOnError: false, forceRefresh: false });
-        await syncOverviewWithLatestScan(false);
+    // Load enterprise overview data in background — section spinners appear, no full-page overlay
+    if (scanData) {
+        loadEnterpriseDashboardData({ notifyOnError: false }).catch((e) => {
+            console.warn('Background enterprise load after scan:', e.message);
+        });
     }
 };
 
 scanSingleHost = async function scanSingleHostInteractive() {
     await originalScanSingleHost();
     latestCbomPayload = null;
-    if (isTabActive('overview') || vizInit.network || vizInit.heatmap || vizInit.cyber || vizInit.gauges) {
-        await loadEnterpriseDashboardData({ notifyOnError: false, forceRefresh: false });
-        await syncOverviewWithLatestScan(false);
+    // Load enterprise overview data in background after single-host probe
+    if (scanData) {
+        loadEnterpriseDashboardData({ notifyOnError: false }).catch((e) => {
+            console.warn('Background enterprise load after probe:', e.message);
+        });
     }
 };
 
@@ -6080,19 +6183,19 @@ switchTab = function(tab) {
 };
 
 function invInit() {
-  // Pull live scan data into INV_ASSETS when available
   const liveData = window.enterpriseDashboardData;
+  const liveScan = window.scanData || null;          // set globally in app state
+
+  /* ── 1. INV_ASSETS from enterprise domain/ssl/ip items ── */
   if (liveData) {
     const domainItems = liveData.domains?.items || [];
-    const sslItems = liveData.ssl?.items || [];
-    const ipItems = liveData.ip?.items || [];
+    const sslItems    = liveData.ssl?.items    || [];
+    const ipItems     = liveData.ip?.items     || [];
     if (domainItems.length > 0) {
       const liveAssets = domainItems.map(item => {
-        const host = item.domain_name || item.hostname || item.name || '';
-        // find matching ssl cert for cert status
+        const host     = item.domain_name || item.hostname || item.name || '';
         const matchSsl = sslItems.find(s => s.common_name === host || s.common_name === ('*.' + host.split('.').slice(1).join('.')));
-        // find matching ip
-        const matchIp = ipItems.find(ip => ip.ip_address === item.ip_address);
+        const matchIp  = ipItems.find(ip => ip.ip_address === item.ip_address);
         return {
           name:       host,
           url:        'https://' + host,
@@ -6105,7 +6208,7 @@ function invInit() {
                     : item.pqc_status === 'PQC_TRANSITION'        ? 'medium' : 'low',
           certStatus: item.cert_days_left < 0 ? 'Expired' : item.cert_days_left < 30 ? 'Expiring' : 'Valid',
           keyLength:  item.public_key_bits ? item.public_key_bits + '-bit' : '—',
-          lastScan:   item.detection_date || item.scanned_at || '—',
+          lastScan:   item.detection_date || item.scanned_at || 'just now',
           cipher:     item.cipher_suite || matchSsl?.negotiated_cipher || '—',
           tls:        item.tls_version  || '—',
           ca:         item.certificate_authority || item.issuer || matchSsl?.certificate_authority || '—',
@@ -6114,16 +6217,165 @@ function invInit() {
       }).filter(a => a.name);
       if (liveAssets.length > 0) INV_ASSETS = liveAssets;
     }
+
+    /* ── 2. NAMESERVER RECORDS from ip / domain items ── */
+    const ipItems2 = liveData.ip?.items || [];
+    if (ipItems2.length > 0) {
+      const nsRecords = ipItems2.slice(0, 6).map(item => ({
+        type:     item.record_type || 'A',
+        hostname: item.hostname || item.domain_name || item.ip_address || '—',
+        ip:       item.ip_address || '—',
+        ipv6:     item.ipv6_address || '',
+        ttl:      item.ttl || 300,
+      }));
+      invRenderNS(nsRecords);
+    } else {
+      // fallback: derive NS-style rows from domain items
+      const domItems = liveData.domains?.items || [];
+      if (domItems.length > 0) {
+        const derived = domItems.slice(0, 6).map(d => ({
+          type:     'A',
+          hostname: d.domain_name || d.hostname || d.name || '—',
+          ip:       d.ip_address  || d.ip  || '—',
+          ipv6:     '',
+          ttl:      300,
+        }));
+        invRenderNS(derived);
+      } else {
+        invRenderNS(INV_NS);   // demo fallback
+      }
+    }
+
+    /* ── 3. GEOGRAPHIC DISTRIBUTION from ip items ── */
+    const allIps = liveData.ip?.items || [];
+    if (allIps.length > 0) {
+      // Group by country/region field; fall back to cloud provider
+      const regionMap = {};
+      allIps.forEach(ip => {
+        const region = ip.country || ip.region || ip.cloud_provider || ip.location || 'Unknown';
+        if (!regionMap[region]) regionMap[region] = { count: 0, lat: ip.lat || 20, lng: ip.lng || 80 };
+        regionMap[region].count++;
+      });
+      const palette = ['#7b0030', '#fec800', '#2563eb', '#16a34a', '#7c3aed', '#d97706'];
+      const liveGeo = Object.entries(regionMap)
+        .sort((a, b) => b[1].count - a[1].count)
+        .slice(0, 6)
+        .map(([region, data], i) => ({
+          region,
+          count: data.count,
+          lat:   data.lat,
+          lng:   data.lng,
+          color: palette[i % palette.length],
+        }));
+      if (liveGeo.length > 0) {
+        invRenderMap(liveGeo);
+        invRenderGeo(liveGeo);
+      } else {
+        invRenderMap(INV_GEO);
+        invRenderGeo(INV_GEO);
+      }
+    } else {
+      invRenderMap(INV_GEO);
+      invRenderGeo(INV_GEO);
+    }
+  } else {
+    invRenderNS(INV_NS);
+    invRenderMap(INV_GEO);
+    invRenderGeo(INV_GEO);
   }
+
+  /* ── 4. CRYPTO & SECURITY — always from INV_ASSETS (updated above) ── */
   invFiltered = [...INV_ASSETS];
   invRenderStats();
   invRenderCharts();
   invRenderTable();
-  invRenderNS(INV_NS);
   invRenderCrypto();
-  invRenderMap();
-  invRenderGeo();
-  invRenderActivity();
+
+  /* ── 5. RECENT SCANS & ACTIVITY — built from live scan results ── */
+  const liveActivity = _buildActivityFromScan(liveScan, liveData);
+  invRenderActivity(liveActivity);
+}
+
+/* ── Build activity feed entries from real scan data ── */
+function _buildActivityFromScan(scan, enterprise) {
+  const events = [];
+  const now    = new Date();
+  const ago    = mins => mins < 60 ? mins + ' min ago' : Math.round(mins / 60) + ' hr ago';
+
+  if (!scan && !enterprise) return INV_ACTIVITY;  // nothing scanned yet
+
+  // Scan completion summary
+  if (scan) {
+    const total    = scan.total_assets || 0;
+    const critical = scan.critically_vulnerable || 0;
+    const vuln     = scan.quantum_vulnerable     || 0;
+    const domain   = document.getElementById('domainInput')?.value || '';
+    events.push({
+      type: critical > 0 ? 'error' : vuln > 0 ? 'warning' : 'success',
+      msg:  `Scan complete${domain ? ' — ' + domain : ''}: ${total} asset${total !== 1 ? 's' : ''} · ${critical} critical, ${vuln} vulnerable`,
+      time: 'just now',
+    });
+
+    // Per-asset findings from scan results
+    const results = scan.results || [];
+    results.forEach(r => {
+      const host   = r.hostname || r.host || '';
+      const status = r.q_score?.status || '';
+      const tls    = r.tls_version || r.tls?.version || '';
+      const cipher = r.cipher_suite || r.tls?.cipher_suite || '';
+
+      if (status === 'CRITICALLY_VULNERABLE') {
+        events.push({ type: 'error',   msg: `Critical vulnerability: ${host} — quantum-unsafe key exchange`, time: 'just now' });
+      } else if (status === 'QUANTUM_VULNERABLE') {
+        events.push({ type: 'warning', msg: `Quantum-vulnerable: ${host} (${cipher || tls || 'legacy cipher'})`, time: 'just now' });
+      } else if (status === 'PQC_TRANSITION') {
+        events.push({ type: 'info',    msg: `PQC transition detected: ${host} — partial post-quantum support`, time: 'just now' });
+      } else if (status === 'FULLY_QUANTUM_SAFE') {
+        events.push({ type: 'success', msg: `Quantum-safe asset: ${host} — full PQC key exchange`, time: 'just now' });
+      }
+      if (tls === '1.0' || tls === '1.1') {
+        events.push({ type: 'error',   msg: `Deprecated TLS ${tls} detected: ${host}`, time: 'just now' });
+      }
+    });
+
+    // Remediation items as activity entries
+    const roadmap = scan.remediation_roadmap || [];
+    roadmap.slice(0, 3).forEach(item => {
+      const priority = (item.priority || '').toLowerCase();
+      events.push({
+        type: priority === 'critical' ? 'error' : priority === 'high' ? 'warning' : 'info',
+        msg:  `Remediation: ${item.action || item.description || item.title || 'Review required'}`,
+        time: 'just now',
+      });
+    });
+  }
+
+  // Enterprise-level signals
+  if (enterprise) {
+    const sslItems = enterprise.ssl?.items || [];
+    sslItems.forEach(cert => {
+      const host = cert.common_name || cert.hostname || '';
+      if (cert.days_until_expiry < 0) {
+        events.push({ type: 'error',   msg: `Expired certificate: ${host}`, time: 'just now' });
+      } else if (cert.days_until_expiry < 30) {
+        events.push({ type: 'warning', msg: `Certificate expiring in ${cert.days_until_expiry}d: ${host}`, time: 'just now' });
+      }
+    });
+
+    const cyberTier = enterprise.cyber?.tier || enterprise.cyber?.display_tier || '';
+    if (cyberTier) {
+      events.push({ type: 'info', msg: `Enterprise cyber rating computed: ${cyberTier}`, time: 'just now' });
+    }
+  }
+
+  // De-duplicate by message prefix and cap at 8 entries
+  const seen = new Set();
+  return events.filter(e => {
+    const key = e.msg.slice(0, 50);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  }).slice(0, 8);
 }
 
 /* ─── Stats (6 cards) ─── */
@@ -6280,13 +6532,14 @@ function invRenderCrypto() {
 }
 
 /* ─── Leaflet Map ─── */
-function invRenderMap() {
+function invRenderMap(geoData) {
+  const data = geoData || INV_GEO;
   const el = document.getElementById('invLeafletMap');
   if (!el || typeof L === 'undefined') return;
   if (invMap) { invMap.remove(); invMap = null; }
   invMap = L.map('invLeafletMap', { zoomControl: false, attributionControl: false }).setView([20, 20], 1);
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 10 }).addTo(invMap);
-  INV_GEO.forEach(g => {
+  data.forEach(g => {
     const icon = L.divIcon({
       className: '',
       html: `<div style="background:${g.color};width:12px;height:12px;border-radius:50%;border:2px solid #fff;box-shadow:0 0 0 3px ${g.color}44;"></div>`,
@@ -6299,10 +6552,11 @@ function invRenderMap() {
 }
 
 /* ─── Geo Stats ─── */
-function invRenderGeo() {
+function invRenderGeo(geoData) {
+  const data = geoData || INV_GEO;
   const el = document.getElementById('invGeoStats');
   if (!el) return;
-  el.innerHTML = INV_GEO.map(g =>
+  el.innerHTML = data.map(g =>
     `<div style="text-align:center;">
        <div style="font-size:0.58rem;font-weight:800;text-transform:uppercase;color:var(--text-secondary);">${g.region}</div>
        <div style="font-size:0.9rem;font-weight:900;color:var(--primary);">${g.count}</div>
@@ -6310,7 +6564,8 @@ function invRenderGeo() {
 }
 
 /* ─── Activity Feed ─── */
-function invRenderActivity() {
+function invRenderActivity(activityData) {
+  const data = activityData || INV_ACTIVITY;
   const el = document.getElementById('invActivityFeed');
   if (!el) return;
   const cfg = {
@@ -6319,7 +6574,11 @@ function invRenderActivity() {
     warning: { color:'#d97706', bg:'#fffbeb', icon:'warning' },
     info:    { color:'#2563eb', bg:'#eff6ff', icon:'info' },
   };
-  el.innerHTML = INV_ACTIVITY.map(a => {
+  if (!data.length) {
+    el.innerHTML = `<div style="color:var(--text-secondary);font-size:0.78rem;padding:12px 0;">No activity yet — run a scan to populate this feed.</div>`;
+    return;
+  }
+  el.innerHTML = data.map(a => {
     const c = cfg[a.type] || cfg.info;
     return `<div style="display:flex;gap:10px;padding:10px 12px;background:${c.bg};border-left:3px solid ${c.color};border-radius:6px;">
       <span class="material-symbols-outlined" style="font-size:15px;color:${c.color};margin-top:1px;">${c.icon}</span>

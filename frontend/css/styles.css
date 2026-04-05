@@ -118,6 +118,25 @@ a:hover { text-decoration: underline; }
     margin-top: 16px; font-size: 0.88rem; font-weight: 600;
     color: var(--text-secondary); letter-spacing: 0.02em;
 }
+.loading-bar-track {
+    margin-top: 20px;
+    width: 260px; height: 4px;
+    background: var(--border-subtle);
+    border-radius: 99px;
+    overflow: hidden;
+}
+.loading-bar-fill {
+    height: 100%; width: 0%;
+    background: linear-gradient(90deg, var(--primary) 0%, #c0004a 100%);
+    border-radius: 99px;
+    transition: width 0.28s ease-out;
+}
+.loading-pct {
+    margin-top: 8px;
+    font-size: 0.72rem; font-weight: 700;
+    color: var(--primary); letter-spacing: 0.06em;
+    font-variant-numeric: tabular-nums;
+}
 
 /* ═══════════════════════════════════════════════════════════════════════════
    Header

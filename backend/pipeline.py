@@ -127,7 +127,7 @@ async def _collect_fingerprints(
         return []
 
     selected_assets = assets if limit <= 0 else assets[:limit]
-    return await probe_batch(selected_assets, concurrency=20, demo=False)
+    return await probe_batch(selected_assets, concurrency=3, demo=False)
 
 
 async def run_pipeline(
@@ -135,7 +135,7 @@ async def run_pipeline(
     mode: Literal["live", "demo"] = "demo",
     domain: str | None = None,
     assets: list[DiscoveredAsset] | None = None,
-    limit: int = 20,
+    limit: int = 10,
     include_port_scan: bool = False,
     include_api_crawl: bool = False,
 ) -> PipelineResult:
@@ -263,7 +263,7 @@ def run_pipeline_sync(
     mode: Literal["live", "demo"] = "demo",
     domain: str | None = None,
     assets: list[DiscoveredAsset] | None = None,
-    limit: int = 20,
+    limit: int = 10,
     include_port_scan: bool = False,
     include_api_crawl: bool = False,
 ) -> PipelineResult:

@@ -1492,7 +1492,7 @@ async def scan_domain(domain: str, request: Request):
                     include_port_scan=scan_opts["include_port_scan"],
                     include_api_crawl=scan_opts["include_api_crawl"],
                 ),
-                timeout=30.0 if LOCAL_FULL_SCAN else 20.0,
+                timeout=90.0 if LOCAL_FULL_SCAN else 60.0,
             )
         except asyncio.TimeoutError:
             # Fall back to DNS-only if CT takes too long
@@ -1505,7 +1505,7 @@ async def scan_domain(domain: str, request: Request):
                         include_port_scan=scan_opts["include_port_scan"],
                         include_api_crawl=scan_opts["include_api_crawl"],
                     ),
-                    timeout=15.0 if LOCAL_FULL_SCAN else 10.0,
+                    timeout=45.0 if LOCAL_FULL_SCAN else 30.0,
                 )
             except asyncio.TimeoutError:
                 logger.warning("Extended discovery timeout for %s, falling back to DNS-only root scan", domain)
@@ -1516,15 +1516,15 @@ async def scan_domain(domain: str, request: Request):
                         include_port_scan=False,
                         include_api_crawl=False,
                     ),
-                    timeout=8.0,
+                    timeout=20.0,
                 )
 
         if not assets:
             raise HTTPException(status_code=404, detail=f"No assets discovered for {domain}")
 
         fingerprints = await asyncio.wait_for(
-            probe_batch(_select_live_assets(assets, scan_opts["limit"]), concurrency=20, demo=False),
-            timeout=90.0,
+            probe_batch(_select_live_assets(assets, scan_opts["limit"]), concurrency=3, demo=False),
+            timeout=900.0,
         )
         _latest_trimode = fingerprints
         _latest_scan = _build_legacy_scan_summary_from_fingerprints(fingerprints)
@@ -1958,7 +1958,7 @@ async def trimode_live_scan(domain: str):
         if not assets:
             raise HTTPException(status_code=404, detail=f"No assets discovered for {domain}")
 
-        fingerprints = await probe_batch(_select_live_assets(assets, scan_opts["limit"]), concurrency=20, demo=False)
+        fingerprints = await probe_batch(_select_live_assets(assets, scan_opts["limit"]), concurrency=3, demo=False)
         _latest_trimode = fingerprints
 
         classified = []
@@ -2205,7 +2205,7 @@ async def classify_live(domain: str, request: Request):
         if not assets:
             raise HTTPException(status_code=404, detail=f"No assets discovered for {domain}")
 
-        fingerprints = await probe_batch(assets[:20], concurrency=20, demo=False)
+        fingerprints = await probe_batch(assets[:10], concurrency=3, demo=False)
 
         classified = []
         for fp in fingerprints:
@@ -2707,7 +2707,7 @@ async def phase9_live_pipeline(domain: str, request: Request):
             raise HTTPException(status_code=404, detail=f"No assets discovered for {domain}")
 
         # Step 2: Tri-mode probe
-        fingerprints = await probe_batch(_select_live_assets(assets, scan_opts["limit"]), concurrency=20, demo=False)
+        fingerprints = await probe_batch(_select_live_assets(assets, scan_opts["limit"]), concurrency=3, demo=False)
 
         # Step 3: Classify each
         current_assets = []

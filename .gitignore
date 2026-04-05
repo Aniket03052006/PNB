@@ -17,6 +17,7 @@ cbom.json
 .agent/
 .claude/
 .codegraph/
+codegraph/
 
 # Phase 5: Signing keys
 .keys/

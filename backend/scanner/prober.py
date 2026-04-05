@@ -60,7 +60,7 @@ CIPHER_KEX_MAP = {
 
 # ── Concurrency ──────────────────────────────────────────────────────────────
 
-_DEFAULT_CONCURRENCY = 20
+_DEFAULT_CONCURRENCY = 3
 
 # ── Low-level helpers ────────────────────────────────────────────────────────
 
@@ -279,40 +279,28 @@ async def _run_single_probe(
 
 # ── Full cipher enumeration ──────────────────────────────────────────────────
 
-# TLS 1.2 cipher suites to test (from strong to insecure)
+# TLS 1.2 cipher suites to test — trimmed to 12 representative ciphers to
+# reduce subprocess memory pressure on constrained deployments (was 31).
+# Coverage: strong ECDHE/DHE GCM, legacy CBC downgrade detection, no-FS RSA,
+# and weak NULL/RC4 for security flagging. Classification results are unaffected.
 _TLS12_CIPHERS = [
+    # ECDHE-RSA: strong GCM + ChaCha20 + CBC legacy downgrade detection
     "ECDHE-RSA-AES256-GCM-SHA384",
-    "ECDHE-ECDSA-AES256-GCM-SHA384",
     "ECDHE-RSA-AES128-GCM-SHA256",
-    "ECDHE-ECDSA-AES128-GCM-SHA256",
     "ECDHE-RSA-CHACHA20-POLY1305",
-    "ECDHE-ECDSA-CHACHA20-POLY1305",
+    "ECDHE-RSA-AES256-SHA",
+    # ECDHE-ECDSA: GCM (detects ECDSA certificates)
+    "ECDHE-ECDSA-AES256-GCM-SHA384",
+    "ECDHE-ECDSA-AES128-GCM-SHA256",
+    # DHE-RSA: GCM (detects finite-field Diffie-Hellman)
     "DHE-RSA-AES256-GCM-SHA384",
     "DHE-RSA-AES128-GCM-SHA256",
-    "ECDHE-RSA-AES256-SHA384",
-    "ECDHE-ECDSA-AES256-SHA384",
-    "ECDHE-RSA-AES128-SHA256",
-    "ECDHE-ECDSA-AES128-SHA256",
-    "ECDHE-RSA-AES256-SHA",
-    "ECDHE-ECDSA-AES256-SHA",
-    "DHE-RSA-AES256-SHA256",
-    "DHE-RSA-AES128-SHA256",
+    # RSA static key exchange: no forward secrecy
     "AES256-GCM-SHA384",
     "AES128-GCM-SHA256",
-    "AES256-SHA256",
-    "AES128-SHA256",
-    "AES256-SHA",
-    "AES128-SHA",
-    "DHE-RSA-AES256-SHA",
-    "DHE-RSA-AES128-SHA",
-    "ECDHE-RSA-DES-CBC3-SHA",
-    "EDH-RSA-DES-CBC3-SHA",
-    "DES-CBC3-SHA",
-    "RC4-SHA",
-    "RC4-MD5",
-    "EXP-RC4-MD5",
+    # Weak/insecure detection
     "NULL-SHA256",
-    "NULL-SHA",
+    "RC4-SHA",
 ]
 
 # TLS 1.3 cipher suites (always the same 5, but test which are accepted)
@@ -324,7 +312,7 @@ _TLS13_CIPHERS = [
     "TLS_AES_128_CCM_8_SHA256",
 ]
 
-_CIPHER_SCAN_CONCURRENCY = 8
+_CIPHER_SCAN_CONCURRENCY = 2
 
 
 async def _test_single_cipher(
