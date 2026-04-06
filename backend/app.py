@@ -105,8 +105,7 @@ _allowed_origins = _frontend_origins if _frontend_origins else ["*"]
 _local_full_scan_default = "0"
 LOCAL_FULL_SCAN = os.environ.get("QARMOR_LOCAL_FULL_SCAN", _local_full_scan_default) == "1"
 LOCAL_API_CRAWL = os.environ.get("QARMOR_LOCAL_API_CRAWL", "0") == "1"
-_live_scan_limit_default = "0" if not _frontend_origins else "20"
-LIVE_SCAN_LIMIT = int(os.environ.get("QARMOR_LIVE_SCAN_LIMIT", _live_scan_limit_default))
+LIVE_SCAN_LIMIT = int(os.environ.get("QARMOR_LIVE_SCAN_LIMIT", "0"))
 
 app.add_middleware(
     CORSMiddleware,
