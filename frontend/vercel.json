@@ -2,7 +2,7 @@
   "rewrites": [
     { "source": "/auth", "destination": "/auth.html" },
     { "source": "/dashboard", "destination": "/dashboard.html" },
-    { "source": "/api/:path*", "destination": "https://q-armor-REPLACE.a.run.app/api/:path*" }
+    { "source": "/api/:path*", "destination": "https://pnb-1.onrender.com/api/:path*" }
   ],
   "headers": [
     {
