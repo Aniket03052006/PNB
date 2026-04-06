@@ -1,0 +1,12 @@
+venv/
+node_modules/
+__pycache__/
+*.pyc
+.env
+.git/
+.claude/
+codegraph/
+stitch-screens/
+*.zip
+*.pdf
+frontend/
