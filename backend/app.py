@@ -5,6 +5,8 @@ import asyncio
 import hashlib
 import json
 import os
+import sys
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -75,6 +77,19 @@ from backend.auth import (
 )
 
 logger = logging.getLogger("qarmor.app")
+
+
+def _configure_logging() -> None:
+    fmt = "%(asctime)s  %(levelname)-8s  %(name)s  %(message)s"
+    handler = logging.StreamHandler(sys.stdout)
+    handler.setFormatter(logging.Formatter(fmt, datefmt="%H:%M:%S"))
+    root = logging.getLogger("qarmor")
+    if not root.handlers:
+        root.setLevel(logging.INFO)
+        root.addHandler(handler)
+
+
+_configure_logging()
 
 load_dotenv()
 
@@ -1519,10 +1534,15 @@ async def scan_domain(domain: str, request: Request, full_scan: bool = False):
         if not assets:
             raise HTTPException(status_code=404, detail=f"No assets discovered for {domain}")
 
+        logger.info("Discovery complete for %s: %d assets found", domain, len(assets))
+        live_assets = _select_live_assets(assets, scan_opts["limit"])
+        logger.info("Starting probe of %d assets (concurrency=10)", len(live_assets))
+        t0_probe = time.monotonic()
         fingerprints = await asyncio.wait_for(
-            probe_batch(_select_live_assets(assets, scan_opts["limit"]), concurrency=3, demo=False),
+            probe_batch(live_assets, concurrency=10, demo=False),
             timeout=900.0,
         )
+        logger.info("Probe complete: %d fingerprints in %.1fs", len(fingerprints), time.monotonic() - t0_probe)
         _latest_trimode = fingerprints
         _latest_scan = _build_legacy_scan_summary_from_fingerprints(fingerprints)
         summary = json.loads(_latest_scan.model_dump_json())

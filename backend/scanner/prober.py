@@ -121,7 +121,7 @@ async def _run_openssl(
     *,
     connect_host: str | None = None,
     extra_args: list[str] | None = None,
-    timeout: float = 8.0,
+    timeout: float = 5.0,
 ) -> dict[str, str]:
     """Run ``openssl s_client -brief`` with optional extra args.
 
@@ -195,7 +195,7 @@ async def _extract_certificate(hostname: str, port: int, connect_host: str | Non
         ctx.verify_mode = ssl.CERT_NONE
 
         fut = asyncio.open_connection(target_host, port, ssl=ctx, server_hostname=hostname)
-        reader, writer = await asyncio.wait_for(fut, timeout=10.0)
+        reader, writer = await asyncio.wait_for(fut, timeout=5.0)
 
         ssl_obj = writer.get_extra_info("ssl_object")
         if ssl_obj:
@@ -454,94 +454,12 @@ async def _probe_classical_sslyze(
     hostname: str,
     port: int,
 ) -> tuple[ProbeProfile, ProbeProfile, list[str], CertificateInfo]:
-    """Use sslyze to produce Probe B (TLS 1.3), Probe C (TLS 1.2), cipher list, and cert info.
-
-    Falls back to OpenSSL subprocess if sslyze is unavailable or fails.
-    """
-    if not _SSLYZE_AVAILABLE:
-        probe_b = await _run_single_probe(hostname, port, "B", extra_args=["-groups", "X25519:secp256r1:secp384r1"])
-        probe_c = await _run_single_probe(hostname, port, "C", extra_args=["-tls1_2"])
-        ciphers = await _scan_supported_ciphers(hostname, port)
-        cert = await _extract_certificate(hostname, port)
-        return probe_b, probe_c, ciphers, cert
-
-    loop = asyncio.get_event_loop()
-    try:
-        def _run_sslyze() -> Any:
-            location = ServerNetworkLocation(hostname=hostname, port=port)
-            scanner = SslyzeScanner()
-            request = ServerScanRequest(
-                server_location=location,
-                scan_commands={
-                    ScanCommand.TLS_1_0_CIPHER_SUITES,
-                    ScanCommand.TLS_1_1_CIPHER_SUITES,
-                    ScanCommand.TLS_1_2_CIPHER_SUITES,
-                    ScanCommand.TLS_1_3_CIPHER_SUITES,
-                    ScanCommand.CERTIFICATE_INFO,
-                    ScanCommand.ELLIPTIC_CURVES,
-                },
-            )
-            scanner.queue_scans([request])
-            for r in scanner.get_results():
-                return r
-            return None
-
-        result = await asyncio.wait_for(loop.run_in_executor(None, _run_sslyze), timeout=20.0)
-
-        if result is None or result.scan_result is None:
-            raise RuntimeError("sslyze returned no result")
-
-        best_v13, best_v12 = _tls_version_from_sslyze(result)
-        all_ciphers = _all_ciphers_sslyze(result)
-        cert_info = _cert_info_from_sslyze(result)
-
-        # Probe B — best TLS 1.3 result
-        probe_b = ProbeProfile(mode="B")
-        probe_b.tls_version = best_v13
-        cipher_name, cipher_bits = _best_cipher_sslyze(
-            getattr(result.scan_result, "tls_1_3_cipher_suites", None)
-        )
-        probe_b.cipher_suite = cipher_name
-        probe_b.cipher_bits = cipher_bits
-        probe_b.key_exchange = "X25519"
-        probe_b.authentication = cert_info.public_key_type or "RSA"
-        probe_b.signature_algorithm = cert_info.signature_algorithm
-        probe_b.public_key_type = cert_info.public_key_type
-        probe_b.public_key_bits = cert_info.public_key_bits
-        probe_b.supported_ciphers = all_ciphers
-
-        # Try to get elliptic curves info for KEX group
-        try:
-            curves = result.scan_result.elliptic_curves.result
-            if curves and curves.supported_curves:
-                probe_b.key_exchange_group = curves.supported_curves[0].name
-        except Exception:
-            pass
-
-        # Probe C — worst-case TLS 1.2
-        probe_c = ProbeProfile(mode="C")
-        probe_c.tls_version = best_v12
-        cipher_name_12, cipher_bits_12 = _best_cipher_sslyze(
-            getattr(result.scan_result, "tls_1_2_cipher_suites", None)
-        )
-        probe_c.cipher_suite = cipher_name_12
-        probe_c.cipher_bits = cipher_bits_12
-        if cipher_name_12:
-            probe_c.key_exchange = _extract_kex(cipher_name_12)
-            probe_c.authentication = _extract_auth(cipher_name_12)
-        probe_c.signature_algorithm = cert_info.signature_algorithm
-        probe_c.public_key_type = cert_info.public_key_type
-        probe_c.public_key_bits = cert_info.public_key_bits
-
-        return probe_b, probe_c, all_ciphers, cert_info
-
-    except Exception as exc:
-        logger.warning("sslyze failed for %s:%d (%s) — falling back to OpenSSL", hostname, port, exc)
-        probe_b = await _run_single_probe(hostname, port, "B", extra_args=["-groups", "X25519:secp256r1:secp384r1"])
-        probe_c = await _run_single_probe(hostname, port, "C", extra_args=["-tls1_2"])
-        ciphers = await _scan_supported_ciphers(hostname, port)
-        cert = await _extract_certificate(hostname, port)
-        return probe_b, probe_c, ciphers, cert
+    """Probe B (TLS 1.3) and Probe C (TLS 1.2) via OpenSSL subprocess."""
+    probe_b = await _run_single_probe(hostname, port, "B", extra_args=["-groups", "X25519:secp256r1:secp384r1"])
+    probe_c = await _run_single_probe(hostname, port, "C", extra_args=["-tls1_2"])
+    ciphers = await _scan_supported_ciphers(hostname, port)
+    cert = await _extract_certificate(hostname, port)
+    return probe_b, probe_c, ciphers, cert
 
 
 # ── Tri-mode probe ───────────────────────────────────────────────────────────
@@ -627,19 +545,23 @@ async def probe_batch(
     # ── Live mode ────────────────────────────────────────────────────────
     sem = asyncio.Semaphore(concurrency)
     results: list[TriModeFingerprint] = []
+    total = len(assets)
 
-    async def _scan(asset: DiscoveredAsset) -> TriModeFingerprint:
+    async def _scan(asset: DiscoveredAsset, idx: int) -> TriModeFingerprint:
         async with sem:
-            logger.info("Probing %s:%d …", asset.hostname, asset.port)
-            return await probe_trimode(
+            logger.info("[%d/%d] Probing %s:%d", idx + 1, total, asset.hostname, asset.port)
+            t0 = time.monotonic()
+            result = await probe_trimode(
                 hostname=asset.hostname,
                 port=asset.port,
                 asset_type=asset.asset_type,
                 ip=asset.ip,
             )
+            logger.info("[%d/%d] Done  %s:%d  (%.1fs)", idx + 1, total, asset.hostname, asset.port, time.monotonic() - t0)
+            return result
 
     fps = await asyncio.gather(
-        *[_scan(a) for a in assets],
+        *[_scan(a, i) for i, a in enumerate(assets)],
         return_exceptions=True,
     )
 
