@@ -1,5 +1,6 @@
 # ── Q-ARMOR Core (Phase 1: CLI Scanner) ──────────────────────────────
 cryptography==44.0.0          # X.509 certificate parsing
+sslyze==6.1.0                 # Fast native TLS/SSL scanner (replaces OpenSSL subprocesses for classical probes)
 
 # ── Q-ARMOR Web Dashboard ────────────────────────────────────────────
 fastapi==0.115.6

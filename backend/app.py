@@ -467,7 +467,7 @@ def _save_user_scan_history(
         return None
 
 
-def _history_scans_for_request(request: Request | None, limit: int = 20) -> list[dict[str, Any]]:
+def _history_scans_for_request(request: Request | None, limit: int = 0) -> list[dict[str, Any]]:
     user_id = _request_user_id(request)
     if not user_id or not scan_history.is_configured():
         return []
@@ -1255,7 +1255,7 @@ async def _ensure_latest_pipeline_result(
 
 
 def _compute_home_summary(pipeline_result: dict[str, Any]) -> dict[str, Any]:
-    """Assemble the home dashboard summary payload."""
+    """Assemble the home dashboard summary payload from real scanned asset data."""
     assets = pipeline_result.get("assets", [])
     enterprise = pipeline_result.get("enterprise_cyber_rating", {})
     cbom = pipeline_result.get("cbom", {})
@@ -1265,34 +1265,29 @@ def _compute_home_summary(pipeline_result: dict[str, Any]) -> dict[str, Any]:
     fully_safe = sum(1 for a in assets if a.get("status") == "FULLY_QUANTUM_SAFE")
     transition = sum(1 for a in assets if a.get("status") == "PQC_TRANSITION")
 
-    if demo_mode:
-        domain_count = 212450
-        ip_count = 48192
-        subdomain_count = 84671
-        cloud_asset_count = 13372
-        ssl_cert_count = 8761
-        software_count = 13211
-        iot_device_count = 3854
-        login_form_count = 1198
-        vulnerable_component_count = 8248
-        total_applications = 13211
-        weak_crypto_count = 5176
-    else:
-        components = cbom.get("components", [])
-        vulnerabilities = cbom.get("vulnerabilities", [])
-        domain_count = total_assets
-        ip_count = total_assets
-        subdomain_count = total_assets
-        cloud_asset_count = 0
-        ssl_cert_count = total_assets
-        software_count = len(components)
-        iot_device_count = 0
-        login_form_count = 0
-        vulnerable_component_count = len(vulnerabilities)
-        total_applications = len(components)
-        weak_crypto_count = sum(
-            1 for a in assets if a.get("status") in {"QUANTUM_VULNERABLE", "CRITICALLY_VULNERABLE"}
-        )
+    # Real counts derived from actual scanned assets — same logic for demo and live
+    hostnames = {a.get("hostname", "") for a in assets if a.get("hostname")}
+    ips = {
+        a.get("ip_address", "") for a in assets
+        if a.get("ip_address") and a.get("ip_address") not in ("", "N/A", "Unknown")
+    }
+    cloud_count = sum(1 for a in assets if a.get("is_cloud_hosted"))
+    ssl_count = sum(1 for a in assets if a.get("tls_version") or a.get("cert_fingerprint") or a.get("certificate_serial"))
+    subdomain_count = sum(1 for h in hostnames if h.count(".") >= 2)
+
+    components = cbom.get("components", [])
+    vulnerabilities = cbom.get("vulnerabilities", [])
+
+    domain_count = len(hostnames)
+    ip_count = len(ips)
+    cloud_asset_count = cloud_count
+    ssl_cert_count = ssl_count if ssl_count else domain_count
+    software_count = len(components)
+    vulnerable_component_count = len(vulnerabilities)
+    total_applications = len(components)
+    weak_crypto_count = sum(
+        1 for a in assets if a.get("status") in {"QUANTUM_VULNERABLE", "CRITICALLY_VULNERABLE"}
+    )
 
     pqc_adoption_pct = round((fully_safe / total_assets) * 100, 1) if total_assets else 0.0
     transition_pct = round((transition / total_assets) * 100, 1) if total_assets else 0.0
@@ -1311,8 +1306,8 @@ def _compute_home_summary(pipeline_result: dict[str, Any]) -> dict[str, Any]:
         "assets_inventory_summary": {
             "ssl_cert_count": ssl_cert_count,
             "software_count": software_count,
-            "iot_device_count": iot_device_count,
-            "login_form_count": login_form_count,
+            "iot_device_count": 0,
+            "login_form_count": 0,
         },
         "posture_of_pqc": {
             "pqc_adoption_pct": pqc_adoption_pct,
@@ -1473,7 +1468,7 @@ async def run_demo_scan(request: Request):
 
 
 @app.post("/api/scan/domain/{domain}")
-async def scan_domain(domain: str, request: Request):
+async def scan_domain(domain: str, request: Request, full_scan: bool = False):
     """Scan a real domain for cryptographic configuration."""
     global _latest_scan, _latest_trimode
     import asyncio
@@ -1481,6 +1476,9 @@ async def scan_domain(domain: str, request: Request):
     try:
         domain, _ = _normalize_hostname_input(domain, allow_port=False)
         scan_opts = _live_scan_options()
+        if full_scan:
+            scan_opts["include_port_scan"] = True
+            scan_opts["include_api_crawl"] = True
 
         # Discovery with timeout — CT logs can be slow
         try:
@@ -1491,7 +1489,7 @@ async def scan_domain(domain: str, request: Request):
                     include_port_scan=scan_opts["include_port_scan"],
                     include_api_crawl=scan_opts["include_api_crawl"],
                 ),
-                timeout=90.0 if LOCAL_FULL_SCAN else 60.0,
+                timeout=90.0 if (LOCAL_FULL_SCAN or full_scan) else 60.0,
             )
         except asyncio.TimeoutError:
             # Fall back to DNS-only if CT takes too long
@@ -1504,7 +1502,7 @@ async def scan_domain(domain: str, request: Request):
                         include_port_scan=scan_opts["include_port_scan"],
                         include_api_crawl=scan_opts["include_api_crawl"],
                     ),
-                    timeout=45.0 if LOCAL_FULL_SCAN else 30.0,
+                    timeout=45.0 if (LOCAL_FULL_SCAN or full_scan) else 30.0,
                 )
             except asyncio.TimeoutError:
                 logger.warning("Extended discovery timeout for %s, falling back to DNS-only root scan", domain)
@@ -2278,7 +2276,7 @@ async def classify_live(domain: str, request: Request):
 # ── Phase 7: Database Endpoints ──────────────────────────────────────────────
 
 @app.get("/api/db/scans")
-async def db_list_scans(request: Request, limit: int = 20):
+async def db_list_scans(request: Request, limit: int = 0):
     """List recent scans from the database."""
     history_scans = _history_scans_for_request(request, limit)
     if history_scans:
@@ -2288,7 +2286,7 @@ async def db_list_scans(request: Request, limit: int = 20):
 
 @app.get("/api/scans")
 @app.get("/scans")
-async def api_list_scans(request: Request, limit: int = 20):
+async def api_list_scans(request: Request, limit: int = 0):
     """Return recent scans for scan selection and comparison."""
     get_current_user(request)
     history_scans = _history_scans_for_request(request, limit)
@@ -2422,7 +2420,7 @@ async def api_scan_latest(request: Request, mode: str | None = None, domain: str
 
 
 @app.get("/api/history")
-async def api_history(request: Request, limit: int = 6):
+async def api_history(request: Request, limit: int = 0):
     """Return recent scans enriched with parsed assets for charting."""
     history_scans = _history_scans_for_request(request, limit)
     if history_scans:
@@ -2996,6 +2994,48 @@ async def api_pqc_negotiation_one(hostname: str, mode: str = "demo", domain: str
     content["demo_mode"] = demo_mode
     content["data_notice"] = _data_notice(demo_mode)
     return JSONResponse(content=content)
+
+
+@app.get("/api/dashboard/init")
+async def api_dashboard_init(mode: str = "demo", domain: str | None = None, refresh: bool = False):
+    """Combined endpoint: returns all dashboard data in a single response (9 calls → 1)."""
+    pipeline_result = await _ensure_latest_pipeline_result(mode=mode, domain=domain, force_refresh=refresh)
+    demo_mode = pipeline_result.get("mode") == "demo"
+    notice = _data_notice(demo_mode)
+
+    assets_payload = await _derive_asset_discovery_payload(pipeline_result)
+
+    rating = dict(pipeline_result.get("enterprise_cyber_rating", {}))
+    rating["tier_criteria"] = TIER_CRITERIA
+    rating["demo_mode"] = demo_mode
+    rating["data_notice"] = notice
+
+    heatmap = dict(pipeline_result.get("heatmap", {}))
+    heatmap["demo_mode"] = demo_mode
+    heatmap["data_notice"] = notice
+
+    graph = assets_payload["network_graph"]
+    graph["demo_mode"] = demo_mode
+    graph["data_notice"] = notice
+
+    def _wrap(items):
+        return {"items": items, "demo_mode": demo_mode, "data_notice": notice}
+
+    return JSONResponse(content={
+        "home": _compute_home_summary(pipeline_result),
+        "domains": _wrap(assets_payload["domains"]),
+        "ssl": _wrap(assets_payload["ssl"]),
+        "ip": _wrap(assets_payload["ip"]),
+        "software": _wrap(assets_payload["software"]),
+        "graph": graph,
+        "cyber": rating,
+        "heatmap": heatmap,
+        "negotiation": {
+            "policies": pipeline_result.get("negotiation_policies", {}),
+            "demo_mode": demo_mode,
+            "data_notice": notice,
+        },
+    })
 
 
 @app.get("/api/reporting/generate")

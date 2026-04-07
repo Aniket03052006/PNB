@@ -50,6 +50,9 @@
         <div class="scan-input-section">
             <input type="text" class="scan-input" id="domainInput" placeholder="Enter domain to scan (e.g. example.com)" />
             <button class="btn" onclick="scanDomain()">Scan Domain</button>
+            <label style="display:inline-flex;align-items:center;gap:4px;margin-left:8px;font-size:0.78rem;color:var(--text-secondary);cursor:pointer;" title="Enable port scanning and API crawling for a comprehensive scan (slower)">
+                <input type="checkbox" id="fullScanToggle" /> Full Scan
+            </label>
             <input type="text" class="scan-input" id="singleHostInput" placeholder="Single host (e.g. api.example.com)" style="max-width: 280px;" />
             <button class="btn" onclick="scanSingleHost()">Probe</button>
         </div>
@@ -76,35 +79,49 @@
             <!-- Stats Grid -->
             <div class="stats-grid" id="statsGrid">
                 <div class="stat-card stat-card--total">
-                    <div class="stat-value" id="statTotal">—</div>
+                    <div class="stat-value" id="statTotal"><span class="skeleton skeleton-text" style="width:3em;display:inline-block">&nbsp;</span></div>
                     <div class="stat-label">Total Assets</div>
-                    <div class="stat-pct" id="statAvgScore">Avg Q-Score: —</div>
+                    <div class="stat-pct" id="statAvgScore">Avg Q-Score: <span class="skeleton skeleton-text" style="width:2em;display:inline-block">&nbsp;</span></div>
                 </div>
                 <div class="stat-card stat-card--safe">
-                    <div class="stat-value" id="statSafe">—</div>
+                    <div class="stat-value" id="statSafe"><span class="skeleton skeleton-text" style="width:3em;display:inline-block">&nbsp;</span></div>
                     <div class="stat-label">Fully Quantum Safe</div>
-                    <div class="stat-pct" id="statSafePct">—</div>
+                    <div class="stat-pct" id="statSafePct"><span class="skeleton skeleton-text" style="width:4em;display:inline-block">&nbsp;</span></div>
                 </div>
                 <div class="stat-card stat-card--transition">
-                    <div class="stat-value" id="statTransition">—</div>
+                    <div class="stat-value" id="statTransition"><span class="skeleton skeleton-text" style="width:3em;display:inline-block">&nbsp;</span></div>
                     <div class="stat-label">PQC Transition</div>
-                    <div class="stat-pct" id="statTransitionPct">—</div>
+                    <div class="stat-pct" id="statTransitionPct"><span class="skeleton skeleton-text" style="width:4em;display:inline-block">&nbsp;</span></div>
                 </div>
                 <div class="stat-card stat-card--vulnerable">
-                    <div class="stat-value" id="statVulnerable">—</div>
+                    <div class="stat-value" id="statVulnerable"><span class="skeleton skeleton-text" style="width:3em;display:inline-block">&nbsp;</span></div>
                     <div class="stat-label">Quantum Vulnerable</div>
-                    <div class="stat-pct" id="statVulnerablePct">—</div>
+                    <div class="stat-pct" id="statVulnerablePct"><span class="skeleton skeleton-text" style="width:4em;display:inline-block">&nbsp;</span></div>
                 </div>
                 <div class="stat-card stat-card--critical" id="criticalCard">
-                    <div class="stat-value" id="statCritical">0</div>
+                    <div class="stat-value" id="statCritical"><span class="skeleton skeleton-text" style="width:3em;display:inline-block">&nbsp;</span></div>
                     <div class="stat-label">CRITICALLY VULNERABLE</div>
-                    <div class="stat-pct" id="statCriticalPct">—</div>
+                    <div class="stat-pct" id="statCriticalPct"><span class="skeleton skeleton-text" style="width:4em;display:inline-block">&nbsp;</span></div>
                 </div>
                 <div class="stat-card stat-card--unknown" id="unknownCard">
-                    <div class="stat-value" id="statUnknown">0</div>
+                    <div class="stat-value" id="statUnknown"><span class="skeleton skeleton-text" style="width:3em;display:inline-block">&nbsp;</span></div>
                     <div class="stat-label">UNKNOWN</div>
-                    <div class="stat-pct" id="statUnknownPct">—</div>
+                    <div class="stat-pct" id="statUnknownPct"><span class="skeleton skeleton-text" style="width:4em;display:inline-block">&nbsp;</span></div>
                 </div>
+            </div>
+
+            <!-- Asset view toggle + section loading indicator -->
+            <div style="display:flex;align-items:center;gap:8px;margin:10px 0 4px;flex-wrap:wrap;">
+                <span style="font-size:0.72rem;color:var(--text-secondary);">View:</span>
+                <button id="togglePrimaryAssets" onclick="setAssetView('primary')"
+                    class="btn tab-btn--active" style="padding:3px 12px;font-size:0.72rem;">
+                    Primary Assets
+                </button>
+                <button id="toggleAllAssets" onclick="setAssetView('all')"
+                    class="btn" style="padding:3px 12px;font-size:0.72rem;">
+                    All Assets
+                </button>
+                <span id="statsLoadingBadge" style="font-size:0.7rem;color:var(--text-dim);display:none;">Loading data…</span>
             </div>
 
             <!-- Enterprise API Dashboard (Home + Discovery + PQC Intelligence) -->

@@ -135,7 +135,7 @@ async def run_pipeline(
     mode: Literal["live", "demo"] = "demo",
     domain: str | None = None,
     assets: list[DiscoveredAsset] | None = None,
-    limit: int = 10,
+    limit: int = 0,
     include_port_scan: bool = False,
     include_api_crawl: bool = False,
 ) -> PipelineResult:
@@ -263,7 +263,7 @@ def run_pipeline_sync(
     mode: Literal["live", "demo"] = "demo",
     domain: str | None = None,
     assets: list[DiscoveredAsset] | None = None,
-    limit: int = 10,
+    limit: int = 0,
     include_port_scan: bool = False,
     include_api_crawl: bool = False,
 ) -> PipelineResult:

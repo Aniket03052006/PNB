@@ -180,6 +180,8 @@ async function apiCall(endpoint, method = 'GET') {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
+    // Wake Render free-tier instance while auth validates in parallel
+    fetch(`${API_BASE}/api/health`).catch(() => {});
     ensureDashboardSession().catch((error) => {
         console.warn('Dashboard auth bootstrap failed:', error.message);
     });
@@ -703,6 +705,84 @@ function renderCyberPqcV2(cyber, heatmap, negotiation) {
     }
 }
 
+/* ─── Tab status badges ─── */
+function _setTabBadge(tabName, state) {
+    const btn = document.querySelector(`.tab-btn[data-tab="${tabName}"]`);
+    if (!btn) return;
+    let badge = btn.querySelector('.tab-badge');
+    if (!badge) {
+        badge = document.createElement('span');
+        badge.className = 'tab-badge';
+        btn.appendChild(badge);
+    }
+    badge.className = 'tab-badge';
+    if (state === 'loading') {
+        badge.classList.add('tab-badge--loading');
+        badge.textContent = '●';
+    } else if (state === 'ready') {
+        badge.classList.add('tab-badge--ready');
+        badge.textContent = '✓';
+        setTimeout(() => badge.remove(), 2500);
+    } else {
+        badge.remove();
+    }
+}
+
+/* ─── Primary / All Assets toggle ─── */
+function setAssetView(view) {
+    const pa = document.getElementById('togglePrimaryAssets');
+    const aa = document.getElementById('toggleAllAssets');
+    if (pa) pa.classList.toggle('tab-btn--active', view === 'primary');
+    if (aa) aa.classList.toggle('tab-btn--active', view === 'all');
+    if (view === 'all') {
+        document.getElementById('assetTableContainer')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+}
+
+/* ─── Section-level loading indicator ─── */
+function _showStatsLoading(visible) {
+    const badge = document.getElementById('statsLoadingBadge');
+    if (badge) badge.style.display = visible ? '' : 'none';
+}
+
+/* ─── Dashboard Cache (localStorage) ─── */
+const _DASHBOARD_CACHE_KEY = 'qarmor_dashboard_cache';
+const _DASHBOARD_CACHE_MAX_AGE = 10 * 60 * 1000; // 10 minutes
+
+function _saveDashboardCache(data) {
+    try {
+        const payload = JSON.stringify({ ts: Date.now(), data });
+        if (payload.length > 2 * 1024 * 1024) return; // 2MB guard
+        localStorage.setItem(_DASHBOARD_CACHE_KEY, payload);
+    } catch (_) { /* quota exceeded — ignore */ }
+}
+
+function _loadDashboardCache() {
+    try {
+        const raw = localStorage.getItem(_DASHBOARD_CACHE_KEY);
+        if (!raw) return null;
+        const { ts, data } = JSON.parse(raw);
+        if (Date.now() - ts > _DASHBOARD_CACHE_MAX_AGE) return null;
+        return data;
+    } catch (_) { return null; }
+}
+
+function _renderCachedDashboard(cached) {
+    if (cached.home) {
+        renderEnterpriseNotice(cached.home.demo_mode, cached.home.data_notice);
+        renderHomeSummaryV2(cached.home);
+    }
+    if (cached.domains || cached.ssl || cached.ip || cached.software || cached.graph) {
+        renderAssetDiscoveryV2(cached.domains, cached.ssl, cached.ip, cached.software, cached.graph);
+    }
+    if (cached.cyber || cached.heatmap || cached.negotiation) {
+        renderCyberPqcV2(cached.cyber, cached.heatmap, cached.negotiation);
+        if (cached.negotiation) assessmentNegotiationPolicies = cached.negotiation.policies || {};
+    }
+    enterpriseDashboardData = cached;
+    window.enterpriseDashboardData = cached;
+}
+
 async function loadEnterpriseDashboardData(opts = {}) {
     const notifyOnError = Boolean(opts.notifyOnError);
     const forceRefresh = Boolean(opts.forceRefresh);
@@ -745,12 +825,12 @@ async function loadEnterpriseDashboardData(opts = {}) {
 }
 
 async function refreshNewDashboardApis() {
-    showLoading('Refreshing enterprise data APIs...');
+    _showStatsLoading(true);
     try {
         await loadEnterpriseDashboardData({ notifyOnError: true, forceRefresh: true });
         showToast('Enterprise dashboard APIs refreshed', 'success');
     } finally {
-        hideLoading();
+        _showStatsLoading(false);
     }
 }
 
@@ -925,7 +1005,9 @@ async function scanDomain() {
     phase9Data = null;
     showLoading(`Scanning ${domain} — discovering assets and probing TLS...`);
     try {
-        scanData = await apiCall(`/api/scan/domain/${encodeURIComponent(domain)}`, 'POST');
+        const fullScan = document.getElementById('fullScanToggle')?.checked;
+        const scanParams = fullScan ? '?full_scan=true' : '';
+        scanData = await apiCall(`/api/scan/domain/${encodeURIComponent(domain)}${scanParams}`, 'POST');
         window.scanData = scanData;   // expose for inventory tab
         latestScanPayload = scanData;
         latestScanKey = '/api/scan/latest';
@@ -1211,7 +1293,7 @@ function renderDashboard(data) {
     renderRemediation(data.remediation_roadmap || []);
     renderLabels(data.labels || []);
     fetchPhase4Labels();
-    fetchPhase5Data();
+    // fetchPhase5Data() is now lazy — fires in _autoScanSecondary or on reporting tab visit
 }
 
 function renderStats(data) {
@@ -2939,8 +3021,8 @@ function renderP7Agility(assets) {
 async function loadDbScans() {
     try {
         const [scans, compareOptions] = await Promise.all([
-            apiCall('/api/db/scans?limit=20'),
-            apiCall('/api/scans?limit=20').catch(() => []),
+            apiCall('/api/db/scans'),
+            apiCall('/api/scans').catch(() => []),
         ]);
         dbScansData = scans;
         compareScanOptions = Array.isArray(compareOptions) && compareOptions.length ? compareOptions : scans;
@@ -3446,6 +3528,11 @@ async function downloadPhase9CDXA() {
 
 document.addEventListener('DOMContentLoaded', () => {
     onEnterpriseModeChange();
+    // Render cached data instantly, then refresh in background
+    const cached = _loadDashboardCache();
+    if (cached && cached.home) {
+        _renderCachedDashboard(cached);
+    }
     loadEnterpriseDashboardData();
 });
 
@@ -4959,53 +5046,94 @@ loadEnterpriseDashboardData = async function loadEnterpriseDashboardDataInteract
         ensureOverviewVizLoading();
     }
 
-    try {
-        const [
-            home,
-            domains,
-            ssl,
-            ip,
-            software,
-            graph,
-            cyber,
-            heatmap,
-            negotiation,
-        ] = await Promise.all([
-            apiCall(buildEnterpriseEndpoint('/api/home/summary', context, forceRefresh)),
-            apiCall(buildEnterpriseEndpoint('/api/assets/domains', context)),
-            apiCall(buildEnterpriseEndpoint('/api/assets/ssl', context)),
-            apiCall(buildEnterpriseEndpoint('/api/assets/ip', context)),
-            apiCall(buildEnterpriseEndpoint('/api/assets/software', context)),
-            apiCall(buildEnterpriseEndpoint('/api/assets/network-graph', context)),
-            apiCall(buildEnterpriseEndpoint('/api/cyber-rating', context)),
-            apiCall(buildEnterpriseEndpoint('/api/pqc/heatmap', context)),
-            apiCall(buildEnterpriseEndpoint('/api/pqc/negotiation', context)),
-        ]);
+    _showStatsLoading(true);
 
+    // Try combined endpoint first (single HTTP call), fall back to progressive groups
+    try {
+        const initData = await apiCall(buildEnterpriseEndpoint('/api/dashboard/init', context, forceRefresh));
+        const { home, domains, ssl, ip, software, graph, cyber, heatmap, negotiation } = initData;
         enterpriseDashboardData = { home, domains, ssl, ip, software, graph, cyber, heatmap, negotiation };
         window.enterpriseDashboardData = enterpriseDashboardData;
-        assessmentNegotiationPolicies = negotiation.policies || {};
-
+        assessmentNegotiationPolicies = (negotiation && negotiation.policies) || {};
+        _saveDashboardCache(enterpriseDashboardData);
         renderEnterpriseNotice(home.demo_mode, home.data_notice);
         renderHomeSummaryV2(home);
         renderAssetDiscoveryV2(domains, ssl, ip, software, graph);
         renderCyberPqcV2(cyber, heatmap, negotiation);
+        _showStatsLoading(false);
         await syncOverviewWithLatestScan(forceRefresh);
-
         if (isTabActive('overview') || vizInit.network || vizInit.heatmap || vizInit.cyber || vizInit.gauges) {
             prepareOverviewVisualizations(forceRefresh);
         }
-
         if (vizInit.cbom && isTabActive('phase9')) {
             initCBOM(forceRefresh);
         }
-    } catch (error) {
-        console.warn('Enterprise data API fetch failed:', error);
-        renderVizError('networkVizMount', 'Network graph failed', error.message, 'loadEnterpriseDashboardData({ notifyOnError: true, forceRefresh: true })');
-        renderVizError('cyberVizMount', 'Cyber rating failed', error.message, 'loadEnterpriseDashboardData({ notifyOnError: true, forceRefresh: true })');
-        renderVizError('heatmapVizMount', 'PQC posture failed', error.message, 'loadEnterpriseDashboardData({ notifyOnError: true, forceRefresh: true })');
-        renderVizError('certVizMount', 'Certificate timeline failed', error.message, 'loadEnterpriseDashboardData({ notifyOnError: true, forceRefresh: true })');
-        if (notifyOnError) showToast(`Failed to refresh enterprise APIs: ${error.message}`, 'error');
+        return;
+    } catch (_combinedErr) {
+        // Combined endpoint not available — fall back to progressive loading
+    }
+
+    // Progressive group rendering: fire all groups simultaneously, render each as it completes
+    const results = { home: null, domains: null, ssl: null, ip: null, software: null, graph: null, cyber: null, heatmap: null, negotiation: null };
+    let groupErrors = [];
+
+    // Group A: home summary (smallest payload — renders stat cards first)
+    const groupA = apiCall(buildEnterpriseEndpoint('/api/home/summary', context, forceRefresh))
+        .then(home => {
+            results.home = home;
+            renderEnterpriseNotice(home.demo_mode, home.data_notice);
+            renderHomeSummaryV2(home);
+            _showStatsLoading(false);
+        })
+        .catch(err => { groupErrors.push(err); _showStatsLoading(false); });
+
+    // Group B: asset discovery (domains, ssl, ip, software, network graph)
+    const groupB = Promise.all([
+        apiCall(buildEnterpriseEndpoint('/api/assets/domains', context)),
+        apiCall(buildEnterpriseEndpoint('/api/assets/ssl', context)),
+        apiCall(buildEnterpriseEndpoint('/api/assets/ip', context)),
+        apiCall(buildEnterpriseEndpoint('/api/assets/software', context)),
+        apiCall(buildEnterpriseEndpoint('/api/assets/network-graph', context)),
+    ]).then(([domains, ssl, ip, software, graph]) => {
+        Object.assign(results, { domains, ssl, ip, software, graph });
+        renderAssetDiscoveryV2(domains, ssl, ip, software, graph);
+    }).catch(err => {
+        groupErrors.push(err);
+        renderVizError('networkVizMount', 'Network graph failed', err.message, 'loadEnterpriseDashboardData({ notifyOnError: true, forceRefresh: true })');
+    });
+
+    // Group C: cyber rating + PQC posture
+    const groupC = Promise.all([
+        apiCall(buildEnterpriseEndpoint('/api/cyber-rating', context)),
+        apiCall(buildEnterpriseEndpoint('/api/pqc/heatmap', context)),
+        apiCall(buildEnterpriseEndpoint('/api/pqc/negotiation', context)),
+    ]).then(([cyber, heatmap, negotiation]) => {
+        Object.assign(results, { cyber, heatmap, negotiation });
+        assessmentNegotiationPolicies = (negotiation && negotiation.policies) || {};
+        renderCyberPqcV2(cyber, heatmap, negotiation);
+    }).catch(err => {
+        groupErrors.push(err);
+        renderVizError('cyberVizMount', 'Cyber rating failed', err.message, 'loadEnterpriseDashboardData({ notifyOnError: true, forceRefresh: true })');
+        renderVizError('heatmapVizMount', 'PQC posture failed', err.message, 'loadEnterpriseDashboardData({ notifyOnError: true, forceRefresh: true })');
+    });
+
+    // Wait for all groups, then finalize
+    await Promise.all([groupA, groupB, groupC]);
+
+    enterpriseDashboardData = results;
+    window.enterpriseDashboardData = results;
+    _saveDashboardCache(results);
+
+    if (groupErrors.length === 0) {
+        await syncOverviewWithLatestScan(forceRefresh);
+        if (isTabActive('overview') || vizInit.network || vizInit.heatmap || vizInit.cyber || vizInit.gauges) {
+            prepareOverviewVisualizations(forceRefresh);
+        }
+        if (vizInit.cbom && isTabActive('phase9')) {
+            initCBOM(forceRefresh);
+        }
+    } else if (notifyOnError) {
+        showToast(`Some enterprise APIs failed: ${groupErrors[0].message}`, 'error');
     }
 };
 
@@ -5073,9 +5201,14 @@ switchTab = function switchTabInteractive(tabName) {
         loadEnterpriseDashboardData({ notifyOnError: true });
     }
 
-    // Lazy-load assessment data when user navigates to PQC Assessment tab
-    if (tabName === 'assessment' && !assessmentData && scanData) {
-        fetchPhase2Assessment();
+    // Assessment: use background-prefetched cache if available, else lazy-load
+    if (tabName === 'assessment') {
+        if (assessmentData) {
+            renderPhase2Assessment(assessmentData);
+            if (remediationData) renderPhase2Remediation(remediationData);
+        } else if (scanData) {
+            fetchPhase2Assessment();
+        }
     }
 
     // Lazy-load tri-mode fingerprints when user navigates to Tri-Mode tab
@@ -5083,9 +5216,24 @@ switchTab = function switchTabInteractive(tabName) {
         _loadTrimodeTab();
     }
 
+    // Phase9: use background-prefetched cache if available, else init normally
     if (tabName === 'phase9') {
         vizInit.cbom = true;
-        initCBOM();
+        if (phase9Data) {
+            renderPhase9(phase9Data);
+            const p9Empty = document.getElementById('p9Empty');
+            const p9Content = document.getElementById('p9Content');
+            if (p9Empty) p9Empty.style.display = 'none';
+            if (p9Content) p9Content.style.display = 'block';
+        } else {
+            initCBOM();
+        }
+    }
+
+    // Lazy-load attestation + alerts on reporting tab visit
+    if (tabName === 'reporting' && !window._attestationLoaded) {
+        window._attestationLoaded = true;
+        fetchPhase5Data();
     }
 
     if (tabName === 'history' && !vizInit.timeline && document.getElementById('historyContent')?.style.display !== 'none') {
@@ -5141,14 +5289,65 @@ runDemoScan = async function runDemoScanInteractive() {
     }
 };
 
+/* ─── Background secondary scan (assessment, matrix, phase9) ─── */
+async function _autoScanSecondary(domain) {
+    // Step 1: Assessment + Remediation (feeds Assessment & Remediation tabs)
+    _setTabBadge('assessment', 'loading');
+    _setTabBadge('remediation', 'loading');
+    try {
+        const [assess, remediation] = await Promise.all([
+            apiCall('/api/assess'),
+            apiCall('/api/assess/remediation'),
+        ]);
+        assessmentData = assess;
+        remediationData = remediation;
+        _setTabBadge('assessment', 'ready');
+        _setTabBadge('remediation', 'ready');
+    } catch (e) {
+        _setTabBadge('assessment', null);
+        _setTabBadge('remediation', null);
+        console.warn('Background assessment failed:', e.message);
+    }
+
+    // Step 2: NIST Matrix (feeds Matrix tab)
+    try {
+        nistMatrixData = await apiCall('/api/assess/matrix');
+    } catch (e) {
+        console.warn('Background NIST matrix failed:', e.message);
+    }
+
+    // Step 3: Attestation + Alerts (feeds Reporting tab)
+    try {
+        await fetchPhase5Data();
+        window._attestationLoaded = true;
+    } catch (e) {
+        console.warn('Background attestation failed:', e.message);
+    }
+
+    // Step 4: Phase 9 pipeline (feeds Phase 9 tab — slowest, runs last)
+    if (domain) {
+        _setTabBadge('phase9', 'loading');
+        try {
+            phase9Data = await apiCall(`/api/phase9/live/${encodeURIComponent(domain)}`, 'POST');
+            _setTabBadge('phase9', 'ready');
+        } catch (e) {
+            _setTabBadge('phase9', null);
+            console.warn('Background phase9 failed:', e.message);
+        }
+    }
+}
+
 scanDomain = async function scanDomainInteractive() {
     await originalScanDomain();
     latestCbomPayload = null;
-    // Load enterprise overview data in background — section spinners appear, no full-page overlay
     if (scanData) {
+        const domain = document.getElementById('domainInput')?.value.trim();
+        // Refresh enterprise panels (no overlay — uses inline loading badge)
         loadEnterpriseDashboardData({ notifyOnError: false }).catch((e) => {
             console.warn('Background enterprise load after scan:', e.message);
         });
+        // Pre-fetch all secondary tabs in background
+        if (domain) _autoScanSecondary(domain).catch(() => {});
     }
 };
 
@@ -7056,10 +7255,6 @@ function _updateOverviewCards_Cyber(cyber) {
         const t = u.display_tier || u.tier || '';
         if (counts[t] !== undefined) counts[t]++;
     });
-    // If no url breakdown, use demo CR_DEMO_URLS counts
-    if (!urls.length && typeof CR_DEMO_URLS !== 'undefined') {
-        CR_DEMO_URLS.forEach(u => { if (counts[u.tier] !== undefined) counts[u.tier]++; });
-    }
 
     const tierLabels = { 'Elite-PQC': 'Elite', 'Standard': 'Std', 'Legacy': 'Legacy', 'Critical': 'Critical' };
     const tierMap    = { 'Elite-PQC': 'ovEliteCt', 'Standard': 'ovStdCt', 'Legacy': 'ovLegacyCt', 'Critical': 'ovCritCt' };

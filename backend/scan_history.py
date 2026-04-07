@@ -298,15 +298,14 @@ def _jsonable_record(columns: list[str], row: Any) -> dict[str, Any]:
     }
 
 
-def list_scans(user_id: str, limit: int = 20) -> list[dict[str, Any]]:
+def list_scans(user_id: str, limit: int = 0) -> list[dict[str, Any]]:
     if not ensure_schema():
         return []
 
     try:
         with _connect() as conn:
             with conn.cursor() as cur:
-                cur.execute(
-                    """
+                base_query = """
                     select
                         id,
                         created_at as scan_date,
@@ -323,10 +322,11 @@ def list_scans(user_id: str, limit: int = 20) -> list[dict[str, Any]]:
                     from scans
                     where user_id = %s
                     order by created_at desc
-                    limit %s
-                    """,
-                    (user_id, limit),
-                )
+                """
+                if limit > 0:
+                    cur.execute(base_query + " limit %s", (user_id, limit))
+                else:
+                    cur.execute(base_query, (user_id,))
                 columns = [desc[0] for desc in cur.description]
                 return [_jsonable_record(columns, row) for row in cur.fetchall()]
     except Exception as exc:

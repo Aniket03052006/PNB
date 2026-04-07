@@ -120,6 +120,9 @@ CREATE INDEX IF NOT EXISTS idx_asset_scores_host   ON asset_scores(hostname);
 CREATE INDEX IF NOT EXISTS idx_labels_hostname      ON labels(hostname);
 CREATE INDEX IF NOT EXISTS idx_alerts_scan          ON alerts(scan_id);
 CREATE INDEX IF NOT EXISTS idx_alerts_severity      ON alerts(severity);
+CREATE INDEX IF NOT EXISTS idx_scans_domain         ON scans(domain);
+CREATE INDEX IF NOT EXISTS idx_scans_mode           ON scans(mode);
+CREATE INDEX IF NOT EXISTS idx_scans_date           ON scans(scan_date DESC);
 """
 
 
@@ -265,16 +268,20 @@ def load_previous_scan() -> dict | None:
         return None
 
 
-def list_scans(limit: int = 20) -> list[dict]:
-    """List recent scans (newest first)."""
+def list_scans(limit: int = 0) -> list[dict]:
+    """List recent scans (newest first). limit=0 means unlimited."""
     try:
         with _connect() as conn:
-            rows = conn.execute(
+            query = (
                 "SELECT id, scan_date, mode, domain, total_assets, avg_score, "
                 "fully_safe, pqc_trans, q_vuln, crit_vuln, unknown "
-                "FROM scans ORDER BY id DESC LIMIT ?",
-                (limit,),
-            ).fetchall()
+                "FROM scans ORDER BY id DESC"
+            )
+            if limit > 0:
+                query += " LIMIT ?"
+                rows = conn.execute(query, (limit,)).fetchall()
+            else:
+                rows = conn.execute(query).fetchall()
             return [dict(r) for r in rows]
     except Exception as exc:
         logger.exception("list_scans failed: %s", exc)

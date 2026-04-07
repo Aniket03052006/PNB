@@ -22,6 +22,7 @@ import socket
 import ssl
 import time
 from datetime import datetime, timezone
+from typing import Any
 
 from cryptography import x509
 
@@ -34,6 +35,19 @@ from backend.models import (
     TLSInfo,
     TriModeFingerprint,
 )
+
+# sslyze for fast classical TLS scanning (Probes B & C)
+try:
+    from sslyze import (
+        Scanner as SslyzeScanner,
+        ServerNetworkLocation,
+        ServerScanRequest,
+    )
+    from sslyze.plugins.scan_commands import ScanCommand
+    from sslyze.errors import ConnectionToServerFailed
+    _SSLYZE_AVAILABLE = True
+except ImportError:
+    _SSLYZE_AVAILABLE = False
 
 logger = logging.getLogger("qarmor.prober")
 
@@ -60,7 +74,7 @@ CIPHER_KEX_MAP = {
 
 # ── Concurrency ──────────────────────────────────────────────────────────────
 
-_DEFAULT_CONCURRENCY = 3
+_DEFAULT_CONCURRENCY = 10
 
 # ── Low-level helpers ────────────────────────────────────────────────────────
 
@@ -355,6 +369,181 @@ async def _scan_supported_ciphers(hostname: str, port: int, timeout: float = 5.0
     return [r for r in results if isinstance(r, str) and r]
 
 
+# ── sslyze-based classical probing (Probes B & C) ───────────────────────────
+
+
+def _tls_version_from_sslyze(result: Any) -> tuple[str | None, str | None]:
+    """Extract best TLS 1.3 version and worst TLS 1.2 version from sslyze result."""
+    best_v13: str | None = None
+    best_v12: str | None = None
+    try:
+        tls13 = result.scan_result.tls_1_3_cipher_suites
+        if tls13 and tls13.result and tls13.result.accepted_cipher_suites:
+            best_v13 = "TLSv1.3"
+    except Exception:
+        pass
+    try:
+        tls12 = result.scan_result.tls_1_2_cipher_suites
+        if tls12 and tls12.result and tls12.result.accepted_cipher_suites:
+            best_v12 = "TLSv1.2"
+    except Exception:
+        pass
+    return best_v13, best_v12
+
+
+def _best_cipher_sslyze(cipher_suites: Any) -> tuple[str | None, int]:
+    """Return (cipher_name, bits) for the strongest accepted cipher suite."""
+    try:
+        accepted = cipher_suites.result.accepted_cipher_suites
+        if accepted:
+            name = accepted[0].cipher_suite.name
+            bits = 256 if "256" in name else (128 if "128" in name else 0)
+            return name, bits
+    except Exception:
+        pass
+    return None, 0
+
+
+def _all_ciphers_sslyze(result: Any) -> list[str]:
+    """Collect all accepted cipher names across all TLS versions."""
+    ciphers: list[str] = []
+    for attr in ("tls_1_3_cipher_suites", "tls_1_2_cipher_suites",
+                 "tls_1_1_cipher_suites", "tls_1_0_cipher_suites"):
+        try:
+            cs = getattr(result.scan_result, attr, None)
+            if cs and cs.result:
+                ciphers += [c.cipher_suite.name for c in cs.result.accepted_cipher_suites]
+        except Exception:
+            pass
+    return ciphers
+
+
+def _cert_info_from_sslyze(result: Any) -> CertificateInfo:
+    """Extract CertificateInfo from sslyze CERTIFICATE_INFO result."""
+    info = CertificateInfo()
+    try:
+        cert_result = result.scan_result.certificate_info.result
+        chain = cert_result.certificate_deployments[0].received_certificate_chain
+        if not chain:
+            return info
+        leaf = chain[0]
+        info.subject = leaf.subject.rfc4514_string()
+        info.issuer = leaf.issuer.rfc4514_string()
+        info.serial_number = str(leaf.serial_number)
+        info.not_before = leaf.not_valid_before_utc.strftime("%b %d %H:%M:%S %Y %Z").strip()
+        info.not_after = leaf.not_valid_after_utc.strftime("%b %d %H:%M:%S %Y %Z").strip()
+        info.signature_algorithm = leaf.signature_algorithm_oid._name
+        expiry = leaf.not_valid_after_utc
+        info.days_until_expiry = (expiry - datetime.now(timezone.utc)).days
+        info.is_expired = info.days_until_expiry < 0
+        pub = leaf.public_key()
+        info.public_key_type = type(pub).__name__.replace("PublicKey", "").replace("_", "")
+        if hasattr(pub, "key_size"):
+            info.public_key_bits = pub.key_size
+        try:
+            ext = leaf.extensions.get_extension_for_class(x509.SubjectAlternativeName)
+            info.san_entries = [n.value for n in ext.value]
+        except Exception:
+            info.san_entries = []
+    except Exception as exc:
+        logger.debug("sslyze cert extraction failed: %s", exc)
+    return info
+
+
+async def _probe_classical_sslyze(
+    hostname: str,
+    port: int,
+) -> tuple[ProbeProfile, ProbeProfile, list[str], CertificateInfo]:
+    """Use sslyze to produce Probe B (TLS 1.3), Probe C (TLS 1.2), cipher list, and cert info.
+
+    Falls back to OpenSSL subprocess if sslyze is unavailable or fails.
+    """
+    if not _SSLYZE_AVAILABLE:
+        probe_b = await _run_single_probe(hostname, port, "B", extra_args=["-groups", "X25519:secp256r1:secp384r1"])
+        probe_c = await _run_single_probe(hostname, port, "C", extra_args=["-tls1_2"])
+        ciphers = await _scan_supported_ciphers(hostname, port)
+        cert = await _extract_certificate(hostname, port)
+        return probe_b, probe_c, ciphers, cert
+
+    loop = asyncio.get_event_loop()
+    try:
+        def _run_sslyze() -> Any:
+            location = ServerNetworkLocation(hostname=hostname, port=port)
+            scanner = SslyzeScanner()
+            request = ServerScanRequest(
+                server_location=location,
+                scan_commands={
+                    ScanCommand.TLS_1_0_CIPHER_SUITES,
+                    ScanCommand.TLS_1_1_CIPHER_SUITES,
+                    ScanCommand.TLS_1_2_CIPHER_SUITES,
+                    ScanCommand.TLS_1_3_CIPHER_SUITES,
+                    ScanCommand.CERTIFICATE_INFO,
+                    ScanCommand.ELLIPTIC_CURVES,
+                },
+            )
+            scanner.queue_scans([request])
+            for r in scanner.get_results():
+                return r
+            return None
+
+        result = await asyncio.wait_for(loop.run_in_executor(None, _run_sslyze), timeout=20.0)
+
+        if result is None or result.scan_result is None:
+            raise RuntimeError("sslyze returned no result")
+
+        best_v13, best_v12 = _tls_version_from_sslyze(result)
+        all_ciphers = _all_ciphers_sslyze(result)
+        cert_info = _cert_info_from_sslyze(result)
+
+        # Probe B — best TLS 1.3 result
+        probe_b = ProbeProfile(mode="B")
+        probe_b.tls_version = best_v13
+        cipher_name, cipher_bits = _best_cipher_sslyze(
+            getattr(result.scan_result, "tls_1_3_cipher_suites", None)
+        )
+        probe_b.cipher_suite = cipher_name
+        probe_b.cipher_bits = cipher_bits
+        probe_b.key_exchange = "X25519"
+        probe_b.authentication = cert_info.public_key_type or "RSA"
+        probe_b.signature_algorithm = cert_info.signature_algorithm
+        probe_b.public_key_type = cert_info.public_key_type
+        probe_b.public_key_bits = cert_info.public_key_bits
+        probe_b.supported_ciphers = all_ciphers
+
+        # Try to get elliptic curves info for KEX group
+        try:
+            curves = result.scan_result.elliptic_curves.result
+            if curves and curves.supported_curves:
+                probe_b.key_exchange_group = curves.supported_curves[0].name
+        except Exception:
+            pass
+
+        # Probe C — worst-case TLS 1.2
+        probe_c = ProbeProfile(mode="C")
+        probe_c.tls_version = best_v12
+        cipher_name_12, cipher_bits_12 = _best_cipher_sslyze(
+            getattr(result.scan_result, "tls_1_2_cipher_suites", None)
+        )
+        probe_c.cipher_suite = cipher_name_12
+        probe_c.cipher_bits = cipher_bits_12
+        if cipher_name_12:
+            probe_c.key_exchange = _extract_kex(cipher_name_12)
+            probe_c.authentication = _extract_auth(cipher_name_12)
+        probe_c.signature_algorithm = cert_info.signature_algorithm
+        probe_c.public_key_type = cert_info.public_key_type
+        probe_c.public_key_bits = cert_info.public_key_bits
+
+        return probe_b, probe_c, all_ciphers, cert_info
+
+    except Exception as exc:
+        logger.warning("sslyze failed for %s:%d (%s) — falling back to OpenSSL", hostname, port, exc)
+        probe_b = await _run_single_probe(hostname, port, "B", extra_args=["-groups", "X25519:secp256r1:secp384r1"])
+        probe_c = await _run_single_probe(hostname, port, "C", extra_args=["-tls1_2"])
+        ciphers = await _scan_supported_ciphers(hostname, port)
+        cert = await _extract_certificate(hostname, port)
+        return probe_b, probe_c, ciphers, cert
+
+
 # ── Tri-mode probe ───────────────────────────────────────────────────────────
 
 
@@ -371,29 +560,18 @@ async def probe_trimode(
     Probe C: TLS 1.2 only  — max_version forced to TLS 1.2
     """
     t0 = time.monotonic()
-    connect_host = ip or hostname
 
-    # Run all 3 probes + cipher scan concurrently
+    # Probe A: PQC detection via OpenSSL subprocess (sslyze doesn't enumerate ML-KEM groups)
+    # Probes B & C + cipher list + cert: sslyze (5-8x faster, falls back to OpenSSL)
     probe_a_task = _run_single_probe(hostname, port, "A", extra_args=[
         "-groups", "ML-KEM-768:X25519MLKEM768:X25519:secp256r1",
     ])
-    probe_b_task = _run_single_probe(hostname, port, "B", extra_args=[
-        "-groups", "X25519:secp256r1:secp384r1",
-    ])
-    probe_c_task = _run_single_probe(hostname, port, "C", extra_args=[
-        "-tls1_2",
-    ])
-    cipher_scan_task = _scan_supported_ciphers(hostname, port)
+    sslyze_task = _probe_classical_sslyze(hostname, port)
 
-    probe_a, probe_b, probe_c, supported_ciphers = await asyncio.gather(
-        probe_a_task, probe_b_task, probe_c_task, cipher_scan_task,
+    probe_a, (probe_b, probe_c, supported_ciphers, certificate) = await asyncio.gather(
+        probe_a_task, sslyze_task,
         return_exceptions=False,
     )
-    # Attach full cipher list to probe_b (the standard TLS 1.3 probe)
-    probe_b.supported_ciphers = supported_ciphers
-
-    # Certificate (one extraction is enough — shared across probes)
-    certificate = await _extract_certificate(hostname, port, connect_host=connect_host)
 
     elapsed = int((time.monotonic() - t0) * 1000)
 

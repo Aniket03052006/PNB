@@ -1082,6 +1082,12 @@ table thead th { position: sticky; top: 0; z-index: 2; background: var(--surface
 .tab-content { animation: fadeIn 0.18s ease; }
 @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
 
+/* ── Tab status badges (loading • / ready ✓) ── */
+@keyframes badgePulse { 0%,100%{opacity:.4} 50%{opacity:1} }
+.tab-badge { font-size:0.62rem; margin-left:4px; vertical-align:super; line-height:1; }
+.tab-badge--loading { color:var(--primary); animation:badgePulse 1s infinite; }
+.tab-badge--ready   { color:#16a34a; }
+
 /* ── Chart container polish ── */
 .chart-container canvas { display: block; max-height: 260px; }
 .inv-chart-box { position: relative; height: 220px; }
