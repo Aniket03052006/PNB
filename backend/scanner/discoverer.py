@@ -143,7 +143,7 @@ async def scan_ports(host: str, ports: list[int] | None = None) -> list[int]:
 
     def _connect(target_host: str, target_port: int) -> bool:
         try:
-            sock = socket.create_connection((target_host, target_port), timeout=2.0)
+            sock = socket.create_connection((target_host, target_port), timeout=1.0)
             sock.close()
             return True
         except Exception:
