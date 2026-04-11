@@ -127,7 +127,7 @@ async def _collect_fingerprints(
         return []
 
     selected_assets = assets if limit <= 0 else assets[:limit]
-    return await probe_batch(selected_assets, concurrency=3, demo=False)
+    return await probe_batch(selected_assets, concurrency=10, demo=False)
 
 
 async def run_pipeline(

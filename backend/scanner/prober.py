@@ -174,6 +174,11 @@ async def _run_openssl(
                 else:
                     info["sig"] = sig
     except asyncio.TimeoutError:
+        try:
+            proc.kill()
+            await proc.wait()
+        except Exception:
+            pass
         logger.debug("openssl timed out for %s:%d", hostname, port)
     except FileNotFoundError:
         logger.warning("openssl binary not found")
@@ -348,7 +353,7 @@ async def _test_single_cipher(
         return False
 
 
-async def _scan_supported_ciphers(hostname: str, port: int, timeout: float = 5.0) -> list[str]:
+async def _scan_supported_ciphers(hostname: str, port: int, timeout: float = 1.5) -> list[str]:
     """Return all cipher suites accepted by the server.
 
     Tests TLS 1.3 and TLS 1.2 cipher suites concurrently.

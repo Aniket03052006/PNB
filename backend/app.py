@@ -1557,11 +1557,8 @@ async def scan_domain(domain: str, request: Request, full_scan: bool = False):
             summary["scan_id"] = history_scan_id
             _latest_scan = ScanSummary.model_validate(summary)
         _cache_pipeline_from_scan_summary(_latest_scan, mode="live", domain=domain)
-        # Warm the full enterprise pipeline cache so /api/assets/* serve real data
-        try:
-            await _ensure_latest_pipeline_result(mode="live", domain=domain, force_refresh=True)
-        except Exception as _exc:
-            logger.warning("Live pipeline warm-up failed for %s: %s", domain, _exc)
+        # Warm the full enterprise pipeline cache in the background — don't block the response
+        asyncio.create_task(_ensure_latest_pipeline_result(mode="live", domain=domain, force_refresh=True))
         return _latest_scan.model_dump(mode="json")
 
     except HTTPException:
