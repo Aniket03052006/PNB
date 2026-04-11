@@ -13,7 +13,7 @@ from typing import Any
 from urllib.parse import urlparse
 from fastapi import Depends, FastAPI, HTTPException, Request, UploadFile
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
 from starlette.middleware.gzip import GZipMiddleware
@@ -149,6 +149,7 @@ PUBLIC_PREFIXES = (
     "/docs",
     "/redoc",
     "/openapi.json",
+    "/api/scan/stream",   # SSE endpoint — EventSource cannot send auth headers
 )
 
 
@@ -1557,8 +1558,11 @@ async def scan_domain(domain: str, request: Request, full_scan: bool = False):
             summary["scan_id"] = history_scan_id
             _latest_scan = ScanSummary.model_validate(summary)
         _cache_pipeline_from_scan_summary(_latest_scan, mode="live", domain=domain)
-        # Warm the full enterprise pipeline cache in the background — don't block the response
-        asyncio.create_task(_ensure_latest_pipeline_result(mode="live", domain=domain, force_refresh=True))
+        # Warm the full enterprise pipeline cache so /api/assets/* serve real data
+        try:
+            await _ensure_latest_pipeline_result(mode="live", domain=domain, force_refresh=True)
+        except Exception as _exc:
+            logger.warning("Live pipeline warm-up failed for %s: %s", domain, _exc)
         return _latest_scan.model_dump(mode="json")
 
     except HTTPException:
@@ -1566,6 +1570,136 @@ async def scan_domain(domain: str, request: Request, full_scan: bool = False):
     except Exception as e:
         logger.exception("Domain scan failed for %s", domain)
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/scan/stream/{domain}")
+async def scan_stream(domain: str, request: Request, full_scan: bool = False):
+    """SSE endpoint: streams per-asset scan progress so the browser can show live updates."""
+
+    async def generate():
+        global _latest_scan, _latest_trimode
+
+        try:
+            domain_clean, _ = _normalize_hostname_input(domain, allow_port=False)
+        except Exception as exc:
+            yield f'data: {json.dumps({"type": "error", "message": str(exc)})}\n\n'
+            return
+
+        scan_opts = _live_scan_options()
+        if full_scan:
+            scan_opts["include_port_scan"] = True
+            scan_opts["include_api_crawl"] = True
+
+        # Phase 1 — Discovery
+        yield f'data: {json.dumps({"type": "status", "phase": "discovery", "message": f"Discovering assets for {domain_clean}...", "pct": 3})}\n\n'
+
+        try:
+            try:
+                assets = await asyncio.wait_for(
+                    discover_assets(
+                        domain_clean,
+                        include_ct=scan_opts["include_ct"],
+                        include_port_scan=scan_opts["include_port_scan"],
+                        include_api_crawl=scan_opts.get("include_api_crawl", False),
+                    ),
+                    timeout=60.0,
+                )
+            except asyncio.TimeoutError:
+                logger.warning("CT log timeout for %s in stream, falling back to DNS-only", domain_clean)
+                assets = await asyncio.wait_for(
+                    discover_assets(domain_clean, include_ct=False, include_port_scan=False),
+                    timeout=20.0,
+                )
+
+            if not assets:
+                yield f'data: {json.dumps({"type": "error", "message": f"No assets discovered for {domain_clean}"})}\n\n'
+                return
+
+            live_assets = _select_live_assets(assets, scan_opts["limit"])
+            total = len(live_assets)
+            yield f'data: {json.dumps({"type": "discovered", "count": total, "assets": [a.hostname for a in live_assets], "pct": 15})}\n\n'
+
+            # Phase 2 — Parallel probing with per-asset progress via asyncio.Queue
+            fingerprints: list = [None] * total
+            q: asyncio.Queue = asyncio.Queue()
+            sem = asyncio.Semaphore(10)
+
+            async def _probe_and_report(idx: int, asset) -> None:
+                async with sem:
+                    try:
+                        fp = await probe_trimode(
+                            hostname=asset.hostname,
+                            port=asset.port,
+                            asset_type=asset.asset_type,
+                            ip=asset.ip,
+                        )
+                    except Exception as exc:
+                        fp = TriModeFingerprint(
+                            hostname=asset.hostname,
+                            port=asset.port,
+                            asset_type=asset.asset_type,
+                            ip=asset.ip,
+                            error=str(exc),
+                            mode="live",
+                        )
+                    fingerprints[idx] = fp
+                    await q.put((idx, asset, fp))
+
+            tasks = [asyncio.create_task(_probe_and_report(i, a)) for i, a in enumerate(live_assets)]
+
+            done_count = 0
+            while done_count < total:
+                _, asset, fp = await q.get()
+                done_count += 1
+                try:
+                    classified = classify_trimode(fp)
+                    status_val = classified.status.value if not fp.error else "ERROR"
+                except Exception:
+                    status_val = "UNKNOWN"
+                pct = 15 + int(done_count / total * 77)  # 15 → 92
+                yield f'data: {json.dumps({"type": "asset_scanned", "asset": fp.hostname, "port": fp.port, "done": done_count, "total": total, "pct": pct, "status": status_val})}\n\n'
+
+            await asyncio.gather(*tasks, return_exceptions=True)
+
+            # Phase 3 — Classify + build summary
+            yield f'data: {json.dumps({"type": "status", "phase": "classifying", "message": "Building assessment...", "pct": 95})}\n\n'
+
+            summary_obj = _build_legacy_scan_summary_from_fingerprints(fingerprints)
+            _latest_scan = summary_obj
+            _latest_trimode = fingerprints
+            summary = json.loads(summary_obj.model_dump_json())
+
+            history_id = _save_user_scan_history(
+                request,
+                list(summary.get("results", [])),
+                mode="live",
+                domain=domain_clean,
+                details=summary,
+            )
+            if history_id:
+                summary["scan_id"] = history_id
+                _latest_scan = ScanSummary.model_validate(summary)
+
+            _cache_pipeline_from_scan_summary(_latest_scan, mode="live", domain=domain_clean)
+            asyncio.create_task(
+                _ensure_latest_pipeline_result(mode="live", domain=domain_clean, force_refresh=True)
+            )
+
+            yield f'data: {json.dumps({"type": "complete", "data": summary, "pct": 100})}\n\n'
+
+        except Exception as exc:
+            logger.exception("Streaming scan failed for %s", domain)
+            yield f'data: {json.dumps({"type": "error", "message": str(exc)})}\n\n'
+
+    return StreamingResponse(
+        generate(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+            "Connection": "keep-alive",
+        },
+    )
 
 
 @app.get("/api/scan/single/{hostname}")
@@ -1972,7 +2106,7 @@ async def trimode_live_scan(domain: str):
         if not assets:
             raise HTTPException(status_code=404, detail=f"No assets discovered for {domain}")
 
-        fingerprints = await probe_batch(_select_live_assets(assets, scan_opts["limit"]), concurrency=10, demo=False)
+        fingerprints = await probe_batch(_select_live_assets(assets, scan_opts["limit"]), concurrency=3, demo=False)
         _latest_trimode = fingerprints
 
         classified = []
@@ -2754,7 +2888,7 @@ async def phase9_live_pipeline(domain: str, request: Request):
             raise HTTPException(status_code=404, detail=f"No assets discovered for {domain}")
 
         # Step 2: Tri-mode probe
-        fingerprints = await probe_batch(_select_live_assets(assets, scan_opts["limit"]), concurrency=10, demo=False)
+        fingerprints = await probe_batch(_select_live_assets(assets, scan_opts["limit"]), concurrency=3, demo=False)
 
         # Step 3: Classify each
         current_assets = []

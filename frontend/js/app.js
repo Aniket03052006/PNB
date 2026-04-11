@@ -1003,22 +1003,144 @@ async function scanDomain() {
     assessmentData = null;
     trimodeData = null;
     phase9Data = null;
-    showLoading(`Scanning ${domain} — discovering assets and probing TLS...`);
-    try {
-        const fullScan = document.getElementById('fullScanToggle')?.checked;
-        const scanParams = fullScan ? '?full_scan=true' : '';
-        scanData = await apiCall(`/api/scan/domain/${encodeURIComponent(domain)}${scanParams}`, 'POST');
-        window.scanData = scanData;   // expose for inventory tab
-        latestScanPayload = scanData;
-        latestScanKey = '/api/scan/latest';
-        renderDashboard(scanData);
-        document.getElementById('btnExportCBOM').disabled = false;
-        document.getElementById('btnExportPDF').disabled = false;
-    } catch (e) {
-        showToast('Scan failed: ' + e.message, 'error');
-    } finally {
-        hideLoading();
+    const fullScan = document.getElementById('fullScanToggle')?.checked;
+    await scanDomainStreaming(domain, fullScan);
+}
+
+/* ─── Streaming Domain Scan (SSE) ─── */
+async function scanDomainStreaming(domain, fullScan = false) {
+    const scanBtn = document.querySelector('.scan-input-section button');
+    const origLabel = scanBtn?.textContent;
+    if (scanBtn) { scanBtn.disabled = true; scanBtn.textContent = 'Scanning\u2026'; }
+
+    const STATUS_ICONS = {
+        FULLY_QUANTUM_SAFE: '\u2736',      // ✦ star
+        PQC_TRANSITION:      '\u25D1',      // ◑ half circle
+        QUANTUM_VULNERABLE:  '\u26A0',      // ⚠
+        CRITICALLY_VULNERABLE: '\u2716',    // ✖
+        ERROR:               '\u2716',
+    };
+
+    // Pre-clear the asset table so live rows start appearing immediately
+    const tableContainer = document.getElementById('assetTableContainer');
+    if (tableContainer) tableContainer.innerHTML = '';
+
+    _showScanBanner('Discovering assets for ' + domain + '\u2026', 0, '');
+
+    const url = `/api/scan/stream/${encodeURIComponent(domain)}${fullScan ? '?full_scan=true' : ''}`;
+    const es = new EventSource(url);
+    let liveRowCount = 0;
+
+    return new Promise((resolve, reject) => {
+        es.onmessage = (evt) => {
+            let event;
+            try { event = JSON.parse(evt.data); } catch { return; }
+
+            if (event.type === 'status') {
+                _showScanBanner(event.message, event.pct, '');
+
+            } else if (event.type === 'discovered') {
+                _showScanBanner(
+                    `Found ${event.count} asset${event.count !== 1 ? 's' : ''} \u2014 probing TLS\u2026`,
+                    event.pct,
+                    `0\u2009/\u2009${event.count}`,
+                );
+
+            } else if (event.type === 'asset_scanned') {
+                const icon = STATUS_ICONS[event.status] || '\u25CB';
+                _showScanBanner(
+                    `${icon}\u2009${event.asset}`,
+                    event.pct,
+                    `${event.done}\u2009/\u2009${event.total} scanned`,
+                );
+                _appendLiveAssetRow(event, ++liveRowCount);
+
+            } else if (event.type === 'complete') {
+                es.close();
+                scanData = event.data;
+                window.scanData = scanData;
+                latestScanPayload = scanData;
+                latestScanKey = '/api/scan/latest';
+                _hideScanBanner();
+                renderDashboard(scanData);
+                document.getElementById('btnExportCBOM').disabled = false;
+                document.getElementById('btnExportPDF').disabled = false;
+                showToast(`Scan complete \u2014 ${scanData.total_assets} assets analyzed`, 'success');
+                resolve(scanData);
+
+            } else if (event.type === 'error') {
+                es.close();
+                _hideScanBanner();
+                showToast(event.message || 'Scan failed', 'error');
+                reject(new Error(event.message || 'Scan error'));
+            }
+        };
+
+        es.onerror = () => {
+            es.close();
+            _hideScanBanner();
+            showToast('Streaming connection lost', 'error');
+            reject(new Error('EventSource error'));
+        };
+    }).finally(() => {
+        if (scanBtn) { scanBtn.disabled = false; scanBtn.textContent = origLabel || 'Scan Domain'; }
+    });
+}
+
+function _showScanBanner(phase, pct, counter) {
+    const b = document.getElementById('scanStreamBanner');
+    if (!b) return;
+    b.style.display = 'block';
+    const phaseEl = document.getElementById('scanBannerPhase');
+    const fillEl  = document.getElementById('scanBannerFill');
+    const pctEl   = document.getElementById('scanBannerPct');
+    const cntEl   = document.getElementById('scanBannerCounter');
+    if (phaseEl) phaseEl.textContent = phase;
+    if (fillEl)  fillEl.style.width  = pct + '%';
+    if (pctEl)   pctEl.textContent   = Math.floor(pct) + '%';
+    if (cntEl && counter !== undefined) cntEl.textContent = counter;
+}
+
+function _hideScanBanner() {
+    const b = document.getElementById('scanStreamBanner');
+    if (b) b.style.display = 'none';
+}
+
+function _appendLiveAssetRow(event, rowNum) {
+    const container = document.getElementById('assetTableContainer');
+    if (!container) return;
+    let tbody = container.querySelector('tbody#liveAssetBody');
+    if (!tbody) {
+        container.innerHTML = `
+            <table class="asset-table" style="width:100%">
+                <thead><tr>
+                    <th style="width:2.5rem">#</th>
+                    <th>Hostname</th>
+                    <th style="width:4rem">Port</th>
+                    <th style="width:11rem">Status</th>
+                </tr></thead>
+                <tbody id="liveAssetBody"></tbody>
+            </table>`;
+        tbody = container.querySelector('tbody#liveAssetBody');
     }
+    const STATUS_CLASS = {
+        FULLY_QUANTUM_SAFE:   'safe',
+        PQC_TRANSITION:       'transition',
+        QUANTUM_VULNERABLE:   'vulnerable',
+        CRITICALLY_VULNERABLE:'critical',
+        ERROR:                'unknown',
+    };
+    const cls   = STATUS_CLASS[event.status] || 'unknown';
+    const label = (event.status || 'UNKNOWN').replace(/_/g, '\u00A0');
+    const row   = document.createElement('tr');
+    row.innerHTML = `
+        <td style="color:var(--text-dim);font-size:0.75rem;text-align:center;">${rowNum}</td>
+        <td style="font-family:var(--font-mono);font-size:0.82rem;">${event.asset}</td>
+        <td style="font-size:0.8rem;text-align:center;">${event.port}</td>
+        <td><span class="status-badge status-badge--${cls}" style="font-size:0.71rem;">${label}</span></td>`;
+    tbody.appendChild(row);
+    // Scroll last row into view if table is already visible
+    row.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
 }
 
 /* ─── Single Host Scan ─── */

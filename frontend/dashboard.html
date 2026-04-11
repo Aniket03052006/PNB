@@ -57,6 +57,22 @@
             <button class="btn" onclick="scanSingleHost()">Probe</button>
         </div>
 
+        <!-- Streaming Scan Progress Banner (visible only during live SSE scans) -->
+        <div id="scanStreamBanner" style="display:none; margin:6px 0 4px; padding:10px 14px;
+             background:rgba(123,0,48,0.04); border:1px solid rgba(123,0,48,0.15);
+             border-radius:8px; font-size:0.82rem; color:var(--text-secondary);">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+                <span id="scanBannerPhase" style="font-weight:600; color:var(--text-primary); font-size:0.83rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:70%;">
+                    Discovering assets...
+                </span>
+                <span id="scanBannerCounter" style="font-size:0.72rem; color:var(--primary); font-weight:700; font-variant-numeric:tabular-nums; white-space:nowrap;"></span>
+            </div>
+            <div style="height:4px; background:var(--border-subtle); border-radius:99px; overflow:hidden;">
+                <div id="scanBannerFill" style="height:100%; width:0%; background:linear-gradient(90deg,#7B0030,#c0004a); border-radius:99px; transition:width 0.3s ease-out;"></div>
+            </div>
+            <div style="margin-top:5px; font-size:0.7rem; color:var(--primary); font-weight:700; font-variant-numeric:tabular-nums;" id="scanBannerPct">0%</div>
+        </div>
+
         <!-- Tab Navigation -->
         <div class="tab-nav" id="tabNav">
             <button class="tab-btn tab-btn--active" data-tab="overview" onclick="switchTab('overview')"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg> Overview</button>
