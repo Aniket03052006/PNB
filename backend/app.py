@@ -1576,13 +1576,21 @@ async def scan_domain(domain: str, request: Request, full_scan: bool = False):
 async def scan_stream(domain: str, request: Request, full_scan: bool = False):
     """SSE endpoint: streams per-asset scan progress so the browser can show live updates."""
 
+    def _sse(payload: dict) -> str:
+        return f"data: {json.dumps(payload)}\n\n"
+
     async def generate():
         global _latest_scan, _latest_trimode
+
+        # Flush any reverse-proxy / CDN buffer immediately (8 KB padding comment).
+        # Without this, proxies that buffer small chunks will hold the first events
+        # until the buffer fills, making the bar appear frozen.
+        yield ": stream-start " + " " * 8192 + "\n\n"
 
         try:
             domain_clean, _ = _normalize_hostname_input(domain, allow_port=False)
         except Exception as exc:
-            yield f'data: {json.dumps({"type": "error", "message": str(exc)})}\n\n'
+            yield _sse({"type": "error", "message": str(exc)})
             return
 
         scan_opts = _live_scan_options()
@@ -1591,7 +1599,8 @@ async def scan_stream(domain: str, request: Request, full_scan: bool = False):
             scan_opts["include_api_crawl"] = True
 
         # Phase 1 — Discovery
-        yield f'data: {json.dumps({"type": "status", "phase": "discovery", "message": f"Discovering assets for {domain_clean}...", "pct": 3})}\n\n'
+        yield _sse({"type": "status", "phase": "discovery",
+                    "message": f"Discovering assets for {domain_clean}...", "pct": 3})
 
         try:
             try:
@@ -1612,19 +1621,21 @@ async def scan_stream(domain: str, request: Request, full_scan: bool = False):
                 )
 
             if not assets:
-                yield f'data: {json.dumps({"type": "error", "message": f"No assets discovered for {domain_clean}"})}\n\n'
+                yield _sse({"type": "error", "message": f"No assets discovered for {domain_clean}"})
                 return
 
             live_assets = _select_live_assets(assets, scan_opts["limit"])
             total = len(live_assets)
-            yield f'data: {json.dumps({"type": "discovered", "count": total, "assets": [a.hostname for a in live_assets], "pct": 15})}\n\n'
+            yield _sse({"type": "discovered", "count": total,
+                        "assets": [a.hostname for a in live_assets], "pct": 15})
 
-            # Phase 2 — Parallel probing with per-asset progress via asyncio.Queue
-            fingerprints: list = [None] * total
-            q: asyncio.Queue = asyncio.Queue()
+            # Phase 2 — Parallel probing via asyncio.as_completed.
+            # This avoids the create_task+Queue pattern which can stall inside
+            # FastAPI's async-generator context; as_completed yields futures as
+            # they finish so each `await` gives the event-loop real CPU time.
             sem = asyncio.Semaphore(10)
 
-            async def _probe_and_report(idx: int, asset) -> None:
+            async def _bounded_probe(idx: int, asset):
                 async with sem:
                     try:
                         fp = await probe_trimode(
@@ -1642,14 +1653,15 @@ async def scan_stream(domain: str, request: Request, full_scan: bool = False):
                             error=str(exc),
                             mode="live",
                         )
-                    fingerprints[idx] = fp
-                    await q.put((idx, asset, fp))
+                return idx, asset, fp
 
-            tasks = [asyncio.create_task(_probe_and_report(i, a)) for i, a in enumerate(live_assets)]
+            fingerprints: list = [None] * total
+            futures = [asyncio.ensure_future(_bounded_probe(i, a)) for i, a in enumerate(live_assets)]
 
             done_count = 0
-            while done_count < total:
-                _, asset, fp = await q.get()
+            for fut in asyncio.as_completed(futures):
+                idx, asset, fp = await fut
+                fingerprints[idx] = fp
                 done_count += 1
                 try:
                     classified = classify_trimode(fp)
@@ -1657,12 +1669,12 @@ async def scan_stream(domain: str, request: Request, full_scan: bool = False):
                 except Exception:
                     status_val = "UNKNOWN"
                 pct = 15 + int(done_count / total * 77)  # 15 → 92
-                yield f'data: {json.dumps({"type": "asset_scanned", "asset": fp.hostname, "port": fp.port, "done": done_count, "total": total, "pct": pct, "status": status_val})}\n\n'
-
-            await asyncio.gather(*tasks, return_exceptions=True)
+                yield _sse({"type": "asset_scanned", "asset": fp.hostname, "port": fp.port,
+                            "done": done_count, "total": total, "pct": pct, "status": status_val})
 
             # Phase 3 — Classify + build summary
-            yield f'data: {json.dumps({"type": "status", "phase": "classifying", "message": "Building assessment...", "pct": 95})}\n\n'
+            yield _sse({"type": "status", "phase": "classifying",
+                        "message": "Building assessment...", "pct": 95})
 
             summary_obj = _build_legacy_scan_summary_from_fingerprints(fingerprints)
             _latest_scan = summary_obj
@@ -1681,15 +1693,15 @@ async def scan_stream(domain: str, request: Request, full_scan: bool = False):
                 _latest_scan = ScanSummary.model_validate(summary)
 
             _cache_pipeline_from_scan_summary(_latest_scan, mode="live", domain=domain_clean)
-            asyncio.create_task(
+            asyncio.ensure_future(
                 _ensure_latest_pipeline_result(mode="live", domain=domain_clean, force_refresh=True)
             )
 
-            yield f'data: {json.dumps({"type": "complete", "data": summary, "pct": 100})}\n\n'
+            yield _sse({"type": "complete", "data": summary, "pct": 100})
 
         except Exception as exc:
             logger.exception("Streaming scan failed for %s", domain)
-            yield f'data: {json.dumps({"type": "error", "message": str(exc)})}\n\n'
+            yield _sse({"type": "error", "message": str(exc)})
 
     return StreamingResponse(
         generate(),
