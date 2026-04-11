@@ -121,7 +121,7 @@ async def _run_openssl(
     *,
     connect_host: str | None = None,
     extra_args: list[str] | None = None,
-    timeout: float = 3.0,
+    timeout: float = 2.0,
 ) -> dict[str, str]:
     """Run ``openssl s_client -brief`` with optional extra args.
 
@@ -195,7 +195,7 @@ async def _extract_certificate(hostname: str, port: int, connect_host: str | Non
         ctx.verify_mode = ssl.CERT_NONE
 
         fut = asyncio.open_connection(target_host, port, ssl=ctx, server_hostname=hostname)
-        reader, writer = await asyncio.wait_for(fut, timeout=3.0)
+        reader, writer = await asyncio.wait_for(fut, timeout=2.0)
 
         ssl_obj = writer.get_extra_info("ssl_object")
         if ssl_obj:
@@ -326,7 +326,7 @@ _TLS13_CIPHERS = [
     "TLS_AES_128_CCM_8_SHA256",
 ]
 
-_CIPHER_SCAN_CONCURRENCY = 5  # balanced: 3x faster than 2, safe on 512 MB RAM
+_CIPHER_SCAN_CONCURRENCY = 10  # all 17 ciphers in 2 rounds; safe on 512 MB RAM with probe concurrency=10
 
 
 async def _test_single_cipher(
@@ -334,7 +334,7 @@ async def _test_single_cipher(
     port: int,
     cipher: str,
     tls13: bool = False,
-    timeout: float = 3.0,
+    timeout: float = 1.5,
 ) -> bool:
     """Return True if the server accepts the given cipher."""
     if tls13:

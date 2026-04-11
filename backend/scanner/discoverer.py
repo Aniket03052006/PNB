@@ -102,7 +102,7 @@ async def query_ct_logs(domain: str) -> list[str]:
     async def _fetch_crt():
         url = f"https://crt.sh/?q=%.{domain}&output=json"
         try:
-            async with httpx.AsyncClient(timeout=8.0) as client:
+            async with httpx.AsyncClient(timeout=3.0) as client:
                 resp = await client.get(url)
                 if resp.status_code == 200:
                     for entry in resp.json():
@@ -117,7 +117,7 @@ async def query_ct_logs(domain: str) -> list[str]:
     async def _fetch_hackertarget():
         url = f"https://api.hackertarget.com/hostsearch/?q={domain}"
         try:
-            async with httpx.AsyncClient(timeout=8.0) as client:
+            async with httpx.AsyncClient(timeout=3.0) as client:
                 resp = await client.get(url)
                 if resp.status_code == 200:
                     for line in resp.text.split("\n"):

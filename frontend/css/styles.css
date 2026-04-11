@@ -1103,3 +1103,79 @@ table thead th { position: sticky; top: 0; z-index: 2; background: var(--surface
 ::-webkit-scrollbar-track { background: var(--bg-tertiary); }
 ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--text-dim); }
+
+/* ── Domain dropdown combo ─────────────────────────────────────────────────── */
+.dd-wrap {
+    position: relative;
+    display: inline-flex;
+    align-items: stretch;
+    /* flex children so the input fills available space */
+}
+.dd-wrap .scan-input {
+    flex: 1;
+    min-width: 0;
+    border-radius: var(--radius-sm) 0 0 var(--radius-sm);
+}
+.dd-chevron {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 8px;
+    background: var(--surface-container);
+    border: 1px solid var(--border-subtle);
+    border-left: none;
+    border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s, border-color 0.15s;
+    line-height: 1;
+}
+.dd-chevron:hover,
+.dd-chevron--open {
+    background: var(--primary-surface);
+    color: var(--primary);
+    border-color: var(--primary);
+}
+.dd-chevron--open svg {
+    transform: rotate(180deg);
+}
+.dd-chevron svg {
+    display: block;
+    transition: transform 0.15s;
+}
+.dd-menu {
+    display: none;
+    position: absolute;
+    top: calc(100% + 3px);
+    left: 0;
+    min-width: 100%;
+    background: var(--surface, #fff);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-sm);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.13);
+    z-index: 9999;
+    max-height: 220px;
+    overflow-y: auto;
+}
+.dd-item {
+    padding: 7px 14px;
+    font-size: 0.81rem;
+    font-family: var(--font-mono, monospace);
+    color: var(--text-primary);
+    cursor: pointer;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    transition: background 0.1s, color 0.1s;
+}
+.dd-item:hover {
+    background: var(--primary-surface);
+    color: var(--primary);
+}
+.dd-empty {
+    padding: 8px 14px;
+    font-size: 0.78rem;
+    color: var(--text-dim, #999);
+    text-align: center;
+}

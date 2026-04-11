@@ -1975,7 +1975,7 @@ async def trimode_live_scan(domain: str):
         if not assets:
             raise HTTPException(status_code=404, detail=f"No assets discovered for {domain}")
 
-        fingerprints = await probe_batch(_select_live_assets(assets, scan_opts["limit"]), concurrency=3, demo=False)
+        fingerprints = await probe_batch(_select_live_assets(assets, scan_opts["limit"]), concurrency=10, demo=False)
         _latest_trimode = fingerprints
 
         classified = []
@@ -2291,6 +2291,39 @@ async def classify_live(domain: str, request: Request):
     except Exception as e:
         logger.exception("Phase 7 live classify failed for %s", domain)
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# ── Domains Endpoint ─────────────────────────────────────────────────────────
+
+@app.get("/api/domains")
+async def list_scanned_domains(request: Request):
+    """Return unique non-empty domains from scan history, newest first."""
+    seen: set[str] = set()
+    domains: list[str] = []
+
+    history_scans = _history_scans_for_request(request, limit=0)
+    source = history_scans if history_scans else db.list_scans(limit=0)
+    for scan in source:
+        d = (scan.get("domain") or "").strip()
+        if d and d not in seen:
+            seen.add(d)
+            domains.append(d)
+
+    # Also include unique hostnames from single-host probes
+    try:
+        with db._connect() as conn:
+            rows = conn.execute(
+                "SELECT DISTINCT hostname FROM asset_scores ORDER BY id DESC"
+            ).fetchall()
+            for row in rows:
+                h = (row["hostname"] or "").strip()
+                if h and h not in seen:
+                    seen.add(h)
+                    domains.append(h)
+    except Exception:
+        pass
+
+    return JSONResponse(content={"domains": domains})
 
 
 # ── Phase 7: Database Endpoints ──────────────────────────────────────────────
@@ -2724,7 +2757,7 @@ async def phase9_live_pipeline(domain: str, request: Request):
             raise HTTPException(status_code=404, detail=f"No assets discovered for {domain}")
 
         # Step 2: Tri-mode probe
-        fingerprints = await probe_batch(_select_live_assets(assets, scan_opts["limit"]), concurrency=3, demo=False)
+        fingerprints = await probe_batch(_select_live_assets(assets, scan_opts["limit"]), concurrency=10, demo=False)
 
         # Step 3: Classify each
         current_assets = []
