@@ -1629,48 +1629,42 @@ async def scan_stream(domain: str, request: Request, full_scan: bool = False):
             yield _sse({"type": "discovered", "count": total,
                         "assets": [a.hostname for a in live_assets], "pct": 15})
 
-            # Phase 2 — Parallel probing via asyncio.as_completed.
-            # This avoids the create_task+Queue pattern which can stall inside
-            # FastAPI's async-generator context; as_completed yields futures as
-            # they finish so each `await` gives the event-loop real CPU time.
-            sem = asyncio.Semaphore(10)
+            # Phase 2 — Parallel probing.
+            # Use probe_batch (the proven production function) running as a
+            # background Task and poll every second with asyncio.sleep.
+            # This sidesteps asyncio.as_completed / ensure_future deprecations
+            # in Python 3.12+ / 3.14 that caused the probe phase to silently
+            # fail inside an async generator context.
+            probe_task = asyncio.create_task(
+                probe_batch(live_assets, concurrency=10, demo=False)
+            )
+            t0_probe = time.monotonic()
+            # Emit a live ticker until probe_batch finishes
+            while not probe_task.done():
+                await asyncio.sleep(1.5)   # yield to event loop so probe_task runs
+                elapsed = time.monotonic() - t0_probe
+                # Rough progress: ~2 s per 10-asset batch
+                est_secs = max(1.0, (total / 10) * 2.0)
+                approx_pct = min(89, 15 + int(elapsed / est_secs * 74))
+                yield _sse({"type": "status", "phase": "probing",
+                            "message": f"Probing TLS on {total} assets\u2026",
+                            "pct": approx_pct})
 
-            async def _bounded_probe(idx: int, asset):
-                async with sem:
-                    try:
-                        fp = await probe_trimode(
-                            hostname=asset.hostname,
-                            port=asset.port,
-                            asset_type=asset.asset_type,
-                            ip=asset.ip,
-                        )
-                    except Exception as exc:
-                        fp = TriModeFingerprint(
-                            hostname=asset.hostname,
-                            port=asset.port,
-                            asset_type=asset.asset_type,
-                            ip=asset.ip,
-                            error=str(exc),
-                            mode="live",
-                        )
-                return idx, asset, fp
+            try:
+                fingerprints = probe_task.result()
+            except Exception as exc:
+                yield _sse({"type": "error", "message": f"Probe failed: {exc}"})
+                return
 
-            fingerprints: list = [None] * total
-            futures = [asyncio.ensure_future(_bounded_probe(i, a)) for i, a in enumerate(live_assets)]
-
-            done_count = 0
-            for fut in asyncio.as_completed(futures):
-                idx, asset, fp = await fut
-                fingerprints[idx] = fp
-                done_count += 1
+            # Emit per-asset events so the live table populates
+            for i, fp in enumerate(fingerprints):
                 try:
                     classified = classify_trimode(fp)
                     status_val = classified.status.value if not fp.error else "ERROR"
                 except Exception:
                     status_val = "UNKNOWN"
-                pct = 15 + int(done_count / total * 77)  # 15 → 92
                 yield _sse({"type": "asset_scanned", "asset": fp.hostname, "port": fp.port,
-                            "done": done_count, "total": total, "pct": pct, "status": status_val})
+                            "done": i + 1, "total": total, "pct": 92, "status": status_val})
 
             # Phase 3 — Classify + build summary
             yield _sse({"type": "status", "phase": "classifying",
@@ -1693,7 +1687,7 @@ async def scan_stream(domain: str, request: Request, full_scan: bool = False):
                 _latest_scan = ScanSummary.model_validate(summary)
 
             _cache_pipeline_from_scan_summary(_latest_scan, mode="live", domain=domain_clean)
-            asyncio.ensure_future(
+            asyncio.create_task(
                 _ensure_latest_pipeline_result(mode="live", domain=domain_clean, force_refresh=True)
             )
 
