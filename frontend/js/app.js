@@ -1059,6 +1059,11 @@ async function scanDomainStreaming(domain, fullScan = false) {
                 es.close();
                 scanData = event.data;
                 window.scanData = scanData;
+                // The SSE payload is the raw ScanSummary (has 'results' but not 'assets').
+                // syncOverviewWithLatestScan reads payload.assets || payload.asset_scores,
+                // so alias them here so the cached value works the same as /api/scan/latest.
+                if (!scanData.assets)       scanData.assets       = scanData.results || [];
+                if (!scanData.asset_scores) scanData.asset_scores = scanData.results || [];
                 latestScanPayload = scanData;
                 latestScanKey = '/api/scan/latest';
                 _hideScanBanner();
@@ -1629,7 +1634,10 @@ function renderAssetTable(results) {
 async function syncOverviewWithLatestScan(forceRefresh = false) {
     try {
         const payload = await fetchLatestScan(forceRefresh);
-        const assets = payload.assets || payload.asset_scores || [];
+        // 'assets'/'asset_scores' are injected by /api/scan/latest but absent in the raw
+        // ScanSummary that the SSE complete event caches.  Fall back to 'results' so the
+        // post-scan syncOverview call doesn't wipe the dashboard with an empty array.
+        const assets = payload.assets || payload.asset_scores || payload.results || [];
         if (!assets.length) return;
 
         const counts = {
